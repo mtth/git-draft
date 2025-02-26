@@ -1,0 +1,34 @@
+ifndef::manversion[:manversion: 0.0.0]
+
+= git-traft(1)
+Matthieu Monsch
+v{manversion}
+:doctype: manpage
+:manmanual: GIT-DRAFT
+:mansource: GIT-DRAFT
+
+
+== Name
+
+git-draft - a git-friendly way to edit code
+
+
+== Synopsis
+
+*git-draft* _-C_ _NAME_
+
+*git-draft* _-P_
+
+*git-draft* _-A_
+
+*git-draft* _-D_
+
+
+== Description
+
+TODO
+
+
+== See also
+
+_git(1)_
