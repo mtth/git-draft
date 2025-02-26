@@ -3,13 +3,16 @@ requires = ['poetry-core']
 build-backend = 'poetry.core.masonry.api'
 
 [tool.poetry]
-name = 'draft'
+name = 'git-draft'
 version = '0.0.0' # Set programmatically
 description = 'Version-controlled code assistant'
 authors = ['Matthieu Monsch <mtth@apache.org>']
 readme = 'README.md'
 repository = 'https://github.com/mtth/draft'
-packages = [{include = 'draft', from = 'src'}]
+packages = [{include = 'git_draft', from = 'src'}]
+
+[tool.poetry.scripts]
+git-draft = 'git_draft.__main__:main'
 
 [tool.poetry.dependencies]
 python = '>=3.12,<4'

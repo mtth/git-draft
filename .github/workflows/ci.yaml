@@ -43,10 +43,8 @@ jobs:
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Set version
-        run: |
-          poetry version "${{ needs.tag.outputs.new-version }}"
+        run: poetry version "${{ needs.tag.outputs.new-version }}"
       - name: Publish
-        run: |
-          poetry publish --build
+        run: poetry publish --build
         env:
           POETRY_PYPI_TOKEN_PYPI: ${{ secrets.PYPI_TOKEN }}
