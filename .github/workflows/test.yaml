@@ -17,7 +17,7 @@ jobs:
       - name: Check out
         uses: actions/checkout@v4
       - name: Set up
-        uses: ./.github/actions/setup.yaml
+        uses: ./.github/actions/setup
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - name: Test
