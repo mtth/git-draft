@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import optparse
 
-parser = optparse.OptionParser(prog="draft")
+
+parser = optparse.OptionParser(prog="git-draft")
 
 parser.disable_interspersed_args()
 
@@ -67,15 +68,20 @@ apply_command.option_group().add_option(
 Command.register("delete", help="delete the current draft")
 
 
-(opts, args) = parser.parse_args()
-command = getattr(opts, "command", None)
-if command == "create":
-    print("Creating draft...")
-elif command == "prompt":
-    print("Updating draft...")
-elif command == "apply":
-    print("Applying draft...")
-elif command == "delete":
-    print("Deleting draft...")
-else:
-    parser.error("missing command")
+def main() -> None:
+    (opts, args) = parser.parse_args()
+    command = getattr(opts, "command", None)
+    if command == "create":
+        print("Creating draft...")
+    elif command == "prompt":
+        print("Updating draft...")
+    elif command == "apply":
+        print("Applying draft...")
+    elif command == "delete":
+        print("Deleting draft...")
+    else:
+        parser.error("missing command")
+
+
+if __name__ == '__main__':
+    main()

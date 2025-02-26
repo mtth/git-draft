@@ -1,3 +1,3 @@
-# `draft(1)`
+# `git-draft(1)`
 
 WIP
