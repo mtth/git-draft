@@ -83,5 +83,5 @@ def main() -> None:
         parser.error("missing command")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()

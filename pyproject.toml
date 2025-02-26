@@ -12,7 +12,7 @@ repository = 'https://github.com/mtth/draft'
 packages = [{include = 'git_draft', from = 'src'}]
 
 [tool.poetry.scripts]
-git-draft = 'git_draft.__main__:run'
+git-draft = 'git_draft.__main__:main'
 
 [tool.poetry.dependencies]
 python = '>=3.12,<4'
