@@ -5,17 +5,17 @@ inputs:
 runs:
   using: composite
   steps:
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.12'
-      - name: Set up poetry
-        uses: abatilo/actions-poetry@v2
-        with:
-          poetry-version: '2.1.1'
-      - name: Install dependencies
-        shell: bash
-        run: poetry install --all-extras
-      - name: Lint
-        shell: bash
-        run: poetry run poe lint
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+    - name: Set up poetry
+      uses: abatilo/actions-poetry@v2
+      with:
+        poetry-version: '2.1.1'
+    - name: Install dependencies
+      shell: bash
+      run: poetry install --all-extras
+    - name: Lint
+      shell: bash
+      run: poetry run poe lint
