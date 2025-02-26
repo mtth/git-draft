@@ -8,7 +8,7 @@ version = '0.0.0' # Set programmatically
 description = 'Version-controlled code assistant'
 authors = ['Matthieu Monsch <mtth@apache.org>']
 readme = 'README.md'
-repository = 'https://github.com/mtth/draft'
+repository = 'https://github.com/mtth/git-draft'
 packages = [{include = 'git_draft', from = 'src'}]
 
 [tool.poetry.scripts]
