@@ -19,4 +19,3 @@ jobs:
           task_types: '["build","chore","ci","deps","docs","feat","fix","perf","refactor","revert","test"]'
           add_scope_label: true
           token: ${{ secrets.GITHUB_TOKEN }}
-
