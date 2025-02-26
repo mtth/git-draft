@@ -40,9 +40,11 @@ Once the response has been received and changes, applied a commit is created (`d
 
 The prompt step can be repeated as many times as needed. Once you are satisfied with the changes, run `git draft -A` to apply them.
 This will check out the branch used when creating the draft, adding the final state of the draft to the worktree.
+Note that you can come back to an existing draft anytime (by checking its branch out), but you will not be able to apply it if its origin branch has moved since the draft was created.
 
 Finally, calling `git draft -D` will delete all drafts associated with a branch.
 By default the currently active branch is used, you can use the `-b` option to select another.
+You can also delete the drafts manually by deleting their branches using `git branch`.
 
 
 == See also
