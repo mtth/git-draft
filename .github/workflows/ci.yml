@@ -8,8 +8,12 @@ on:
 jobs:
   test:
     name: Test and maybe tag
-    timeout-minutes: 5
+    timeout-minutes: 3
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      new-version: ${{ steps.create-tag.outputs.new_version }}
     steps:
       - name: Check out
         uses: actions/checkout@v2
@@ -27,3 +31,8 @@ jobs:
         run: poetry run poe lint
       - name: Test
         run: poetry run pytest
+      - name: Create tag
+        uses: mathieudutour/github-tag-action@v6.2
+        id: create-tag
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
