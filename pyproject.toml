@@ -15,7 +15,7 @@ packages = [{include = 'draft', from = 'src'}]
 python = '>=3.12,<4'
 
 [tool.poetry.group.dev.dependencies]
-black = {version = '^22.10.0'}
+black = '^25.1.0'
 flake8 = '^7.0.0'
 flake8-pyproject = '^1.2.3'
 mypy = '^1.2.0'
