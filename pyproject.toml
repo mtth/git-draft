@@ -1,0 +1,33 @@
+[build-system]
+requires = ['poetry-core']
+build-backend = 'poetry.core.masonry.api'
+
+[tool.poetry]
+name = 'draft'
+version = '0.1.0'
+description = 'Version-controlled code assistant'
+authors = ['Matthieu Monsch <mtth@apache.org>']
+readme = 'README.md'
+repository = 'https://github.com/mtth/draft'
+packages = [{include = 'draft', from = 'src'}]
+
+[tool.poetry.dependencies]
+docopt = '^0.6.2'
+python = '>=3.12,<4'
+
+[tool.poetry.group.dev.dependencies]
+black = {version = '^22.10.0'}
+flake8 = '^7.0.0'
+mypy = '^1.2.0'
+pytest = '^7.1.2'
+types-docopt = '^0.6.11.3'
+
+[tool.black]
+line-length = 79
+include = '\.py$'
+
+[tool.mypy]
+disable_error_code = 'import-untyped'
+
+[tool.pytest.ini_options]
+log_level = 'DEBUG'
