@@ -1,0 +1,22 @@
+name: PR metadata
+on:
+  pull_request:
+    types:
+      - edited
+      - opened
+      - reopened
+      - synchronize
+jobs:
+  conventional-commit:
+    name: Check conventional commit title
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Check title
+        uses: ytanikin/pr-conventional-commits@1.4.0
+        with:
+          task_types: '["build","chore","ci","deps","docs","feat","fix","perf","refactor","revert","test"]'
+          add_scope_label: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+
