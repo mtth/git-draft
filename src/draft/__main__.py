@@ -25,9 +25,9 @@ class Command:
         )
         return command
 
-    def __init__(self, name) -> None:
+    def __init__(self, name: str) -> None:
         self.name = name
-        self._option_group = None
+        self._option_group: optparse.OptionGroup | None = None
 
     @property
     def flag(self):
