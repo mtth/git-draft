@@ -56,16 +56,23 @@ Command.register(
 )
 
 apply_command = Command.register(
-    "apply", help="apply the current draft to the original state"
+    "apply", help="apply the current draft to the original branch"
 )
 apply_command.option_group().add_option(
-    "-k",
-    "--keep",
-    help="do not delete the draft after applying",
+    "-d",
+    help="delete the draft after applying",
     action="store_true",
 )
 
-Command.register("delete", help="delete the current draft")
+delete_command = Command.register(
+    "delete", help="delete all drafts associated with a branch"
+)
+delete_command.option_group().add_option(
+    "-b",
+    help="draft source branch [default: active branch]",
+    type="string",
+    metavar="BRANCH",
+)
 
 
 def main() -> None:
