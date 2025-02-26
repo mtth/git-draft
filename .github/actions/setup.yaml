@@ -1,18 +1,10 @@
-name: PR
-on:
-  pull_request:
-    branches:
-      - main
-    paths-ignore:
-      - '**.md'
-jobs:
-  test:
-    name: Test
-    timeout-minutes: 4
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out
-        uses: actions/checkout@v2
+name: Setup
+inputs:
+  github-token:
+    required: true
+runs:
+  using: composite
+  steps:
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -22,8 +14,8 @@ jobs:
         with:
           poetry-version: '2.1.1'
       - name: Install dependencies
+        shell: bash
         run: poetry install --all-extras
       - name: Lint
+        shell: bash
         run: poetry run poe lint
-      - name: Test
-        run: poetry run pytest
