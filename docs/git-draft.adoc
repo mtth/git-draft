@@ -21,7 +21,7 @@ git-draft - git-friendly code assistant
 
 *git-draft* _-A_
 
-*git-draft* _-D_ _[BRANCH]_
+*git-draft* _-D_ _[-b BRANCH]_
 
 
 == Description
@@ -31,7 +31,7 @@ _git-draft_ is a git-centric way to edit code using AI.
 === How it works
 
 When you create a new draft with `git draft -C $name`, a new branch called `$branch/drafts/$name-$hash` is created (`$hash` is a random suffix used to guarantee uniqueness of branch names) and checked out.
-Additionally, any uncommitted changes are automatically committed (`draft! sync`).draft
+Additionally, any uncommitted changes are automatically committed (`draft! sync`).
 
 Once the draft is created, we can use AI to edit our code using `git draft -P`.
 It expects the prompt as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft -P`.
@@ -41,7 +41,8 @@ Once the response has been received and changes, applied a commit is created (`d
 The prompt step can be repeated as many times as needed. Once you are satisfied with the changes, run `git draft -A` to apply them.
 This will check out the branch used when creating the draft, adding the final state of the draft to the worktree.
 
-
+Finally, calling `git draft -D` will delete all drafts associated with a branch.
+By default the currently active branch is used, you can use the `-b` option to select another.
 
 
 == See also
