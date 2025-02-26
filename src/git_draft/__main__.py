@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import optparse
 
+from . import create_draft
+
 
 parser = optparse.OptionParser(prog="git-draft")
 
@@ -79,7 +81,8 @@ def main() -> None:
     (opts, args) = parser.parse_args()
     command = getattr(opts, "command", None)
     if command == "create":
-        print("Creating draft...")
+        name = opts.command_args
+        create_draft(name)
     elif command == "prompt":
         print("Updating draft...")
     elif command == "apply":
