@@ -33,7 +33,7 @@ _git-draft_ is a git-centric way to edit code using AI.
 When you create a new draft with `git draft -C $name`, a new branch called `$branch/drafts/$name-$hash` is created (`$hash` is a random suffix used to guarantee uniqueness of branch names) and checked out.
 Additionally, any uncommitted changes are automatically committed (`draft! sync`).
 
-Once the draft is created, we can use AI to edit our code using `git draft -P`.
+Once the draft is created, we can use AI to edit our code using `git draft -E`.
 It expects the prompt as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft -P`.
 The prompt will automatically get augmented with information about the files in the repository, and give the AI access to tools for reading and writing files.
 Once the response has been received and changes, applied a commit is created (`draft! prompt: a short summary of the change`).
