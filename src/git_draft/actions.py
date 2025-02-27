@@ -70,12 +70,15 @@ class _Toolbox:
         self._repo = repo
 
     def list_files(self) -> Sequence[PurePosixPath]:
+        # Show staged files.
         return self._repo.git.ls_files()
 
     def read_file(self, path: PurePosixPath) -> str:
+        # Read the file from the index.
         return self._repo.git.show(f":{path}")
 
     def write_file(self, path: PurePosixPath, data: str) -> None:
+        # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
             temp.write(data.encode("utf8"))
