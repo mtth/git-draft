@@ -5,6 +5,7 @@ import git
 import random
 import re
 import string
+from typing import Match
 
 
 def _enclosing_repo() -> git.Repo:
@@ -13,59 +14,55 @@ def _enclosing_repo() -> git.Repo:
 
 _random = random.Random()
 
-_SUFFIX_LENGTH = 6
+_SUFFIX_LENGTH = 8
 
-_name_pattern = re.compile(r"\w+", re.ASCII)
-
-_branch_pattern = re.compile("drafts/(.+)/(\w+)-(\w+)", re.ASCII)
+_branch_name_pattern = re.compile(r"drafts/(.+)/(\w+)")
 
 
 @dataclasses.dataclass(frozen=True)
 class _DraftBranch:
     parent: str
-    name: str
     suffix: str
+    repo: git.Repo
 
     def __str__(self) -> str:
-        return f"drafts/{self.parent}/{self.name}-{self.suffix}"
+        return f"drafts/{self.parent}/{self.suffix}"
 
     @classmethod
-    def named(cls, name: str, parent: str) -> _DraftBranch:
-        if not _name_pattern.fullmatch(name):
-            raise ValueError(f"Invalid draft name: {name}")
+    def create(cls, repo: git.Repo) -> _DraftBranch:
+        if not repo.active_branch:
+            raise RuntimeError("No currently active branch")
         suffix = "".join(
             _random.choice(string.ascii_lowercase + string.digits)
             for _ in range(_SUFFIX_LENGTH)
         )
-        return cls(parent, name, suffix)
+        return cls(repo.active_branch.name, suffix, repo)
 
     @classmethod
     def active(cls, repo: git.Repo) -> _DraftBranch:
-        branch: _DraftBranch | None = None
+        match: Match | None = None
         if repo.active_branch:
-            branch = cls.from_string(repo.active_branch.name)
-        if not branch:
-            raise ValueError("Not currently on a draft branch")
-        return branch
-
-    @classmethod
-    def from_string(cls, s: str) -> _DraftBranch | None:
-        match = _branch_pattern.fullmatch(s)
+            match = _branch_name_pattern.fullmatch(repo.active_branch.name)
         if not match:
-            return None
-        return _DraftBranch(match[1], match[2], match[3])
+            raise RuntimeError("Not currently on a draft branch")
+        return _DraftBranch(match[1], match[2], repo)
 
 
-def create_draft(name: str) -> None:
+@dataclasses.dataclass(frozen=True)
+class _CommitNotes:
+    pass
+
+
+def create_draft() -> None:
     repo = _enclosing_repo()
-    draft_branch = _DraftBranch.named(name, repo.active_branch.name)
+    draft_branch = _DraftBranch.create(repo)
     ref = repo.create_head(str(draft_branch))
     repo.git.checkout(ref)
 
 
 def extend_draft(prompt: str) -> None:
     repo = _enclosing_repo()
-    branch = _DraftBranch.active(repo)
+    _ = _DraftBranch.active(repo)
 
     if repo.is_dirty():
         repo.git.add(all=True)
@@ -79,10 +76,26 @@ def extend_draft(prompt: str) -> None:
     # Add files to index.
     import random
 
-    name = f"foo-{random.randint(1,100)}"
+    name = f"foo-{random.randint(1, 100)}"
     with open(name, "w") as writer:
         writer.write("hi")
     repo.git.hash_object("-w", name)
     repo.git.update_index("--add", "--info-only", name)
 
     repo.index.commit(f"draft! prompt: {prompt}")
+
+
+def apply_draft(delete=False) -> None:
+    repo = _enclosing_repo()
+    branch = _DraftBranch.active(repo)
+
+    # TODO: Check that parent has not moved. We could do this for example by
+    # adding a note to the draft branch with the original branch's commit ref.
+
+    # https://stackoverflow.com/a/15993574
+    repo.git.checkout("--detach")
+    repo.git.reset("--soft", branch.parent)
+    repo.git.checkout(branch.parent)
+
+    if delete:
+        repo.git.branch("-D", str(branch))

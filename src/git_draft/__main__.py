@@ -3,7 +3,7 @@ from __future__ import annotations
 import optparse
 import sys
 
-from . import create_draft, extend_draft
+from . import apply_draft, create_draft, extend_draft
 
 
 parser = optparse.OptionParser(prog="git-draft")
@@ -45,14 +45,11 @@ class Command:
             parser.add_option_group(self._option_group)
         return self._option_group
 
-    def __call__(self, _option, _opt, value, parser, name) -> None:
+    def __call__(self, _option, _opt, _value, parser, name) -> None:
         parser.values.command = name
-        parser.values.command_args = value
 
 
-Command.register(
-    "create", help="create a draft", type="string", metavar="NAME"
-)
+Command.register("create", help="create a draft")
 
 Command.register(
     "extend", help="read a prompt from stdin to add to the current draft"
@@ -82,13 +79,12 @@ def main() -> None:
     (opts, args) = parser.parse_args()
     command = getattr(opts, "command", None)
     if command == "create":
-        name = opts.command_args
-        create_draft(name)
+        create_draft()
     elif command == "extend":
         prompt = sys.stdin.read()
         extend_draft(prompt)
     elif command == "apply":
-        print("Applying draft...")
+        apply_draft()
     elif command == "delete":
         print("Deleting draft...")
     else:

@@ -15,7 +15,7 @@ git-draft - git-friendly code assistant
 
 == Synopsis
 
-*git-draft* _-C_ _NAME_
+*git-draft* _-C_
 
 *git-draft* _-P_
 
