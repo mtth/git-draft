@@ -98,7 +98,7 @@ def extend_draft(prompt: str) -> None:
         repo.git.add(all=True)
         repo.index.commit("draft! sync")
 
-    NewFileBackend().run(_Toolbox(repo))
+    NewFileBackend().run(prompt, _Toolbox(repo))
 
 
 def apply_draft(delete=False) -> None:
