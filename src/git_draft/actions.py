@@ -80,8 +80,11 @@ class _Toolbox:
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
             temp.write(data.encode("utf8"))
             temp.close()
-            self._repo.git.hash_object("-w", "--path", path, temp.name)
-            self._repo.git.update_index("--add", "--info-only", path)
+            sha = self._repo.git.hash_object("-w", "--path", path, temp.name)
+            mode = 644  # TODO: Read from original file if it exists.
+            self._repo.git.update_index(
+                "--add", "--cacheinfo", f"{mode},{sha},{path}"
+            )
 
 
 def extend_draft(prompt: str) -> None:
