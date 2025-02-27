@@ -3,9 +3,13 @@ from __future__ import annotations
 import dataclasses
 import git
 import random
+from pathlib import PurePosixPath
 import re
 import string
-from typing import Match
+import tempfile
+from typing import Match, Sequence
+
+from .backend import NewFileBackend
 
 
 def _enclosing_repo() -> git.Repo:
@@ -50,6 +54,7 @@ class _DraftBranch:
 
 @dataclasses.dataclass(frozen=True)
 class _CommitNotes:
+    # https://stackoverflow.com/a/40496777
     pass
 
 
@@ -60,6 +65,25 @@ def create_draft() -> None:
     repo.git.checkout(ref)
 
 
+class _Toolbox:
+    def __init__(self, repo: git.Repo) -> None:
+        self._repo = repo
+
+    def list_files(self) -> Sequence[PurePosixPath]:
+        return self._repo.git.ls_files()
+
+    def read_file(self, path: PurePosixPath) -> str:
+        return self._repo.git.show(f":{path}")
+
+    def write_file(self, path: PurePosixPath, data: str) -> None:
+        # https://stackoverflow.com/a/25352119
+        with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
+            temp.write(data.encode("utf8"))
+            temp.close()
+            self._repo.git.hash_object("-w", "--path", path, temp.name)
+            self._repo.git.update_index("--add", "--info-only", path)
+
+
 def extend_draft(prompt: str) -> None:
     repo = _enclosing_repo()
     _ = _DraftBranch.active(repo)
@@ -68,21 +92,7 @@ def extend_draft(prompt: str) -> None:
         repo.git.add(all=True)
         repo.index.commit("draft! sync")
 
-    # send request to backend...
-    import time
-
-    time.sleep(2)
-
-    # Add files to index.
-    import random
-
-    name = f"foo-{random.randint(1, 100)}"
-    with open(name, "w") as writer:
-        writer.write("hi")
-    repo.git.hash_object("-w", name)
-    repo.git.update_index("--add", "--info-only", name)
-
-    repo.index.commit(f"draft! prompt: {prompt}")
+    NewFileBackend().run(_Toolbox(repo))
 
 
 def apply_draft(delete=False) -> None:
