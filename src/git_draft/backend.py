@@ -24,31 +24,15 @@ class BackendCall:
 
 
 class Backend:
-    def call(self, prompt: str, toolbox: Toolbox) -> BackendRun:
-        raise NotImplementedError()
-
-
-class NewFileBackend(Backend):
     def run(self, prompt: str, toolbox: Toolbox) -> BackendRun:
-        # send request to backend...
-        import time
-
-        time.sleep(2)
-
-        # Add files to index.
-        import random
-
-        name = f"foo-{random.randint(1, 100)}"
-        toolbox.write_file(PurePosixPath(name), prompt)
-
-        return BackendRun(0, [])
+        raise NotImplementedError()
 
 
 class OpenAIBackend(Backend):
     def __init__(self) -> None:
         self._client = openai.OpenAI()
 
-    def call(self, prompt: str, toolbox: Toolbox) -> BackendRun:
+    def run(self, prompt: str, toolbox: Toolbox) -> BackendRun:
         completion = self._client.chat.completions.create(
             messages=[
                 {"role": "user", "content": prompt},

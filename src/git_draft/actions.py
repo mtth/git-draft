@@ -9,7 +9,7 @@ import string
 import tempfile
 from typing import Match, Sequence
 
-from .backend import NewFileBackend
+from .backend import OpenAIBackend
 
 
 def _enclosing_repo() -> git.Repo:
@@ -98,7 +98,9 @@ def extend_draft(prompt: str) -> None:
         repo.git.add(all=True)
         repo.index.commit("draft! sync")
 
-    NewFileBackend().run(prompt, _Toolbox(repo))
+    OpenAIBackend().run(prompt, _Toolbox(repo))
+
+    repo.index.commit(f"draft! prompt\n\n{prompt}")
 
 
 def apply_draft(delete=False) -> None:
