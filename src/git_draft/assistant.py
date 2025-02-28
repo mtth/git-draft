@@ -14,18 +14,18 @@ class Toolbox(Protocol):
 
 
 @dataclasses.dataclass(frozen=True)
-class BackendRun:
+class Session:
     token_count: int
-    calls: list[BackendCall]
+    calls: list[Call]
 
 
 @dataclasses.dataclass(frozen=True)
-class BackendCall:
+class Call:
     usage: openai.types.CompletionUsage | None
 
 
-class Backend:
-    def run(self, prompt: str, toolbox: Toolbox) -> BackendRun:
+class Assistant:
+    def run(self, prompt: str, toolbox: Toolbox) -> Session:
         raise NotImplementedError()
 
 
@@ -38,11 +38,11 @@ _SYSTEM_PROMPT = textwrap.dedent(
 )
 
 
-class OpenAIBackend(Backend):
+class OpenAIAssistant(Assistant):
     def __init__(self) -> None:
         self._client = openai.OpenAI()
 
-    def run(self, prompt: str, toolbox: Toolbox) -> BackendRun:
+    def run(self, prompt: str, toolbox: Toolbox) -> Session:
         # TODO: Switch to the thread run API, using tools to leverage toolbox
         # methods.
         # https://platform.openai.com/docs/assistants/deep-dive#runs-and-run-steps
@@ -56,4 +56,4 @@ class OpenAIBackend(Backend):
         )
         content = completion.choices[0].message.content or ""
         toolbox.write_file(PurePosixPath(f"{completion.id}.txt"), content)
-        return BackendRun(0, calls=[BackendCall(completion.usage)])
+        return Session(0, calls=[Call(completion.usage)])

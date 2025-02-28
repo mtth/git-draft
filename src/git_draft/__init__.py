@@ -1,7 +1,9 @@
-from .actions import apply_draft, create_draft, extend_draft
+from .assistant import Assistant, OpenAIAssistant
+from .manager import Manager, enclosing_repo
 
 __all__ = [
-    "apply_draft",
-    "create_draft",
-    "extend_draft",
+    "Assistant",
+    "OpenAIAssistant",
+    "Manager",
+    "enclosing_repo",
 ]
