@@ -204,7 +204,6 @@ class Manager:
             raise RuntimeError("Not currently on a draft branch")
         if not apply and branch.needs_rebase(self._repo):
             raise ValueError("Parent branch has moved, please rebase")
-
         note = branch.init_note
 
         # We do a small dance to move back to the original branch, keeping the

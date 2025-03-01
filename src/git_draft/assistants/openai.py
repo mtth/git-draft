@@ -12,7 +12,6 @@ _logger = logging.getLogger(__name__)
 
 
 def _function_tool_param(
-    *,
     name: str,
     description: str,
     inputs: Mapping[str, Any] | None = None,
@@ -95,6 +94,7 @@ class OpenAIAssistant(Assistant):
         self._client = openai.OpenAI()
 
     def run(self, prompt: str, toolbox: Toolbox) -> Session:
+        # TODO: Reuse assistant.
         assistant = self._client.beta.assistants.create(
             instructions=_INSTRUCTIONS,
             model="gpt-4o",
