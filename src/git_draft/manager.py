@@ -16,11 +16,6 @@ from .assistants import Assistant, Toolbox
 _logger = logging.getLogger(__name__)
 
 
-def enclosing_repo(path: str | None = None) -> git.Repo:
-    """Returns the repository to which the given path belongs"""
-    return git.Repo(path, search_parent_directories=True)
-
-
 class _Note:
     """Structured metadata attached to a commit"""
 
@@ -157,6 +152,10 @@ class Manager:
     def __init__(self, repo: git.Repo) -> None:
         self._repo = repo
 
+    @classmethod
+    def enclosing(cls, path: str | None = None) -> Manager:
+        return cls(git.Repo(path, search_parent_directories=True))
+
     def generate_draft(
         self, prompt: str, assistant: Assistant, checkout=False, reset=False
     ) -> None:
@@ -206,15 +205,17 @@ class Manager:
         if not apply and branch.needs_rebase(self._repo):
             raise ValueError("Parent branch has moved, please rebase")
 
-        # https://stackoverflow.com/a/15993574
         note = branch.init_note
+        # https://stackoverflow.com/a/15993574
         self._repo.git.checkout("--detach")
         if apply:
-            # We discard index (internal) changes
+            # We discard index (internal) changes.
             self._repo.git.reset(note.origin_branch)
+            self._repo.git.checkout(note.origin_branch)
         else:
-            self._repo.git.reset("--hard", note.sync_sha or note.origin_branch)
-        self._repo.git.checkout(note.origin_branch)
+            self._repo.git.reset("--hard", note.origin_branch)
+            if note.sync_sha:
+                self._repo.git.checkout(note.sync_sha, "--", ".")
 
         if delete:
             self._repo.git.branch("-D", branch.name)
