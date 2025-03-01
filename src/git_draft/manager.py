@@ -153,7 +153,6 @@ class Manager:
         if branch:
             self._sync()
         else:
-            sync_sha = self._sync()
             branch = _Branch.create(self._repo, self._sync)
 
         assistant.run(prompt, _Toolbox(self._repo))
