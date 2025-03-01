@@ -1,5 +1,5 @@
 import openai
-from pathlib import PurePosixPath
+from typing import Any, Mapping, Sequence, override
 
 from .common import Assistant, Session, Toolbox
 
@@ -10,45 +10,57 @@ _INSTRUCTIONS = """\
     You are an expert software engineer, who writes correct and concise code.
 """
 
+
+def _function_tool_param(
+    *,
+    name: str,
+    description: str,
+    inputs: Mapping[str, Any],
+    required_inputs: Sequence[str],
+) -> openai.types.beta.FunctionToolParam:
+    return {
+        "type": "function",
+        "function": {
+            "name": name,
+            "description": description,
+            "parameters": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": inputs,
+                "required": required_inputs,
+            },
+            "strict": True,
+        },
+    }
+
+
 _tools = [  # TODO
-    {
-        "type": "function",
-        "function": {
-            "name": "read_file",
-            "description": "Get a file's contents",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path of the file to be read",
-                    },
-                },
-                "required": ["path"],
+    _function_tool_param(
+        name="read_file",
+        description="Get a file's contents",
+        inputs={
+            "path": {
+                "type": "string",
+                "description": "Path of the file to be read",
             },
         },
-    },
-    {
-        "type": "function",
-        "function": {
-            "name": "write_file",
-            "description": "Update a file's contents",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "path": {
-                        "type": "string",
-                        "description": "Path of the file to be updated",
-                    },
-                    "contents": {
-                        "type": "string",
-                        "description": "New contents of the file",
-                    },
-                },
-                "required": ["path", "contents"],
+        required_inputs=["path"],
+    ),
+    _function_tool_param(
+        name="write_file",
+        description="Update a file's contents",
+        inputs={
+            "path": {
+                "type": "string",
+                "description": "Path of the file to be updated",
+            },
+            "contents": {
+                "type": "string",
+                "description": "New contents of the file",
             },
         },
-    },
+        required_inputs=["path", "contents"],
+    ),
 ]
 
 
@@ -66,26 +78,62 @@ class OpenAIAssistant(Assistant):
         self._client = openai.OpenAI()
 
     def run(self, prompt: str, toolbox: Toolbox) -> Session:
-        # TODO: Switch to the thread run API, using tools to leverage toolbox
-        # methods.
-        # assistant = client.beta.assistants.create(
-        #     instructions=_INSTRUCTIONS,
-        #     model="gpt-4o",
-        #     tools=_tools,
-        # )
-        # thread = client.beta.threads.create()
-        # message = client.beta.threads.messages.create(
-        #     thread_id=thread.id,
-        #     role="user",
-        #     content="What's the weather in San Francisco today and the likelihood it'll rain?",
-        # )
-        completion = self._client.chat.completions.create(
-            messages=[
-                {"role": "system", "content": _INSTRUCTIONS},
-                {"role": "user", "content": prompt},
-            ],
+        assistant = self._client.beta.assistants.create(
+            instructions=_INSTRUCTIONS,
             model="gpt-4o",
+            tools=_tools,
         )
-        content = completion.choices[0].message.content or ""
-        toolbox.write_file(PurePosixPath(f"{completion.id}.txt"), content)
+        thread = self._client.beta.threads.create()
+
+        message = self._client.beta.threads.messages.create(
+            thread_id=thread.id,
+            role="user",
+            content=prompt,
+        )
+        print(message)
+
+        with self._client.beta.threads.runs.stream(
+            thread_id=thread.id,
+            assistant_id=assistant.id,
+            event_handler=_EventHandler(self._client, toolbox),
+        ) as stream:
+            stream.until_done()
+
         return Session(0)
+
+
+class _EventHandler(openai.AssistantEventHandler):
+    def __init__(self, client: openai.Client, toolbox: Toolbox) -> None:
+        self._client = client
+        self._toolbox = toolbox
+
+    @override
+    def on_event(self, event: Any) -> None:
+        if event.event == "thread.run.requires_action":
+            run_id = event.data.id  # Retrieve the run ID from the event data
+            self._handle_action(event.data, run_id)
+        # TODO: Handle (log?) other events.
+
+    def _handle_action(self, run_id: str, data: Any) -> None:
+        tool_outputs = list[Any]()
+        for tool in data.required_action.submit_tool_outputs.tool_calls:
+            print(tool)
+            if tool.function.name == "read_file":
+                raise NotImplementedError()  # TODO
+                output = self._toolbox.read_file(tool)
+                tool_outputs.append(
+                    {"tool_call_id": tool.id, "output": output}
+                )
+            elif tool.function.name == "write_file":
+                raise NotImplementedError()  # TODO
+                tool_outputs.append({"tool_call_id": tool.id, "output": "OK"})
+
+        run = self.current_run
+        assert run, "No ongoing run"
+        with self._client.beta.threads.runs.submit_tool_outputs_stream(
+            thread_id=run.thread_id,
+            run_id=run.id,
+            tool_outputs=tool_outputs,
+            event_handler=self,
+        ) as stream:
+            stream.until_done()
