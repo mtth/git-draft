@@ -5,7 +5,9 @@ import optparse
 import sys
 import textwrap
 
-from . import Manager, OpenAIAssistant, enclosing_repo, open_editor
+from .assistants import load_assistant
+from .common import open_editor
+from .manager import Manager, enclosing_repo
 
 
 EPILOG = """\
@@ -40,6 +42,12 @@ add_command("finalize", help="apply the current draft to the original branch")
 add_command("generate", help="draft a new change from a prompt")
 
 parser.add_option(
+    "-a",
+    "--assistant",
+    dest="ASSISTANT",
+    help="assistant key",
+)
+parser.add_option(
     "-d",
     "--delete",
     help="delete the draft after finalizing or discarding",
@@ -65,20 +73,21 @@ EDITOR_PLACEHOLDER = """\
 
 
 def main() -> None:
-    (opts, args) = parser.parse_args()
+    (opts, _args) = parser.parse_args()
 
     repo = enclosing_repo()
     manager = Manager(repo)
 
     command = getattr(opts, "command", "generate")
     if command == "generate":
+        assistant = load_assistant(opts.assistant, {})
         prompt = opts.prompt
         if not prompt:
             if sys.stdin.isatty():
                 prompt = open_editor(textwrap.dedent(EDITOR_PLACEHOLDER))
             else:
                 prompt = sys.stdin.read()
-        manager.generate_draft(prompt, OpenAIAssistant(), reset=opts.reset)
+        manager.generate_draft(prompt, assistant, reset=opts.reset)
     elif command == "finalize":
         manager.finalize_draft(delete=opts.delete)
     elif command == "discard":

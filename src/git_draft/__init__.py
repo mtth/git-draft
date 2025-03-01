@@ -1,11 +1,7 @@
-from .assistant import Assistant, OpenAIAssistant
-from .common import open_editor
-from .manager import Manager, enclosing_repo
+from .assistants import Assistant, Session, Toolbox
 
 __all__ = [
     "Assistant",
-    "OpenAIAssistant",
-    "Manager",
-    "enclosing_repo",
-    "open_editor",
+    "Session",
+    "Toolbox",
 ]
