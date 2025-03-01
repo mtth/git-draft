@@ -2,6 +2,7 @@ import json
 import logging
 import openai
 from pathlib import PurePosixPath
+import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
 from .common import Assistant, Session, Toolbox
@@ -21,7 +22,7 @@ def _function_tool_param(
         "type": "function",
         "function": {
             "name": name,
-            "description": description,
+            "description": textwrap.dedent(description),
             "parameters": {
                 "type": "object",
                 "additionalProperties": False,
@@ -51,7 +52,11 @@ _tools = [
     ),
     _function_tool_param(
         name="write_file",
-        description="Update a file's contents",
+        description="""\
+            Set a file's contents
+
+            The file will be created if it does not already exist.
+        """,
         inputs={
             "path": {
                 "type": "string",
@@ -136,7 +141,7 @@ class _EventHandler(openai.AssistantEventHandler):
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             name = tool.function.name
             inputs = json.loads(tool.function.arguments)
-            _logger.debug("Requested tool: %s", tool)
+            _logger.info("Requested tool: %s", tool)
             if name == "read_file":
                 path = PurePosixPath(inputs["path"])
                 output = self._toolbox.read_file(path)
