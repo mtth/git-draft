@@ -95,10 +95,7 @@ def main() -> None:
             else:
                 prompt = sys.stdin.read()
         manager.generate_draft(
-            prompt,
-            assistant,
-            checkout=opts.checkout,
-            reset=opts.reset
+            prompt, assistant, checkout=opts.checkout, reset=opts.reset
         )
     elif command == "finalize":
         manager.finalize_draft(delete=opts.delete)
