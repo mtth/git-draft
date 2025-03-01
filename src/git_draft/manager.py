@@ -78,7 +78,7 @@ class _Branch:
         init_commit = repo.commit(self.init_shortsha)
         (origin_commit,) = init_commit.parents
         head_commit = repo.commit(self.init_note.origin_branch)
-        return origin_commit == head_commit
+        return origin_commit != head_commit
 
     @classmethod
     def create(cls, repo: git.Repo, sync: Callable[[], str | None]) -> _Branch:
@@ -148,7 +148,7 @@ class Manager:
         self._repo = repo
 
     def generate_draft(
-        self, prompt: str, assistant: Assistant, reset=False
+        self, prompt: str, assistant: Assistant, checkout=False, reset=False
     ) -> None:
         if not prompt.strip():
             raise ValueError("Empty prompt")
@@ -165,6 +165,8 @@ class Manager:
 
         assistant.run(prompt, _Toolbox(self._repo))
         self._repo.index.commit(f"draft! prompt\n\n{prompt}")
+        if checkout:
+            self._repo.git.checkout("--", ".")
 
     def finalize_draft(self, delete=False) -> None:
         self._exit_draft(True, delete=delete)

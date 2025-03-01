@@ -44,8 +44,15 @@ add_command("generate", help="draft a new change from a prompt")
 parser.add_option(
     "-a",
     "--assistant",
-    dest="ASSISTANT",
+    dest="assistant",
     help="assistant key",
+    default="openai",
+)
+parser.add_option(
+    "-c",
+    "--checkout",
+    help="check out generated changes",
+    action="store_true",
 )
 parser.add_option(
     "-d",
@@ -87,7 +94,9 @@ def main() -> None:
                 prompt = open_editor(textwrap.dedent(EDITOR_PLACEHOLDER))
             else:
                 prompt = sys.stdin.read()
-        manager.generate_draft(prompt, assistant, reset=opts.reset)
+        manager.generate_draft(
+            prompt, assistant, checkout=opts.checkout, reset=opts.reset
+        )
     elif command == "finalize":
         manager.finalize_draft(delete=opts.delete)
     elif command == "discard":
