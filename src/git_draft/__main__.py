@@ -1,94 +1,90 @@
 from __future__ import annotations
 
+import importlib.metadata
 import optparse
 import sys
+import textwrap
 
-from . import apply_draft, create_draft, extend_draft
+from . import Manager, OpenAIAssistant, enclosing_repo, open_editor
 
 
-parser = optparse.OptionParser(prog="git-draft")
+EPILOG = """\
+    More information via `man git-draft` and https://mtth.github.io/git-draft.
+"""
+
+
+parser = optparse.OptionParser(
+    prog="git-draft",
+    epilog=textwrap.dedent(EPILOG),
+    version=importlib.metadata.version("git_draft"),
+)
 
 parser.disable_interspersed_args()
 
-command_group = optparse.OptionGroup(
-    parser, "Commands", "exactly one command must be specified"
-)
-parser.add_option_group(command_group)
 
-
-class Command:
-    @classmethod
-    def register(cls, name: str, **kwargs) -> Command:
-        command = cls(name)
-        command_group.add_option(
-            command.flag,
-            action="callback",
-            callback=command,
-            callback_args=(name,),
-            **kwargs,
-        )
-        return command
-
-    def __init__(self, name: str) -> None:
-        self.name = name
-        self._option_group: optparse.OptionGroup | None = None
-
-    @property
-    def flag(self):
-        return f"-{self.name[0].upper()}"
-
-    def option_group(self) -> optparse.OptionGroup:
-        if not self._option_group:
-            self._option_group = optparse.OptionGroup(
-                parser, f"Optional {self.flag} flags"
-            )
-            parser.add_option_group(self._option_group)
-        return self._option_group
-
-    def __call__(self, _option, _opt, _value, parser, name) -> None:
+def add_command(name: str, **kwargs) -> None:
+    def callback(_option, _opt, _value, parser) -> None:
         parser.values.command = name
 
+    parser.add_option(
+        f"-{name[0].upper()}",
+        f"--{name}",
+        action="callback",
+        callback=callback,
+        **kwargs,
+    )
 
-Command.register("create", help="create a draft")
 
-Command.register(
-    "extend", help="read a prompt from stdin to add to the current draft"
-)
+add_command("discard", help="discard all drafts associated with a branch")
+add_command("finalize", help="apply the current draft to the original branch")
+add_command("generate", help="draft a new change from a prompt")
 
-apply_command = Command.register(
-    "apply", help="apply the current draft to the original branch"
-)
-apply_command.option_group().add_option(
+parser.add_option(
     "-d",
-    help="delete the draft after applying",
+    "--delete",
+    help="delete the draft after finalizing or discarding",
+    action="store_true",
+)
+parser.add_option(
+    "-p",
+    "--prompt",
+    dest="prompt",
+    help="draft generation prompt, read from stdin if unset",
+)
+parser.add_option(
+    "-r",
+    "--reset",
+    help="reset index before generating a new draft",
     action="store_true",
 )
 
-delete_command = Command.register(
-    "delete", help="delete all drafts associated with a branch"
-)
-delete_command.option_group().add_option(
-    "-b",
-    help="draft source branch [default: active branch]",
-    type="string",
-    metavar="BRANCH",
-)
+
+EDITOR_PLACEHOLDER = """\
+    Enter your prompt here...
+"""
 
 
 def main() -> None:
     (opts, args) = parser.parse_args()
-    command = getattr(opts, "command", None)
-    if command == "create":
-        create_draft()
-    elif command == "extend":
-        prompt = sys.stdin.read()
-        extend_draft(prompt)
-    elif command == "apply":
-        apply_draft()
-    elif command == "delete":
-        print("Deleting draft...")
+
+    repo = enclosing_repo()
+    manager = Manager(repo)
+
+    command = getattr(opts, "command", "generate")
+    if command == "generate":
+        prompt = opts.prompt
+        if not prompt:
+            if sys.stdin.isatty():
+                prompt = open_editor(textwrap.dedent(EDITOR_PLACEHOLDER))
+            else:
+                prompt = sys.stdin.read()
+        manager.generate_draft(prompt, OpenAIAssistant(), reset=opts.reset)
+    elif command == "finalize":
+        manager.finalize_draft(delete=opts.delete)
+    elif command == "discard":
+        manager.discard_draft(delete=opts.delete)
     else:
-        parser.error("missing command")
+        assert False, "unreachable"
 
 
 if __name__ == "__main__":
