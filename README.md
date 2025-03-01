@@ -1,13 +1,9 @@
 # `git-draft(1)`
 
-WIP
+> [!NOTE]
+> WIP: Not quite functional yet.
 
-TODO:
-
-* Open `$EDITOR` when `-G` is used and stdin is a TTY.
-
-
-Highlights:
+## Highlights
 
 * Concurrent editing. Continue editing while the assistant runs, without any
   risks of interference.
