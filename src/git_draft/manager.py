@@ -142,7 +142,7 @@ class Manager:
     def generate_draft(
         self, prompt: str, assistant: Assistant, reset=False
     ) -> None:
-        if not prompt:
+        if not prompt.strip():
             raise ValueError("Empty prompt")
         if self._repo.is_dirty(working_tree=False):
             if not reset:

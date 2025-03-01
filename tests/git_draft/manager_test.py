@@ -12,7 +12,7 @@ import git_draft.manager as sut
 @pytest.fixture
 def repo() -> Iterator[git.Repo]:
     with tempfile.TemporaryDirectory() as name:
-        repo = git.Repo.init(name)
+        repo = git.Repo.init(name, initial_branch="main")
         repo.index.commit("init")
         yield repo
 
