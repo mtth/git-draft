@@ -8,7 +8,7 @@ import textwrap
 
 from .assistants import load_assistant
 from .common import open_editor
-from .manager import Manager, enclosing_repo
+from .manager import Manager
 
 
 logging.basicConfig(level=logging.INFO)
@@ -86,8 +86,7 @@ EDITOR_PLACEHOLDER = """\
 def main() -> None:
     (opts, _args) = parser.parse_args()
 
-    repo = enclosing_repo()
-    manager = Manager(repo)
+    manager = Manager.enclosing()
 
     command = getattr(opts, "command", "generate")
     if command == "generate":
