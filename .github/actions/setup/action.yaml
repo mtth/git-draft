@@ -19,3 +19,8 @@ runs:
     - name: Lint
       shell: bash
       run: poetry run poe lint
+    - name: Set up git config
+      shell: bash
+      run: |
+        git config --global user.email test+git-draft@mtth.io
+        git config --global user.name tester
