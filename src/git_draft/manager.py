@@ -11,8 +11,9 @@ from typing import ClassVar, Match, Self, Sequence
 from .assistant import Assistant
 
 
-def enclosing_repo() -> git.Repo:
-    return git.Repo(search_parent_directories=True)
+def enclosing_repo(path: str | None = None) -> git.Repo:
+    """Returns the repository to which the given path belongs"""
+    return git.Repo(path, search_parent_directories=True)
 
 
 class _Note:
@@ -143,7 +144,7 @@ class Manager:
     ) -> None:
         if not prompt:
             raise ValueError("Empty prompt")
-        if self._repo.index.entries:
+        if self._repo.is_dirty(working_tree=False):
             if not reset:
                 raise ValueError("Please commit or reset any staged changes")
             self._repo.index.reset()
@@ -165,7 +166,7 @@ class Manager:
         self._exit_draft(False, delete=delete)
 
     def _sync(self) -> str | None:
-        if not self._repo.is_dirty():
+        if not self._repo.is_dirty(untracked_files=True):
             return None
         self._repo.git.add(all=True)
         ref = self._repo.index.commit("draft! sync")
