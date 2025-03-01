@@ -14,39 +14,38 @@ _tools = [  # TODO
     {
         "type": "function",
         "function": {
-            "name": "get_current_temperature",
-            "description": "Get the current temperature for a specific location",
+            "name": "read_file",
+            "description": "Get a file's contents",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "location": {
+                    "path": {
                         "type": "string",
-                        "description": "The city and state, e.g., San Francisco, CA",
-                    },
-                    "unit": {
-                        "type": "string",
-                        "enum": ["Celsius", "Fahrenheit"],
-                        "description": "The temperature unit to use. Infer this from the user's location.",
+                        "description": "Path of the file to be read",
                     },
                 },
-                "required": ["location", "unit"],
+                "required": ["path"],
             },
         },
     },
     {
         "type": "function",
         "function": {
-            "name": "get_rain_probability",
-            "description": "Get the probability of rain for a specific location",
+            "name": "write_file",
+            "description": "Update a file's contents",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "location": {
+                    "path": {
                         "type": "string",
-                        "description": "The city and state, e.g., San Francisco, CA",
-                    }
+                        "description": "Path of the file to be updated",
+                    },
+                    "contents": {
+                        "type": "string",
+                        "description": "New contents of the file",
+                    },
                 },
-                "required": ["location"],
+                "required": ["path", "contents"],
             },
         },
     },
