@@ -5,7 +5,7 @@ import optparse
 import sys
 import textwrap
 
-from . import Manager, OpenAIAssistant, enclosing_repo
+from . import Manager, OpenAIAssistant, enclosing_repo, open_editor
 
 
 EPILOG = """\
@@ -37,7 +37,7 @@ def add_command(name: str, **kwargs) -> None:
 
 add_command("discard", help="discard all drafts associated with a branch")
 add_command("finalize", help="apply the current draft to the original branch")
-add_command("generate", help="draft a change from a prompt")
+add_command("generate", help="draft a new change from a prompt")
 
 parser.add_option(
     "-d",
@@ -45,6 +45,23 @@ parser.add_option(
     help="delete the draft after finalizing or discarding",
     action="store_true",
 )
+parser.add_option(
+    "-p",
+    "--prompt",
+    dest="prompt",
+    help="draft generation prompt, read from stdin if unset",
+)
+parser.add_option(
+    "-r",
+    "--reset",
+    help="reset index before generating a new draft",
+    action="store_true",
+)
+
+
+EDITOR_PLACEHOLDER = """\
+    Enter your prompt here...
+"""
 
 
 def main() -> None:
@@ -55,12 +72,17 @@ def main() -> None:
 
     command = getattr(opts, "command", "generate")
     if command == "generate":
-        prompt = sys.stdin.read()
-        manager.generate_draft(prompt, OpenAIAssistant())
+        prompt = opts.prompt
+        if not prompt:
+            if sys.stdin.isatty():
+                prompt = open_editor(textwrap.dedent(EDITOR_PLACEHOLDER))
+            else:
+                prompt = sys.stdin.read()
+        manager.generate_draft(prompt, OpenAIAssistant(), reset=opts.reset)
     elif command == "finalize":
-        manager.finalize_draft()
+        manager.finalize_draft(delete=opts.delete)
     elif command == "discard":
-        manager.discard_draft()
+        manager.discard_draft(delete=opts.delete)
     else:
         assert False, "unreachable"
 

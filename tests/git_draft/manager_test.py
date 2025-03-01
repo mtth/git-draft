@@ -21,7 +21,7 @@ class TestNote:
         note = sut._BranchNote("foo")
         note.write(repo, "main")
         data = repo.git.notes("show", "main")
-        assert data == 'draft: {"base_ref":"foo"}'
+        assert data == 'draft: {"sha":"foo","dirty_sha":null}'
 
     def test_write_read_one(self, repo: git.Repo) -> None:
         note = sut._BranchNote("bar")
@@ -29,10 +29,15 @@ class TestNote:
         assert note == sut._BranchNote.read(repo, "main")
 
     def test_write_multiple(self, repo: git.Repo) -> None:
-        sut._BranchNote("foo").write(repo, "main")
-        sut._BranchNote("bar").write(repo, "main")
+        sut._BranchNote("foo", "bar").write(repo, "main")
+        sut._BranchNote("baz").write(repo, "main")
         data = repo.git.notes("show", "main")
-        assert data == 'draft: {"base_ref":"foo"}\ndraft: {"base_ref":"bar"}'
+        assert data == "\n".join(
+            [
+                'draft: {"sha":"foo","dirty_sha":"bar"}',
+                'draft: {"sha":"baz","dirty_sha":null}',
+            ]
+        )
 
 
 class _FakeAssistant(Assistant):

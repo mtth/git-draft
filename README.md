@@ -4,9 +4,10 @@ WIP
 
 TODO:
 
-* Change operations to be:
-  * `[-G, --generate]`
-  * `-F, --finalize`
-  * `-D, --discard`
-* Rename backend to assistant or agent.
 * Open `$EDITOR` when `-G` is used and stdin is a TTY.
+
+
+Highlights:
+
+* Concurrent editing. Continue editing while the assistant runs, without any
+  risks of interference.

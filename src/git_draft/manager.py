@@ -8,7 +8,7 @@ from pathlib import PurePosixPath
 import re
 import string
 import tempfile
-from typing import Match, Self, Sequence
+from typing import ClassVar, Match, Self, Sequence
 
 from .assistant import Assistant
 
@@ -19,14 +19,14 @@ def enclosing_repo() -> git.Repo:
 
 _random = random.Random()
 
-_SUFFIX_LENGTH = 8
-
-_branch_name_pattern = re.compile(r"drafts/(.+)/(\w+)")
-
 
 @dataclasses.dataclass(frozen=True)
 class _Branch:
     """Draft branch"""
+
+    _SUFFIX_LENGTH = 8
+
+    _name_pattern = re.compile(r"drafts/(.+)/(\w+)")
 
     parent: str
     suffix: str
@@ -38,15 +38,15 @@ class _Branch:
     def _for_parent(cls, parent: str) -> _Branch:
         suffix = "".join(
             _random.choice(string.ascii_lowercase + string.digits)
-            for _ in range(_SUFFIX_LENGTH)
+            for _ in range(cls._SUFFIX_LENGTH)
         )
         return cls(parent, suffix)
 
     @classmethod
-    def activate(cls, repo: git.Repo, create=False) -> _Branch:
+    def active(cls, repo: git.Repo, create=False) -> _Branch:
         match: Match | None = None
         if repo.active_branch:
-            match = _branch_name_pattern.fullmatch(repo.active_branch.name)
+            match = cls._name_pattern.fullmatch(repo.active_branch.name)
         if match:
             return _Branch(match[1], match[2])
 
@@ -61,17 +61,21 @@ class _Branch:
         return branch
 
 
-_NOTE_PREFIX = "draft: "
-
-
 class _Note:
+    """Structured metadata attached to a commit"""
+
+    __prefix: ClassVar[str]
+
+    def __init_subclass__(cls, name) -> None:
+        cls.__prefix = f"{name}: "
+
     # https://stackoverflow.com/a/40496777
 
     @classmethod
     def read(cls, repo: git.Repo, ref: str) -> Self:
         for line in repo.git.notes("show", ref).splitlines():
-            if line.startswith(_NOTE_PREFIX):
-                data = json.loads(line[len(_NOTE_PREFIX) :])
+            if line.startswith(cls.__prefix):
+                data = json.loads(line[len(cls.__prefix) :])
                 return cls(**data)
         raise ValueError("No matching note found")
 
@@ -80,19 +84,24 @@ class _Note:
         data = dataclasses.asdict(self)
         value = json.dumps(data, separators=(",", ":"))
         repo.git.notes(
-            "append", "--no-separator", "-m", f"{_NOTE_PREFIX}{value}", ref
+            "append", "--no-separator", "-m", f"{self.__prefix}{value}", ref
         )
 
 
 @dataclasses.dataclass(frozen=True)
-class _BranchNote(_Note):
+class _BranchNote(_Note, name="draft-branch"):
+    """Information about the current draft's branch"""
+
     sha: str
     dirty_sha: str | None = None
 
 
 @dataclasses.dataclass(frozen=True)
-class _CommitNote(_Note):
-    pass
+class _SessionNote(_Note, name="draft-session"):
+    """Information about the commit's underlying assistant session"""
+
+    token_count: int
+    walltime: float
 
 
 class _Toolbox:
@@ -124,9 +133,21 @@ class Manager:
     def __init__(self, repo: git.Repo) -> None:
         self._repo = repo
 
-    def generate_draft(self, prompt: str, assistant: Assistant) -> None:
+    def generate_draft(
+        self, prompt: str, assistant: Assistant, reset=False
+    ) -> None:
+        if not prompt:
+            raise ValueError("Empty prompt")
+
         repo = self._repo
-        branch = _Branch.activate(repo, create=True)
+        branch = _Branch.active(repo, create=True)
+
+        if repo.index.entries:
+            if not reset:
+                raise ValueError("Please commit or reset any staged changes")
+            repo.index.reset()
+
+        # TODO: draft! init commit with note
 
         ref = repo.commit()
         if repo.is_dirty():
@@ -136,7 +157,7 @@ class Manager:
         else:
             dirty_ref_sha = None
         branch_note = _BranchNote(ref.hexsha, dirty_ref_sha)
-        branch_note.write(repo, str(branch))
+        branch_note.write(repo, branch.parent)
 
         assistant.run(prompt, _Toolbox(repo))
 
@@ -150,7 +171,7 @@ class Manager:
 
     def _exit_draft(self, apply: bool, delete=False) -> None:
         repo = self._repo
-        branch = _Branch.activate(repo)
+        branch = _Branch.active(repo)
         note = _BranchNote.read(repo, str(branch))
 
         cur_sha = repo.git.rev_parse(str(branch))
@@ -160,7 +181,7 @@ class Manager:
         # https://stackoverflow.com/a/15993574
         repo.git.checkout("--detach")
         if apply:
-            repo.git.reset("--soft", note.sha)
+            repo.git.reset(note.sha)  # Discard index (internal) changes.
         else:
             repo.git.reset("--hard", note.dirty_sha or note.sha)
         repo.git.checkout(branch.parent)
