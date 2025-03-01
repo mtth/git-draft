@@ -6,7 +6,7 @@ import json
 from pathlib import PurePosixPath
 import re
 import tempfile
-from typing import ClassVar, Match, Self, Sequence
+from typing import Callable, ClassVar, Match, Self, Sequence
 
 from .assistant import Assistant
 
@@ -81,7 +81,7 @@ class _Branch:
         return origin_commit == head_commit
 
     @classmethod
-    def create(cls, repo: git.Repo, sync_sha: str | None = None) -> _Branch:
+    def create(cls, repo: git.Repo, sync: Callable[[], str | None]) -> _Branch:
         if not repo.active_branch:
             raise RuntimeError("No currently active branch")
         origin_branch = repo.active_branch.name
@@ -89,7 +89,7 @@ class _Branch:
         repo.git.checkout("--detach")
         commit = repo.index.commit("draft! init")
         init_shortsha = commit.hexsha[:7]
-        init_note = _InitNote(origin_branch, sync_sha)
+        init_note = _InitNote(origin_branch, sync())
         init_note.write(repo, init_shortsha)
 
         branch = _Branch(init_shortsha, init_note)
@@ -154,7 +154,7 @@ class Manager:
             self._sync()
         else:
             sync_sha = self._sync()
-            branch = _Branch.create(self._repo, sync_sha)
+            branch = _Branch.create(self._repo, self._sync)
 
         assistant.run(prompt, _Toolbox(self._repo))
         self._repo.index.commit(f"draft! prompt\n\n{prompt}")
@@ -176,6 +176,8 @@ class Manager:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
+        if not apply and branch.needs_rebase(self._repo):
+            raise ValueError("Parent branch has moved, please rebase")
 
         # https://stackoverflow.com/a/15993574
         note = branch.init_note
@@ -184,8 +186,6 @@ class Manager:
             # We discard index (internal) changes
             self._repo.git.reset(note.origin_branch)
         else:
-            if branch.needs_rebase(self._repo):
-                raise ValueError("Parent branch has moved, please rebase")
             self._repo.git.reset("--hard", note.sync_sha or note.origin_branch)
         self._repo.git.checkout(note.origin_branch)
 
