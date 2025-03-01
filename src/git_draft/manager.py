@@ -8,7 +8,7 @@ import re
 import tempfile
 from typing import Callable, ClassVar, Match, Self, Sequence
 
-from .assistant import Assistant
+from .assistants import Assistant, Toolbox
 
 
 def enclosing_repo(path: str | None = None) -> git.Repo:
@@ -110,7 +110,13 @@ class _Branch:
         return _Branch(init_shortsha, init_note)
 
 
-class _Toolbox:
+class _Toolbox(Toolbox):
+    """Git-index backed toolbox
+
+    All files are directly read from and written to the index. This allows
+    concurrent editing without interference.
+    """
+
     def __init__(self, repo: git.Repo) -> None:
         self._repo = repo
 
@@ -136,6 +142,8 @@ class _Toolbox:
 
 
 class Manager:
+    """Draft state manager"""
+
     def __init__(self, repo: git.Repo) -> None:
         self._repo = repo
 

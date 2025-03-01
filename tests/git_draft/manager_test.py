@@ -5,7 +5,7 @@ import pytest
 import tempfile
 from typing import Iterator
 
-from git_draft.assistant import Assistant, Session, Toolbox
+from git_draft.assistants import Assistant, Session, Toolbox
 import git_draft.manager as sut
 
 
@@ -49,7 +49,7 @@ class TestNote:
 class _FakeAssistant(Assistant):
     def run(self, prompt: str, toolbox: Toolbox) -> Session:
         toolbox.write_file(PurePosixPath("PROMPT"), prompt)
-        return Session(len(prompt), [])
+        return Session(len(prompt))
 
 
 class TestManager:

@@ -1,22 +1,36 @@
+[project]
+name = 'git-draft'
+description = 'Version-controlled code assistant'
+authors = [{name='Matthieu Monsch', email='mtth@apache.org'}]
+license = 'MIT'
+readme = 'README.md'
+dynamic = ['version']
+requires-python = '>=3.12'
+dependencies = [
+  'gitpython >=3.1.44,<4',
+]
+
+[project.optional-dependencies]
+openai = ['openai >=1.64.0,<2']
+
+[project.scripts]
+git-draft = 'git_draft.__main__:main'
+
+[project.urls]
+repository = 'https://github.com/mtth/git-draft'
+documentation = 'https://mtth.github.io/git-draft'
+
 [build-system]
 requires = ['poetry-core']
 build-backend = 'poetry.core.masonry.api'
 
-[tool.poetry]
-name = 'git-draft'
-version = '0.0.0' # Set programmatically
-description = 'Version-controlled code assistant'
-authors = ['Matthieu Monsch <mtth@apache.org>']
-readme = 'README.md'
-repository = 'https://github.com/mtth/git-draft'
-packages = [{include = 'git_draft', from = 'src'}]
+# Poetry
 
-[tool.poetry.scripts]
-git-draft = 'git_draft.__main__:main'
+[tool.poetry]
+version = '0.0.0' # Set programmatically
+packages = [{include='git_draft', from='src'}]
 
 [tool.poetry.dependencies]
-gitpython = '^3.1.44'
-openai = '^1.64.0'
 python = '>=3.12,<4'
 
 [tool.poetry.group.dev.dependencies]
@@ -27,15 +41,7 @@ mypy = '^1.2.0'
 poethepoet = '^0.25.0'
 pytest = '^7.1.2'
 
-[tool.black]
-line-length = 79
-include = '\.py$'
-
-[tool.flake8]
-ignore = ['E203', 'E501', 'E704', 'W503']
-
-[tool.mypy]
-disable_error_code = 'import-untyped'
+# Poe
 
 [tool.poe.tasks.fix]
 help = 'format source code'
@@ -54,6 +60,18 @@ sequence = [
 args = [
   {name='args', help='target folders', positional=true, multiple=true, default='src tests'},
 ]
+
+# Other tools
+
+[tool.black]
+line-length = 79
+include = '\.py$'
+
+[tool.flake8]
+ignore = ['E203', 'E501', 'E704', 'W503']
+
+[tool.mypy]
+disable_error_code = 'import-untyped'
 
 [tool.pytest.ini_options]
 log_level = 'DEBUG'
