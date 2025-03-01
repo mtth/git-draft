@@ -18,11 +18,11 @@ Options documented below may not be implemented yet.
 
 == Synopsis
 
-*git-draft* _[--generate]_ _[--stash]_ _[TEMPLATE [...]]_
+*git-draft* _[--generate]_ _[--prompt PROMPT]_ _[--reset]_ _[TEMPLATE [...]]_
 
 *git-draft* _--finalize_ _[--delete]_
 
-*git-draft* _--discard_
+*git-draft* _--discard_ _[--delete]_
 
 
 == Description

@@ -3,10 +3,8 @@ from __future__ import annotations
 import dataclasses
 import git
 import json
-import random
 from pathlib import PurePosixPath
 import re
-import string
 import tempfile
 from typing import ClassVar, Match, Self, Sequence
 
@@ -17,67 +15,23 @@ def enclosing_repo() -> git.Repo:
     return git.Repo(search_parent_directories=True)
 
 
-_random = random.Random()
-
-
-@dataclasses.dataclass(frozen=True)
-class _Branch:
-    """Draft branch"""
-
-    _SUFFIX_LENGTH = 8
-
-    _name_pattern = re.compile(r"drafts/(.+)/(\w+)")
-
-    parent: str
-    suffix: str
-
-    def __str__(self) -> str:
-        return f"drafts/{self.parent}/{self.suffix}"
-
-    @classmethod
-    def _for_parent(cls, parent: str) -> _Branch:
-        suffix = "".join(
-            _random.choice(string.ascii_lowercase + string.digits)
-            for _ in range(cls._SUFFIX_LENGTH)
-        )
-        return cls(parent, suffix)
-
-    @classmethod
-    def active(cls, repo: git.Repo, create=False) -> _Branch:
-        match: Match | None = None
-        if repo.active_branch:
-            match = cls._name_pattern.fullmatch(repo.active_branch.name)
-        if match:
-            return _Branch(match[1], match[2])
-
-        if not create:
-            raise RuntimeError("Not currently on a draft branch")
-
-        if not repo.active_branch:
-            raise RuntimeError("No currently active branch")
-        branch = cls._for_parent(repo.active_branch.name)
-        ref = repo.create_head(str(branch))
-        repo.git.checkout(ref)
-        return branch
-
-
 class _Note:
     """Structured metadata attached to a commit"""
+
+    # https://stackoverflow.com/a/40496777
 
     __prefix: ClassVar[str]
 
     def __init_subclass__(cls, name) -> None:
         cls.__prefix = f"{name}: "
 
-    # https://stackoverflow.com/a/40496777
-
     @classmethod
-    def read(cls, repo: git.Repo, ref: str) -> Self:
+    def read(cls, repo: git.Repo, ref: str) -> Self | None:
         for line in repo.git.notes("show", ref).splitlines():
             if line.startswith(cls.__prefix):
                 data = json.loads(line[len(cls.__prefix) :])
                 return cls(**data)
-        raise ValueError("No matching note found")
+        return None
 
     def write(self, repo: git.Repo, ref: str) -> None:
         assert dataclasses.is_dataclass(self)
@@ -89,19 +43,70 @@ class _Note:
 
 
 @dataclasses.dataclass(frozen=True)
-class _BranchNote(_Note, name="draft-branch"):
+class _InitNote(_Note, name="draft-init"):
     """Information about the current draft's branch"""
 
-    sha: str
-    dirty_sha: str | None = None
+    origin_branch: str
+    sync_sha: str | None
 
 
 @dataclasses.dataclass(frozen=True)
 class _SessionNote(_Note, name="draft-session"):
-    """Information about the commit's underlying assistant session"""
+    """Information about a commit's underlying assistant session"""
 
     token_count: int
     walltime: float
+
+
+@dataclasses.dataclass(frozen=True)
+class _Branch:
+    """Draft branch"""
+
+    _name_pattern = re.compile(r"drafts/(.+)")
+
+    init_sha: str
+    init_note: _InitNote
+
+    @property
+    def name(self) -> str:
+        return f"drafts/{self.init_sha}"
+
+    def needs_rebase(self, repo: git.Repo) -> bool:
+        if not self.init_note.sync_sha:
+            return False
+        init_commit = repo.commit(self.init_sha)
+        (origin_commit,) = init_commit.parents
+        head_commit = repo.commit(self.init_note.origin_branch)
+        return origin_commit == head_commit
+
+    @classmethod
+    def create(cls, repo: git.Repo, sync_sha: str | None = None) -> _Branch:
+        if not repo.active_branch:
+            raise RuntimeError("No currently active branch")
+        origin_branch = repo.active_branch.name
+
+        repo.git.checkout("--detach")
+        commit = repo.index.commit("draft! init")
+        init_sha = commit.hexsha
+        init_note = _InitNote(origin_branch, sync_sha)
+        init_note.write(repo, init_sha)
+
+        branch = _Branch(init_sha, init_note)
+        branch_ref = repo.create_head(branch.name)
+        repo.git.checkout(branch_ref)
+        return branch
+
+    @classmethod
+    def active(cls, repo: git.Repo) -> _Branch | None:
+        match: Match | None = None
+        if repo.active_branch:
+            match = cls._name_pattern.fullmatch(repo.active_branch.name)
+        if not match:
+            return None
+        init_sha = match[1]
+        init_note = _InitNote.read(repo, init_sha)
+        assert init_note
+        return _Branch(init_sha, init_note)
 
 
 class _Toolbox:
@@ -138,30 +143,20 @@ class Manager:
     ) -> None:
         if not prompt:
             raise ValueError("Empty prompt")
-
-        repo = self._repo
-        branch = _Branch.active(repo, create=True)
-
-        if repo.index.entries:
+        if self._repo.index.entries:
             if not reset:
                 raise ValueError("Please commit or reset any staged changes")
-            repo.index.reset()
+            self._repo.index.reset()
 
-        # TODO: draft! init commit with note
-
-        ref = repo.commit()
-        if repo.is_dirty():
-            repo.git.add(all=True)
-            dirty_ref = repo.index.commit("draft! sync")
-            dirty_ref_sha = dirty_ref.hexsha
+        branch = _Branch.active(self._repo)
+        if branch:
+            self._sync()
         else:
-            dirty_ref_sha = None
-        branch_note = _BranchNote(ref.hexsha, dirty_ref_sha)
-        branch_note.write(repo, branch.parent)
+            sync_sha = self._sync()
+            branch = _Branch.create(self._repo, sync_sha)
 
-        assistant.run(prompt, _Toolbox(repo))
-
-        repo.index.commit(f"draft! prompt\n\n{prompt}")
+        assistant.run(prompt, _Toolbox(self._repo))
+        self._repo.index.commit(f"draft! prompt\n\n{prompt}")
 
     def finalize_draft(self, delete=False) -> None:
         self._exit_draft(True, delete=delete)
@@ -169,22 +164,29 @@ class Manager:
     def discard_draft(self, delete=False) -> None:
         self._exit_draft(False, delete=delete)
 
-    def _exit_draft(self, apply: bool, delete=False) -> None:
-        repo = self._repo
-        branch = _Branch.active(repo)
-        note = _BranchNote.read(repo, str(branch))
+    def _sync(self) -> str | None:
+        if not self._repo.is_dirty():
+            return None
+        self._repo.git.add(all=True)
+        ref = self._repo.index.commit("draft! sync")
+        return ref.hexsha
 
-        cur_sha = repo.git.rev_parse(str(branch))
-        if cur_sha != note.sha:
-            raise ValueError("Parent branch has moved")
+    def _exit_draft(self, apply: bool, delete=False) -> None:
+        branch = _Branch.active(self._repo)
+        if not branch:
+            raise RuntimeError("Not currently on a draft branch")
 
         # https://stackoverflow.com/a/15993574
-        repo.git.checkout("--detach")
+        note = branch.init_note
+        self._repo.git.checkout("--detach")
         if apply:
-            repo.git.reset(note.sha)  # Discard index (internal) changes.
+            # We discard index (internal) changes
+            self._repo.git.reset(note.origin_branch)
         else:
-            repo.git.reset("--hard", note.dirty_sha or note.sha)
-        repo.git.checkout(branch.parent)
+            if branch.needs_rebase(self._repo):
+                raise ValueError("Parent branch has moved, please rebase")
+            self._repo.git.reset("--hard", note.sync_sha or note.origin_branch)
+        self._repo.git.checkout(note.origin_branch)
 
         if delete:
-            repo.git.branch("-D", str(branch))
+            self._repo.git.branch("-D", branch.name)

@@ -1,3 +1,4 @@
+import dataclasses
 import git
 from pathlib import PurePosixPath
 import pytest
@@ -16,26 +17,31 @@ def repo() -> Iterator[git.Repo]:
         yield repo
 
 
+@dataclasses.dataclass(frozen=True)
+class _FakeNote(sut._Note, name="draft-test"):
+    value: int
+
+
 class TestNote:
     def test_write_one(self, repo: git.Repo) -> None:
-        note = sut._BranchNote("foo")
+        note = _FakeNote(2)
         note.write(repo, "main")
         data = repo.git.notes("show", "main")
-        assert data == 'draft: {"sha":"foo","dirty_sha":null}'
+        assert data == 'draft-test: {"value":2}'
 
     def test_write_read_one(self, repo: git.Repo) -> None:
-        note = sut._BranchNote("bar")
+        note = _FakeNote(1)
         note.write(repo, "main")
-        assert note == sut._BranchNote.read(repo, "main")
+        assert note == _FakeNote.read(repo, "main")
 
     def test_write_multiple(self, repo: git.Repo) -> None:
-        sut._BranchNote("foo", "bar").write(repo, "main")
-        sut._BranchNote("baz").write(repo, "main")
+        _FakeNote(1).write(repo, "main")
+        _FakeNote(2).write(repo, "main")
         data = repo.git.notes("show", "main")
         assert data == "\n".join(
             [
-                'draft: {"sha":"foo","dirty_sha":"bar"}',
-                'draft: {"sha":"baz","dirty_sha":null}',
+                'draft-test: {"value":1}',
+                'draft-test: {"value":2}',
             ]
         )
 
@@ -51,7 +57,7 @@ class TestManager:
         manager = sut.Manager(repo)
         manager.generate_draft("hello", _FakeAssistant())
         commits = list(repo.iter_commits())
-        assert len(commits) == 2
+        assert len(commits) == 3
 
     def test_generate_then_discard_draft(self, repo: git.Repo) -> None:
         manager = sut.Manager(repo)
