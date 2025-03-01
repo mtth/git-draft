@@ -133,11 +133,11 @@ class _Toolbox(Toolbox):
         # Read the file from the index.
         return self._repo.git.show(f":{path}")
 
-    def write_file(self, path: PurePosixPath, data: str) -> None:
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
-            temp.write(data.encode("utf8"))
+            temp.write(contents.encode("utf8"))
             temp.close()
             sha = self._repo.git.hash_object("-w", "--path", path, temp.name)
             mode = 644  # TODO: Read from original file if it exists.

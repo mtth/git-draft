@@ -1,7 +1,13 @@
+import json
+import logging
 import openai
-from typing import Any, Mapping, Sequence, override
+from pathlib import PurePosixPath
+from typing import Any, Mapping, Self, Sequence, override
 
 from .common import Assistant, Session, Toolbox
+
+
+_logger = logging.getLogger(__name__)
 
 
 def _function_tool_param(
@@ -110,29 +116,39 @@ class OpenAIAssistant(Assistant):
 
 class _EventHandler(openai.AssistantEventHandler):
     def __init__(self, client: openai.Client, toolbox: Toolbox) -> None:
+        super().__init__()
         self._client = client
         self._toolbox = toolbox
 
+    def clone(self) -> Self:
+        return self.__class__(self._client, self._toolbox)
+
     @override
     def on_event(self, event: Any) -> None:
+        _logger.debug("Event: %s", event)
         if event.event == "thread.run.requires_action":
             run_id = event.data.id  # Retrieve the run ID from the event data
-            self._handle_action(event.data, run_id)
+            self._handle_action(run_id, event.data)
         # TODO: Handle (log?) other events.
 
     def _handle_action(self, run_id: str, data: Any) -> None:
         tool_outputs = list[Any]()
         for tool in data.required_action.submit_tool_outputs.tool_calls:
-            print(tool)
-            if tool.function.name == "read_file":
-                raise NotImplementedError()  # TODO
-                output = self._toolbox.read_file(tool)
-                tool_outputs.append(
-                    {"tool_call_id": tool.id, "output": output}
-                )
-            elif tool.function.name == "write_file":
-                raise NotImplementedError()  # TODO
-                tool_outputs.append({"tool_call_id": tool.id, "output": "OK"})
+            name = tool.function.name
+            inputs = json.loads(tool.function.arguments)
+            _logger.debug("Requested tool: %s", tool)
+            if name == "read_file":
+                path = PurePosixPath(inputs["path"])
+                output = self._toolbox.read_file(path)
+            elif name == "write_file":
+                path = PurePosixPath(inputs["path"])
+                contents = inputs["contents"]
+                self._toolbox.write_file(path, contents)
+                output = "OK"
+            elif name == "list_files":
+                assert not inputs
+                output = "\n".join(str(p) for p in self._toolbox.list_files())
+            tool_outputs.append({"tool_call_id": tool.id, "output": output})
 
         run = self.current_run
         assert run, "No ongoing run"
@@ -140,6 +156,6 @@ class _EventHandler(openai.AssistantEventHandler):
             thread_id=run.thread_id,
             run_id=run.id,
             tool_outputs=tool_outputs,
-            event_handler=self,
+            event_handler=self.clone(),
         ) as stream:
             stream.until_done()
