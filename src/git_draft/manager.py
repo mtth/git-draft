@@ -207,7 +207,9 @@ class Manager:
 
         note = branch.init_note
 
-        # https://stackoverflow.com/a/15993574
+        # We do a small dance to move back to the original branch, keeping the
+        # draft branch untouched. See https://stackoverflow.com/a/15993574 for
+        # the inspiration.
         self._repo.git.checkout("--detach")
         self._repo.git.reset(
             "--mixed" if apply else "--hard", note.origin_branch
