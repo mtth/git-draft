@@ -4,19 +4,12 @@ from typing import Any, Mapping, Sequence, override
 from .common import Assistant, Session, Toolbox
 
 
-# https://aider.chat/docs/more-info.html
-# https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
-_INSTRUCTIONS = """\
-    You are an expert software engineer, who writes correct and concise code.
-"""
-
-
 def _function_tool_param(
     *,
     name: str,
     description: str,
-    inputs: Mapping[str, Any],
-    required_inputs: Sequence[str],
+    inputs: Mapping[str, Any] | None = None,
+    required_inputs: Sequence[str] | None = None,
 ) -> openai.types.beta.FunctionToolParam:
     return {
         "type": "function",
@@ -26,15 +19,19 @@ def _function_tool_param(
             "parameters": {
                 "type": "object",
                 "additionalProperties": False,
-                "properties": inputs,
-                "required": required_inputs,
+                "properties": inputs or {},
+                "required": required_inputs or [],
             },
             "strict": True,
         },
     }
 
 
-_tools = [  # TODO
+_tools = [
+    _function_tool_param(
+        name="list_files",
+        description="List all available files",
+    ),
     _function_tool_param(
         name="read_file",
         description="Get a file's contents",
@@ -62,6 +59,15 @@ _tools = [  # TODO
         required_inputs=["path", "contents"],
     ),
 ]
+
+
+# https://aider.chat/docs/more-info.html
+# https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
+_INSTRUCTIONS = """\
+    You are an expert software engineer, who writes correct and concise code.
+    Use the provided functions to find the filesyou need to answer the query,
+    read the content of the relevant ones, and save the changes you suggest.
+"""
 
 
 class OpenAIAssistant(Assistant):
