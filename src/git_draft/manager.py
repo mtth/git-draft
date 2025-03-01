@@ -206,10 +206,10 @@ class Manager:
             raise ValueError("Parent branch has moved, please rebase")
 
         note = branch.init_note
+        # https://stackoverflow.com/a/15993574
         self._repo.git.checkout("--detach")
         if apply:
-            # https://stackoverflow.com/a/15993574
-            # We discard index (internal) changes
+            # We discard index (internal) changes.
             self._repo.git.reset(note.origin_branch)
             self._repo.git.checkout(note.origin_branch)
         else:

@@ -1,5 +1,6 @@
 import dataclasses
 import git
+import os.path as osp
 from pathlib import PurePosixPath
 import pytest
 import tempfile
@@ -64,3 +65,42 @@ class TestManager:
         manager.generate_draft("hello", _FakeAssistant())
         manager.discard_draft()
         assert len(list(repo.iter_commits())) == 1
+
+    def test_discard_restores_worktree(self, repo: git.Repo) -> None:
+        manager = sut.Manager(repo)
+
+        p1 = osp.join(repo.working_dir, "p1.txt")
+        with open(p1, "w") as writer:
+            writer.write("a1")
+        p2 = osp.join(repo.working_dir, "p2.txt")
+        with open(p2, "w") as writer:
+            writer.write("b1")
+
+        manager.generate_draft("hello", _FakeAssistant())
+        with open(p1, "w") as writer:
+            writer.write("a2")
+
+        manager.discard_draft()
+
+        with open(p1) as reader:
+            assert reader.read() == "a1"
+        with open(p2) as reader:
+            assert reader.read() == "b1"
+
+    def test_finalize_keeps_changes(self, repo: git.Repo) -> None:
+        manager = sut.Manager(repo)
+
+        p1 = osp.join(repo.working_dir, "p1.txt")
+        with open(p1, "w") as writer:
+            writer.write("a1")
+
+        manager.generate_draft("hello", _FakeAssistant(), checkout=True)
+        with open(p1, "w") as writer:
+            writer.write("a2")
+
+        manager.finalize_draft()
+
+        with open(p1) as reader:
+            assert reader.read() == "a2"
+        with open(osp.join(repo.working_dir, "PROMPT")) as reader:
+            assert reader.read() == "hello"
