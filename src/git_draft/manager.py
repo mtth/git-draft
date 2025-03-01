@@ -3,12 +3,17 @@ from __future__ import annotations
 import dataclasses
 import git
 import json
+import logging
 from pathlib import PurePosixPath
 import re
 import tempfile
+import time
 from typing import Callable, ClassVar, Match, Self, Sequence
 
 from .assistants import Assistant, Toolbox
+
+
+_logger = logging.getLogger(__name__)
 
 
 def enclosing_repo(path: str | None = None) -> git.Repo:
@@ -31,6 +36,7 @@ class _Note:
         for line in repo.git.notes("show", ref).splitlines():
             if line.startswith(cls.__prefix):
                 data = json.loads(line[len(cls.__prefix) :])
+                _logger.debug("Read %r note. [ref=%s]", cls.__prefix, ref)
                 return cls(**data)
         return None
 
@@ -41,6 +47,7 @@ class _Note:
         repo.git.notes(
             "append", "--no-separator", "-m", f"{self.__prefix}{value}", ref
         )
+        _logger.debug("Write %r note. [ref=%s]", self.__prefix, ref)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -79,6 +86,9 @@ class _Branch:
         (origin_commit,) = init_commit.parents
         head_commit = repo.commit(self.init_note.origin_branch)
         return origin_commit != head_commit
+
+    def __str__(self) -> str:
+        return self.name
 
     @classmethod
     def create(cls, repo: git.Repo, sync: Callable[[], str | None]) -> _Branch:
@@ -159,12 +169,20 @@ class Manager:
 
         branch = _Branch.active(self._repo)
         if branch:
+            _logger.debug("Reusing active branch %s.", branch)
             self._sync()
         else:
             branch = _Branch.create(self._repo, self._sync)
+            _logger.debug("Created branch %s.", branch)
 
-        assistant.run(prompt, _Toolbox(self._repo))
-        self._repo.index.commit(f"draft! prompt\n\n{prompt}")
+        start_time = time.perf_counter()
+        session = assistant.run(prompt, _Toolbox(self._repo))
+        end_time = time.perf_counter()
+        commit = self._repo.index.commit(f"draft! prompt\n\n{prompt}")
+        note = _SessionNote(session.token_count, end_time - start_time)
+        note.write(self._repo, commit.hexsha)
+        _logger.info("Generated draft. [token_count=%s]", session.token_count)
+
         if checkout:
             self._repo.git.checkout("--", ".")
 

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.metadata
+import logging
 import optparse
 import sys
 import textwrap
@@ -8,6 +9,9 @@ import textwrap
 from .assistants import load_assistant
 from .common import open_editor
 from .manager import Manager, enclosing_repo
+
+
+logging.basicConfig(level=logging.INFO)
 
 
 EPILOG = """\
