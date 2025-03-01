@@ -65,17 +65,17 @@ class _Branch:
 
     _name_pattern = re.compile(r"drafts/(.+)")
 
-    init_sha: str
+    init_shortsha: str
     init_note: _InitNote
 
     @property
     def name(self) -> str:
-        return f"drafts/{self.init_sha}"
+        return f"drafts/{self.init_shortsha}"
 
     def needs_rebase(self, repo: git.Repo) -> bool:
         if not self.init_note.sync_sha:
             return False
-        init_commit = repo.commit(self.init_sha)
+        init_commit = repo.commit(self.init_shortsha)
         (origin_commit,) = init_commit.parents
         head_commit = repo.commit(self.init_note.origin_branch)
         return origin_commit == head_commit
@@ -88,11 +88,11 @@ class _Branch:
 
         repo.git.checkout("--detach")
         commit = repo.index.commit("draft! init")
-        init_sha = commit.hexsha
+        init_shortsha = commit.hexsha[:7]
         init_note = _InitNote(origin_branch, sync_sha)
-        init_note.write(repo, init_sha)
+        init_note.write(repo, init_shortsha)
 
-        branch = _Branch(init_sha, init_note)
+        branch = _Branch(init_shortsha, init_note)
         branch_ref = repo.create_head(branch.name)
         repo.git.checkout(branch_ref)
         return branch
@@ -104,10 +104,10 @@ class _Branch:
             match = cls._name_pattern.fullmatch(repo.active_branch.name)
         if not match:
             return None
-        init_sha = match[1]
-        init_note = _InitNote.read(repo, init_sha)
+        init_shortsha = match[1]
+        init_note = _InitNote.read(repo, init_shortsha)
         assert init_note
-        return _Branch(init_sha, init_note)
+        return _Branch(init_shortsha, init_note)
 
 
 class _Toolbox:
