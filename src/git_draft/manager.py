@@ -133,11 +133,11 @@ class _Toolbox(Toolbox):
         # Read the file from the index.
         return self._repo.git.show(f":{path}")
 
-    def write_file(self, path: PurePosixPath, data: str) -> None:
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
-            temp.write(data.encode("utf8"))
+            temp.write(contents.encode("utf8"))
             temp.close()
             sha = self._repo.git.hash_object("-w", "--path", path, temp.name)
             mode = 644  # TODO: Read from original file if it exists.
@@ -204,18 +204,18 @@ class Manager:
             raise RuntimeError("Not currently on a draft branch")
         if not apply and branch.needs_rebase(self._repo):
             raise ValueError("Parent branch has moved, please rebase")
-
         note = branch.init_note
-        # https://stackoverflow.com/a/15993574
-        self._repo.git.checkout("--detach")
-        if apply:
-            # We discard index (internal) changes.
-            self._repo.git.reset(note.origin_branch)
-            self._repo.git.checkout(note.origin_branch)
-        else:
-            self._repo.git.reset("--hard", note.origin_branch)
-            if note.sync_sha:
-                self._repo.git.checkout(note.sync_sha, "--", ".")
 
+        # We do a small dance to move back to the original branch, keeping the
+        # draft branch untouched. See https://stackoverflow.com/a/15993574 for
+        # the inspiration.
+        self._repo.git.checkout("--detach")
+        self._repo.git.reset(
+            "--mixed" if apply else "--hard", note.origin_branch
+        )
+        self._repo.git.checkout(note.origin_branch)
+
+        if not apply and note.sync_sha:
+            self._repo.git.checkout(note.sync_sha, "--", ".")
         if delete:
             self._repo.git.branch("-D", branch.name)
