@@ -17,6 +17,17 @@ def test_ensure_state_home(state_home) -> None:
     assert path.exists()
 
 
+class TestRandomId:
+    def test_length(self) -> None:
+        length = 10
+        result = sut.random_id(length)
+        assert len(result) == length
+
+    def test_content(self) -> None:
+        result = sut.random_id(1000)
+        assert set(result).issubset(sut._alphabet)
+
+
 class TestStore:
     def test_cursor(self) -> None:
         store = sut.Store.persistent()
