@@ -41,7 +41,7 @@ def new_parser() -> optparse.OptionParser:
     add_command("generate", help="start a new draft from a prompt")
 
     parser.add_option(
-        "-a",
+        "-b",
         "--bot",
         dest="bot",
         help="bot key",
