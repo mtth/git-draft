@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import contextlib
+import dataclasses
 import functools
+import logging
 import os
 from pathlib import Path
 import random
@@ -11,8 +13,54 @@ import subprocess
 import string
 import sys
 import tempfile
-from typing import Iterator
+import tomllib
+from typing import Iterator, Mapping, Self
 import xdg_base_dirs
+
+
+NAMESPACE = "git-draft"
+
+
+@dataclasses.dataclass(frozen=True)
+class Config:
+    log_level: int
+    bots: Mapping[str, BotConfig]
+
+    @classmethod
+    def default(cls) -> Self:
+        return cls(logging.INFO, {})
+
+    @staticmethod
+    def path() -> Path:
+        return xdg_base_dirs.xdg_config_home() / NAMESPACE / "config.toml"
+
+    @classmethod
+    def load(cls) -> Self:
+        path = cls.path()
+        try:
+            with open(path, "rb") as reader:
+                data = tomllib.load(reader)
+        except FileNotFoundError:
+            return cls.default()
+        else:
+            bot_data = data["bots"] or {}
+            return cls(
+                log_level=logging.getLevelName(data["log_level"]),
+                bots={k: BotConfig(**v) for k, v in bot_data.items()},
+            )
+
+
+@dataclasses.dataclass(frozen=True)
+class BotConfig:
+    loader: str
+    kwargs: Mapping[str, bool | float | str] | None = None
+    pythonpath: str | None = None
+
+
+def _ensure_state_home() -> Path:
+    path = xdg_base_dirs.xdg_state_home() / NAMESPACE
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 _default_editors = ["vim", "emacs", "nano"]
@@ -51,15 +99,6 @@ def open_editor(placeholder="") -> str:
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
-
-
-NAMESPACE = "git-draft"
-
-
-def _ensure_state_home() -> Path:
-    path = xdg_base_dirs.xdg_state_home() / NAMESPACE
-    path.mkdir(parents=True, exist_ok=True)
-    return path
 
 
 class Store:

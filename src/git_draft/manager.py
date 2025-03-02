@@ -6,6 +6,7 @@ import logging
 from pathlib import PurePosixPath
 import re
 import tempfile
+import textwrap
 import time
 from typing import Match, Sequence
 
@@ -156,7 +157,10 @@ class Manager:
         start_time = time.perf_counter()
         session = assistant.run(prompt, _Toolbox(self._repo))
         end_time = time.perf_counter()
-        commit = self._repo.index.commit(f"draft! prompt\n\n{prompt}")
+
+        # TODO: Allow assistants to suggest a better title.
+        title = textwrap.shorten(prompt, break_on_hyphens=False, width=72)
+        commit = self._repo.index.commit(f"draft! {title}\n\n{prompt}")
 
         with self._store.cursor() as cursor:
             cursor.execute(
