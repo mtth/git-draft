@@ -27,6 +27,6 @@ class Session:
     token_count: int
 
 
-class Assistant:
+class Bot:
     def run(self, prompt: str, toolbox: Toolbox) -> Session:
         raise NotImplementedError()

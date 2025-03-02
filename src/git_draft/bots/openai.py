@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
-from .common import Assistant, Session, Toolbox
+from .common import Bot, Session, Toolbox
 
 
 _logger = logging.getLogger(__name__)
@@ -86,8 +86,8 @@ _INSTRUCTIONS = """\
 """
 
 
-class OpenAIAssistant(Assistant):
-    """An OpenAI-backed assistant
+class OpenAIBot(Bot):
+    """An OpenAI-backed bot
 
     See the following links for resources:
 
@@ -126,7 +126,7 @@ class OpenAIAssistant(Assistant):
         return Session(0)
 
 
-class _EventHandler(openai.AssistantEventHandler):
+class _EventHandler(openai.BotEventHandler):
     def __init__(self, client: openai.Client, toolbox: Toolbox) -> None:
         super().__init__()
         self._client = client

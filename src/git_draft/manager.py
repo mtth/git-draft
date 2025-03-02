@@ -10,7 +10,7 @@ import textwrap
 import time
 from typing import Match, Sequence
 
-from .assistants import Assistant, Toolbox
+from .bots import Bot, Toolbox
 from .common import Store, random_id, sql
 
 
@@ -124,7 +124,7 @@ class Manager:
     def generate_draft(
         self,
         prompt: str,
-        assistant: Assistant,
+        bot: Bot,
         checkout=False,
         reset=False,
         sync=False,
@@ -155,10 +155,10 @@ class Manager:
             )
 
         start_time = time.perf_counter()
-        session = assistant.run(prompt, _Toolbox(self._repo))
+        session = bot.run(prompt, _Toolbox(self._repo))
         end_time = time.perf_counter()
 
-        # TODO: Allow assistants to suggest a better title.
+        # TODO: Allow bots to suggest a better title.
         title = textwrap.shorten(prompt, break_on_hyphens=False, width=72)
         commit = self._repo.index.commit(f"draft! {title}\n\n{prompt}")
 

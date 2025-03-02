@@ -1,9 +1,9 @@
 import logging
 
-from .assistants import Assistant, Session, Toolbox
+from .bots import Bot, Session, Toolbox
 
 __all__ = [
-    "Assistant",
+    "Bot",
     "Session",
     "Toolbox",
 ]

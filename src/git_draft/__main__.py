@@ -6,7 +6,7 @@ import optparse
 import sys
 import textwrap
 
-from .assistants import load_assistant
+from .bots import load_bot
 from .common import Store, open_editor
 from .manager import Manager
 
@@ -47,9 +47,9 @@ add_command("generate", help="start a new draft from a prompt")
 
 parser.add_option(
     "-a",
-    "--assistant",
-    dest="assistant",
-    help="assistant key",
+    "--bot",
+    dest="bot",
+    help="bot key",
     default="openai",
 )
 parser.add_option(
@@ -96,7 +96,7 @@ def main() -> None:
 
     command = getattr(opts, "command", "generate")
     if command == "generate":
-        assistant = load_assistant(opts.assistant, {})
+        bot = load_bot(opts.bot, {})
         prompt = opts.prompt
         if not prompt:
             if sys.stdin.isatty():
@@ -104,7 +104,7 @@ def main() -> None:
             else:
                 prompt = sys.stdin.read()
         manager.generate_draft(
-            prompt, assistant, checkout=opts.checkout, reset=opts.reset
+            prompt, bot, checkout=opts.checkout, reset=opts.reset
         )
     elif command == "finalize":
         manager.finalize_draft(delete=opts.delete)
