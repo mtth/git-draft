@@ -11,8 +11,15 @@ class Toolbox(Protocol):
     # signature-only versions.
 
     def list_files(self) -> Sequence[PurePosixPath]: ...
+
     def read_file(self, path: PurePosixPath) -> str: ...
-    def write_file(self, path: PurePosixPath, contents: str) -> None: ...
+
+    def write_file(
+        self,
+        path: PurePosixPath,
+        contents: str,
+        change_description: str | None = None,
+    ) -> None: ...
 
 
 @dataclasses.dataclass(frozen=True)

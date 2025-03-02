@@ -26,7 +26,7 @@ def _function_tool_param(
                 "type": "object",
                 "additionalProperties": False,
                 "properties": inputs or {},
-                "required": required_inputs or [],
+                "required": list(inputs.keys()) if inputs else [],
             },
             "strict": True,
         },
@@ -47,7 +47,6 @@ _tools = [
                 "description": "Path of the file to be read",
             },
         },
-        required_inputs=["path"],
     ),
     _function_tool_param(
         name="write_file",
@@ -65,8 +64,13 @@ _tools = [
                 "type": "string",
                 "description": "New contents of the file",
             },
+            "change_description": {
+                "type": "string",
+                "description": """\
+                    Brief description of the changes performed on this file
+                """,
+            },
         },
-        required_inputs=["path", "contents"],
     ),
 ]
 
@@ -77,6 +81,8 @@ _INSTRUCTIONS = """\
     You are an expert software engineer, who writes correct and concise code.
     Use the provided functions to find the filesyou need to answer the query,
     read the content of the relevant ones, and save the changes you suggest.
+    When writing a file, include a summary description of the changes you have
+    made.
 """
 
 
