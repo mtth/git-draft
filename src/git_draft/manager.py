@@ -99,9 +99,13 @@ class Manager:
         cls,
         store: Store,
         path: str | None = None,
-        hook: OperationHook | None = None,
+        operation_hook: OperationHook | None = None,
     ) -> Manager:
-        return cls(store, git.Repo(path, search_parent_directories=True), hook)
+        return cls(
+            store,
+            git.Repo(path, search_parent_directories=True),
+            operation_hook,
+        )
 
     def _create_branch(self, sync: bool) -> _Branch:
         if not self._repo.active_branch:

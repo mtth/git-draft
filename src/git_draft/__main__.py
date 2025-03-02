@@ -103,7 +103,7 @@ def main() -> None:
     manager = Manager.create(
         store=Store.persistent(),
         path=opts.root,
-        operation_hook=print_operation
+        operation_hook=print_operation,
     )
     command = getattr(opts, "command", "generate")
     if command == "generate":
