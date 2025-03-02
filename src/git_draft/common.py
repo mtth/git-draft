@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+from datetime import datetime
 import functools
 import logging
 import os
@@ -14,7 +15,7 @@ import string
 import sys
 import tempfile
 import tomllib
-from typing import Iterator, Mapping, Self
+from typing import Any, Iterator, Mapping, Self
 import xdg_base_dirs
 
 
@@ -25,6 +26,7 @@ NAMESPACE = "git-draft"
 class Config:
     log_level: int
     bots: Mapping[str, BotConfig]
+    # TODO: Add (prompt) templates.
 
     @classmethod
     def default(cls) -> Self:
@@ -50,10 +52,14 @@ class Config:
             )
 
 
+type JSONValue = Any
+type JSONObject = Mapping[str, JSONValue]
+
+
 @dataclasses.dataclass(frozen=True)
 class BotConfig:
     loader: str
-    kwargs: Mapping[str, bool | float | str] | None = None
+    kwargs: JSONObject | None = None
     pythonpath: str | None = None
 
 
@@ -99,6 +105,12 @@ def open_editor(placeholder="") -> str:
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
+
+
+sqlite3.register_adapter(datetime, lambda d: d.isoformat())
+sqlite3.register_converter(
+    "timestamp", lambda v: datetime.fromisoformat(v.decode())
+)
 
 
 class Store:

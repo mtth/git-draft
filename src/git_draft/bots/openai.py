@@ -5,7 +5,7 @@ from pathlib import PurePosixPath
 import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
-from .common import Assistant, Session, Toolbox
+from .common import Action, Bot, Toolbox
 
 
 _logger = logging.getLogger(__name__)
@@ -86,8 +86,8 @@ _INSTRUCTIONS = """\
 """
 
 
-class OpenAIAssistant(Assistant):
-    """An OpenAI-backed assistant
+class OpenAIBot(Bot):
+    """An OpenAI-backed bot
 
     See the following links for resources:
 
@@ -100,7 +100,7 @@ class OpenAIAssistant(Assistant):
     def __init__(self) -> None:
         self._client = openai.OpenAI()
 
-    def run(self, prompt: str, toolbox: Toolbox) -> Session:
+    def act(self, prompt: str, toolbox: Toolbox) -> Action:
         # TODO: Reuse assistant.
         assistant = self._client.beta.assistants.create(
             instructions=_INSTRUCTIONS,
@@ -123,7 +123,7 @@ class OpenAIAssistant(Assistant):
         ) as stream:
             stream.until_done()
 
-        return Session(0)
+        return Action()
 
 
 class _EventHandler(openai.AssistantEventHandler):

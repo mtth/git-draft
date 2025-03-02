@@ -1,10 +1,10 @@
 import logging
 
-from .assistants import Assistant, Session, Toolbox
+from .bots import Action, Bot, Toolbox
 
 __all__ = [
-    "Assistant",
-    "Session",
+    "Action",
+    "Bot",
     "Toolbox",
 ]
 
