@@ -5,7 +5,7 @@ import pytest
 import tempfile
 from typing import Iterator
 
-from git_draft.bots import Bot, Session, Toolbox
+from git_draft.bots import Action, Bot, Toolbox
 from git_draft.common import Store
 import git_draft.manager as sut
 
@@ -19,9 +19,9 @@ def repo() -> Iterator[git.Repo]:
 
 
 class _FakeBot(Bot):
-    def run(self, prompt: str, toolbox: Toolbox) -> Session:
+    def act(self, prompt: str, toolbox: Toolbox) -> Action:
         toolbox.write_file(PurePosixPath("PROMPT"), prompt)
-        return Session(len(prompt))
+        return Action()
 
 
 @pytest.fixture

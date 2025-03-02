@@ -5,11 +5,11 @@
 
 from typing import Any, Mapping
 
-from .common import Bot, Session, Toolbox
+from .common import Action, Bot, Toolbox
 
 __all__ = [
+    "Action",
     "Bot",
-    "Session",
     "Toolbox",
 ]
 

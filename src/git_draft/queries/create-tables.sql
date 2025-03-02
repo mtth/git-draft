@@ -14,11 +14,20 @@ create table if not exists prompts (
   foreign key (branch_suffix) references branches(suffix)
 );
 
-create table if not exists commits (
-  sha text primary key,
+create table if not exists actions (
+  commit_sha text primary key,
   created_at timestamp default current_timestamp,
   prompt_id integer not null,
-  token_count int not null,
   walltime real not null,
-  foreign key (prompt_id) references prompts(id)
+  foreign key (prompt_id) references prompts(id) on delete cascade
 ) without rowid;
+
+create table if not exists operations (
+  id integer primary key,
+  action_commit_sha text not null,
+  tool text not null,
+  reason text,
+  details text not null,
+  started_at timestamp not null,
+  foreign key (action_commit_sha) references actions(commit_sha) on delete cascade
+);

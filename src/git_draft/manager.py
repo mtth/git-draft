@@ -2,13 +2,14 @@ from __future__ import annotations
 
 import dataclasses
 import git
+import json
 import logging
 from pathlib import PurePosixPath
 import re
 import tempfile
 import textwrap
 import time
-from typing import Match, Sequence
+from typing import Match, Sequence, override
 
 from .bots import Bot, Toolbox
 from .common import Store, random_id, sql
@@ -54,22 +55,21 @@ class _Toolbox(Toolbox):
     """
 
     def __init__(self, repo: git.Repo) -> None:
+        super().__init__()
         self._repo = repo
 
-    def list_files(self) -> Sequence[PurePosixPath]:
+    @override
+    def _list(self) -> Sequence[PurePosixPath]:
         # Show staged files.
         return self._repo.git.ls_files()
 
-    def read_file(self, path: PurePosixPath) -> str:
+    @override
+    def _read(self, path: PurePosixPath) -> str:
         # Read the file from the index.
         return self._repo.git.show(f":{path}")
 
-    def write_file(
-        self,
-        path: PurePosixPath,
-        contents: str,
-        change_description: str | None = None,
-    ) -> None:
+    @override
+    def _write(self, path: PurePosixPath, contents: str) -> None:
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
@@ -155,24 +155,38 @@ class Manager:
             )
 
         start_time = time.perf_counter()
-        session = bot.run(prompt, _Toolbox(self._repo))
+        toolbox = _Toolbox(self._repo)
+        action = bot.act(prompt, toolbox)
         end_time = time.perf_counter()
 
-        # TODO: Allow bots to suggest a better title.
-        title = textwrap.shorten(prompt, break_on_hyphens=False, width=72)
+        title = action.title
+        if not title:
+            title = textwrap.shorten(prompt, break_on_hyphens=False, width=72)
         commit = self._repo.index.commit(f"draft! {title}\n\n{prompt}")
 
         with self._store.cursor() as cursor:
             cursor.execute(
-                sql("add-commit"),
+                sql("add-action"),
                 {
-                    "sha": commit.hexsha,
+                    "commit_sha": commit.hexsha,
                     "prompt_id": prompt_id,
-                    "token_count": session.token_count,
                     "walltime": end_time - start_time,
                 },
             )
-        _logger.info("Generated draft. [token_count=%s]", session.token_count)
+            cursor.executemany(
+                sql("add-operation"),
+                [
+                    {
+                        "commit_sha": commit.hexsha,
+                        "tool": o.tool,
+                        "reason": o.reason,
+                        "details": json.dumps(o.details),
+                        "started_at": o.start,
+                    }
+                    for o in toolbox.operations
+                ],
+            )
+        _logger.info("Generated draft.")
 
         if checkout:
             self._repo.git.checkout("--", ".")
