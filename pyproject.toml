@@ -7,11 +7,12 @@ readme = 'README.md'
 dynamic = ['version']
 requires-python = '>=3.12'
 dependencies = [
-  'gitpython >=3.1.44,<4',
+  'gitpython (>=3.1.44,<4)',
+  "xdg-base-dirs (>=6.0.2,<7.0.0)",
 ]
 
 [project.optional-dependencies]
-openai = ['openai >=1.64.0,<2']
+openai = ['openai (>=1.64.0,<2)']
 
 [project.scripts]
 git-draft = 'git_draft.__main__:main'

@@ -1,4 +1,3 @@
-import dataclasses
 import git
 import os.path as osp
 from pathlib import PurePosixPath
@@ -7,6 +6,7 @@ import tempfile
 from typing import Iterator
 
 from git_draft.assistants import Assistant, Session, Toolbox
+from git_draft.common import Store
 import git_draft.manager as sut
 
 
@@ -18,57 +18,35 @@ def repo() -> Iterator[git.Repo]:
         yield repo
 
 
-@dataclasses.dataclass(frozen=True)
-class _FakeNote(sut._Note, name="draft-test"):
-    value: int
-
-
-class TestNote:
-    def test_write_one(self, repo: git.Repo) -> None:
-        note = _FakeNote(2)
-        note.write(repo, "main")
-        data = repo.git.notes("show", "main")
-        assert data == 'draft-test: {"value":2}'
-
-    def test_write_read_one(self, repo: git.Repo) -> None:
-        note = _FakeNote(1)
-        note.write(repo, "main")
-        assert note == _FakeNote.read(repo, "main")
-
-    def test_write_multiple(self, repo: git.Repo) -> None:
-        _FakeNote(1).write(repo, "main")
-        _FakeNote(2).write(repo, "main")
-        data = repo.git.notes("show", "main")
-        assert data == "\n".join(
-            [
-                'draft-test: {"value":1}',
-                'draft-test: {"value":2}',
-            ]
-        )
-
-
 class _FakeAssistant(Assistant):
     def run(self, prompt: str, toolbox: Toolbox) -> Session:
         toolbox.write_file(PurePosixPath("PROMPT"), prompt)
         return Session(len(prompt))
 
 
+@pytest.fixture
+def manager(repo: git.Repo) -> sut.Manager:
+    return sut.Manager(Store.in_memory(), repo)
+
+
 class TestManager:
-    def test_generate_draft(self, repo: git.Repo) -> None:
-        manager = sut.Manager(repo)
+    def test_generate_draft(
+        self, manager: sut.Manager, repo: git.Repo
+    ) -> None:
         manager.generate_draft("hello", _FakeAssistant())
         commits = list(repo.iter_commits())
-        assert len(commits) == 3
+        assert len(commits) == 2
 
-    def test_generate_then_discard_draft(self, repo: git.Repo) -> None:
-        manager = sut.Manager(repo)
+    def test_generate_then_discard_draft(
+        self, manager: sut.Manager, repo: git.Repo
+    ) -> None:
         manager.generate_draft("hello", _FakeAssistant())
         manager.discard_draft()
         assert len(list(repo.iter_commits())) == 1
 
-    def test_discard_restores_worktree(self, repo: git.Repo) -> None:
-        manager = sut.Manager(repo)
-
+    def test_discard_restores_worktree(
+        self, manager: sut.Manager, repo: git.Repo
+    ) -> None:
         p1 = osp.join(repo.working_dir, "p1.txt")
         with open(p1, "w") as writer:
             writer.write("a1")
@@ -76,7 +54,7 @@ class TestManager:
         with open(p2, "w") as writer:
             writer.write("b1")
 
-        manager.generate_draft("hello", _FakeAssistant())
+        manager.generate_draft("hello", _FakeAssistant(), sync=True)
         with open(p1, "w") as writer:
             writer.write("a2")
 
@@ -87,9 +65,9 @@ class TestManager:
         with open(p2) as reader:
             assert reader.read() == "b1"
 
-    def test_finalize_keeps_changes(self, repo: git.Repo) -> None:
-        manager = sut.Manager(repo)
-
+    def test_finalize_keeps_changes(
+        self, manager: sut.Manager, repo: git.Repo
+    ) -> None:
         p1 = osp.join(repo.working_dir, "p1.txt")
         with open(p1, "w") as writer:
             writer.write("a1")

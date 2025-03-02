@@ -7,7 +7,7 @@ import sys
 import textwrap
 
 from .assistants import load_assistant
-from .common import open_editor
+from .common import Store, open_editor
 from .manager import Manager
 
 
@@ -41,9 +41,9 @@ def add_command(name: str, **kwargs) -> None:
     )
 
 
-add_command("discard", help="discard all drafts associated with a branch")
+add_command("discard", help="discard the current draft")
 add_command("finalize", help="apply the current draft to the original branch")
-add_command("generate", help="draft a new change from a prompt")
+add_command("generate", help="start a new draft from a prompt")
 
 parser.add_option(
     "-a",
@@ -61,7 +61,7 @@ parser.add_option(
 parser.add_option(
     "-d",
     "--delete",
-    help="delete the draft after finalizing or discarding",
+    help="delete draft after finalizing or discarding",
     action="store_true",
 )
 parser.add_option(
@@ -76,6 +76,12 @@ parser.add_option(
     help="reset index before generating a new draft",
     action="store_true",
 )
+parser.add_option(
+    "-s",
+    "--sync",
+    help="commit prior worktree changes separately",
+    action="store_true",
+)
 
 
 EDITOR_PLACEHOLDER = """\
@@ -86,7 +92,7 @@ EDITOR_PLACEHOLDER = """\
 def main() -> None:
     (opts, _args) = parser.parse_args()
 
-    manager = Manager.enclosing()
+    manager = Manager.create(Store.persistent())
 
     command = getattr(opts, "command", "generate")
     if command == "generate":
