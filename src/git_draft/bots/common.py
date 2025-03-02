@@ -19,6 +19,9 @@ class Toolbox:
     # including inferring the most important files, and allowing returning
     # signature-only versions.
 
+    # TODO: Support a diff-based edit method.
+    # https://gist.github.com/noporpoise/16e731849eb1231e86d78f9dfeca3abc
+
     def __init__(self, hook: OperationHook | None = None) -> None:
         self.operations = list[Operation]()
         self._operation_hook = hook
