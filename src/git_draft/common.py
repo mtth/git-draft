@@ -45,7 +45,7 @@ class Config:
         except FileNotFoundError:
             return cls.default()
         else:
-            bot_data = data["bots"] or {}
+            bot_data = data.get("bots", {})
             return cls(
                 log_level=logging.getLevelName(data["log_level"]),
                 bots={k: BotConfig(**v) for k, v in bot_data.items()},

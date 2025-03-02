@@ -10,13 +10,6 @@ from .common import Config, PROGRAM, Store, ensure_state_home, open_editor
 from .manager import Manager
 
 
-def initialize_logging(config: Config) -> None:
-    logging.basicConfig(
-        level=config.log_level,
-        filename=str(ensure_state_home() / "log"),
-    )
-
-
 def new_parser() -> optparse.OptionParser:
     parser = optparse.OptionParser(
         prog=PROGRAM,
@@ -24,6 +17,12 @@ def new_parser() -> optparse.OptionParser:
     )
 
     parser.disable_interspersed_args()
+
+    parser.add_option(
+        "--log",
+        help="show log path and exit",
+        action="store_true",
+    )
 
     def add_command(name: str, **kwargs) -> None:
         def callback(_option, _opt, _value, parser) -> None:
@@ -84,11 +83,15 @@ def new_parser() -> optparse.OptionParser:
 
 def main() -> None:
     config = Config.load()
-    initialize_logging(config)
     (opts, _args) = new_parser().parse_args()
 
-    manager = Manager.create(Store.persistent())
+    log_path = ensure_state_home() / "log"
+    if opts.log:
+        print(log_path)
+        return
+    logging.basicConfig(level=config.log_level, filename=str(log_path))
 
+    manager = Manager.create(Store.persistent())
     command = getattr(opts, "command", "generate")
     if command == "generate":
         bot = load_bot(opts.bot, {})
