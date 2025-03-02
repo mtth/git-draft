@@ -14,7 +14,7 @@ import string
 import sys
 import tempfile
 import tomllib
-from typing import Iterator, Mapping, Self, Sequence
+from typing import Iterator, Mapping, Self
 import xdg_base_dirs
 
 
@@ -24,24 +24,30 @@ NAMESPACE = "git-draft"
 @dataclasses.dataclass(frozen=True)
 class Config:
     log_level: int
-    bots: Sequence[BotConfig]
+    bots: Mapping[str, BotConfig]
 
     @classmethod
     def default(cls) -> Self:
-        return cls(logging.INFO, [])
+        return cls(logging.INFO, {})
+
+    @staticmethod
+    def path() -> Path:
+        return xdg_base_dirs.xdg_config_home() / NAMESPACE / "config.toml"
 
     @classmethod
     def load(cls) -> Self:
-        path = xdg_base_dirs.xdg_config_home() / NAMESPACE / "config.toml"
+        path = cls.path()
         try:
-            with open(str(path), "b") as reader:
+            with open(path, "rb") as reader:
                 data = tomllib.load(reader)
-                return cls(
-                    log_level=logging.getLevelName(data["log_level"]),
-                    bots=[BotConfig(**e) for e in data["bots"] or []],
-                )
         except FileNotFoundError:
             return cls.default()
+        else:
+            bot_data = data["bots"] or {}
+            return cls(
+                log_level=logging.getLevelName(data["log_level"]),
+                bots={k: BotConfig(**v) for k, v in bot_data.items()},
+            )
 
 
 @dataclasses.dataclass(frozen=True)
