@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import contextlib
 import dataclasses
+from datetime import datetime
 import functools
 import logging
 import os
@@ -104,6 +105,12 @@ def open_editor(placeholder="") -> str:
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
+
+
+sqlite3.register_adapter(datetime, lambda d: d.isoformat())
+sqlite3.register_converter(
+    "timestamp", lambda v: datetime.fromisoformat(v.decode())
+)
 
 
 class Store:
