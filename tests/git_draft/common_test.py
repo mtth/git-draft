@@ -13,7 +13,7 @@ def state_home(monkeypatch, tmp_path) -> None:
 
 
 def test_ensure_state_home() -> None:
-    path = sut._ensure_state_home()
+    path = sut.ensure_state_home()
     assert path.exists()
 
 

@@ -19,7 +19,7 @@ from typing import Any, Iterator, Mapping, Self
 import xdg_base_dirs
 
 
-NAMESPACE = "git-draft"
+PROGRAM = "git-draft"
 
 
 @dataclasses.dataclass(frozen=True)
@@ -34,7 +34,7 @@ class Config:
 
     @staticmethod
     def path() -> Path:
-        return xdg_base_dirs.xdg_config_home() / NAMESPACE / "config.toml"
+        return xdg_base_dirs.xdg_config_home() / PROGRAM / "config.toml"
 
     @classmethod
     def load(cls) -> Self:
@@ -45,7 +45,7 @@ class Config:
         except FileNotFoundError:
             return cls.default()
         else:
-            bot_data = data["bots"] or {}
+            bot_data = data.get("bots", {})
             return cls(
                 log_level=logging.getLevelName(data["log_level"]),
                 bots={k: BotConfig(**v) for k, v in bot_data.items()},
@@ -63,8 +63,8 @@ class BotConfig:
     pythonpath: str | None = None
 
 
-def _ensure_state_home() -> Path:
-    path = xdg_base_dirs.xdg_state_home() / NAMESPACE
+def ensure_state_home() -> Path:
+    path = xdg_base_dirs.xdg_state_home() / PROGRAM
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -121,7 +121,7 @@ class Store:
 
     @classmethod
     def persistent(cls) -> Store:
-        path = _ensure_state_home() / cls._name
+        path = ensure_state_home() / cls._name
         conn = sqlite3.connect(str(path), autocommit=False)
         return cls(conn)
 
