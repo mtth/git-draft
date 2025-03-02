@@ -57,7 +57,7 @@ class TestConfig:
 
     def test_load_ok(self) -> None:
         text = """\
-            log_level = "INFO"
+            log_level = "DEBUG"
 
             [bots.foo]
             loader = "foo:load"
@@ -74,9 +74,13 @@ class TestConfig:
 
         config = sut.Config.load()
         assert config == sut.Config(
-            log_level=logging.INFO,
+            log_level=logging.DEBUG,
             bots={
                 "foo": sut.BotConfig(loader="foo:load", pythonpath="./abc"),
                 "bar": sut.BotConfig(loader="bar", kwargs={"one": 1}),
             },
         )
+
+    def test_load_default(self) -> None:
+        config = sut.Config.load()
+        assert config.log_level == logging.INFO
