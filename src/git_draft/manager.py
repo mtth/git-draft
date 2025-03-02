@@ -63,7 +63,12 @@ class _Toolbox(Toolbox):
         # Read the file from the index.
         return self._repo.git.show(f":{path}")
 
-    def write_file(self, path: PurePosixPath, contents: str) -> None:
+    def write_file(
+        self,
+        path: PurePosixPath,
+        contents: str,
+        change_description: str | None = None,
+    ) -> None:
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:

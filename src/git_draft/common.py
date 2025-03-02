@@ -30,9 +30,7 @@ def _guess_editor_binpath() -> str:
 
 
 def _get_tty_filename():
-    if sys.platform == "win32":
-        return "CON:"
-    return "/dev/tty"
+    return "CON:" if sys.platform == "win32" else "/dev/tty"
 
 
 def open_editor(placeholder="") -> str:

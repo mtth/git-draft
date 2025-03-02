@@ -30,3 +30,8 @@ class TestStore:
 
 def test_sql() -> None:
     assert "create" in sut.sql("create-tables")
+
+
+def test_sql_missing() -> None:
+    with pytest.raises(FileNotFoundError):
+        sut.sql("non_existent_file")
