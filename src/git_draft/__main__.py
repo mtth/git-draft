@@ -5,7 +5,7 @@ import logging
 import optparse
 import sys
 
-from .bots import load_bot
+from .bots import Operation, load_bot
 from .common import Config, PROGRAM, Store, ensure_state_home, open_editor
 from .manager import Manager
 
@@ -22,6 +22,11 @@ def new_parser() -> optparse.OptionParser:
         "--log",
         help="show log path and exit",
         action="store_true",
+    )
+    parser.add_option(
+        "--root",
+        help="path used to locate repository",
+        dest="root",
     )
 
     def add_command(name: str, **kwargs) -> None:
@@ -81,6 +86,10 @@ def new_parser() -> optparse.OptionParser:
     return parser
 
 
+def print_operation(op: Operation) -> None:
+    print(op)
+
+
 def main() -> None:
     config = Config.load()
     (opts, _args) = new_parser().parse_args()
@@ -91,7 +100,11 @@ def main() -> None:
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
-    manager = Manager.create(Store.persistent())
+    manager = Manager.create(
+        store=Store.persistent(),
+        path=opts.root,
+        operation_hook=print_operation
+    )
     command = getattr(opts, "command", "generate")
     if command == "generate":
         bot = load_bot(opts.bot, {})

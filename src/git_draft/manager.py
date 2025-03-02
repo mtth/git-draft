@@ -11,7 +11,7 @@ import textwrap
 import time
 from typing import Match, Sequence, override
 
-from .bots import Bot, Toolbox
+from .bots import Bot, OperationHook, Toolbox
 from .common import Store, random_id, sql
 
 
@@ -54,8 +54,8 @@ class _Toolbox(Toolbox):
     concurrent editing without interference.
     """
 
-    def __init__(self, repo: git.Repo) -> None:
-        super().__init__()
+    def __init__(self, repo: git.Repo, hook: OperationHook | None) -> None:
+        super().__init__(hook)
         self._repo = repo
 
     @override
@@ -85,15 +85,23 @@ class _Toolbox(Toolbox):
 class Manager:
     """Draft state manager"""
 
-    def __init__(self, store: Store, repo: git.Repo) -> None:
+    def __init__(
+        self, store: Store, repo: git.Repo, hook: OperationHook | None = None
+    ) -> None:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
         self._store = store
         self._repo = repo
+        self._operation_hook = hook
 
     @classmethod
-    def create(cls, store: Store, path: str | None = None) -> Manager:
-        return cls(store, git.Repo(path, search_parent_directories=True))
+    def create(
+        cls,
+        store: Store,
+        path: str | None = None,
+        hook: OperationHook | None = None,
+    ) -> Manager:
+        return cls(store, git.Repo(path, search_parent_directories=True), hook)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if not self._repo.active_branch:
@@ -155,7 +163,7 @@ class Manager:
             )
 
         start_time = time.perf_counter()
-        toolbox = _Toolbox(self._repo)
+        toolbox = _Toolbox(self._repo, self._operation_hook)
         action = bot.act(prompt, toolbox)
         end_time = time.perf_counter()
 
