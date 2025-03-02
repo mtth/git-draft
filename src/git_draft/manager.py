@@ -187,9 +187,12 @@ class Manager:
             raise RuntimeError("Not currently on a draft branch")
 
         with self._store.cursor() as cursor:
-            [(origin_branch, origin_sha, sync_sha)] = cursor.execute(
+            rows = cursor.execute(
                 sql("get-branch-by-suffix"), {"suffix": branch.suffix}
             )
+            if not rows:
+                raise RuntimeError("Unrecognized branch")
+            [(origin_branch, origin_sha, sync_sha)] = rows
 
         if (
             not apply

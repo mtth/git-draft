@@ -11,7 +11,7 @@ import subprocess
 import string
 import sys
 import tempfile
-from typing import ContextManager
+from typing import Iterator
 import xdg_base_dirs
 
 
@@ -80,8 +80,16 @@ class Store:
     def in_memory(cls) -> Store:
         return cls(sqlite3.connect(":memory:"))
 
-    def cursor(self) -> ContextManager[sqlite3.Cursor]:
-        return contextlib.closing(self._connection.cursor())
+    @contextlib.contextmanager
+    def cursor(self) -> Iterator[sqlite3.Cursor]:
+        with contextlib.closing(self._connection.cursor()) as cursor:
+            try:
+                yield cursor
+            except:  # noqa
+                self._connection.rollback()
+                raise
+            else:
+                self._connection.commit()
 
 
 _query_root = Path(__file__).parent / "queries"
