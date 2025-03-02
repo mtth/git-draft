@@ -5,11 +5,13 @@
 
 from typing import Any, Mapping
 
-from .common import Action, Bot, Toolbox
+from .common import Action, Bot, Operation, OperationHook, Toolbox
 
 __all__ = [
     "Action",
     "Bot",
+    "Operation",
+    "OperationHook",
     "Toolbox",
 ]
 
