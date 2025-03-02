@@ -856,10 +856,22 @@ files = [
 ]
 markers = {main = "extra == \"openai\""}
 
+[[package]]
+name = "xdg-base-dirs"
+version = "6.0.2"
+description = "Variables defined by the XDG Base Directory Specification"
+optional = false
+python-versions = "<4.0,>=3.10"
+groups = ["main"]
+files = [
+    {file = "xdg_base_dirs-6.0.2-py3-none-any.whl", hash = "sha256:3c01d1b758ed4ace150ac960ac0bd13ce4542b9e2cdf01312dcda5012cfebabe"},
+    {file = "xdg_base_dirs-6.0.2.tar.gz", hash = "sha256:950504e14d27cf3c9cb37744680a43bf0ac42efefc4ef4acf98dc736cab2bced"},
+]
+
 [extras]
 openai = ["openai"]
 
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4"
-content-hash = "97ac3b11fb233e092f7340da6e498136fd8356d8e05d48b3dd84fccad7bf5c91"
+content-hash = "833a717e5f89a247c39ca26ab6f4f04b17b25868c454f930aef5edb8e8b496e6"

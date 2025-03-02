@@ -1,3 +1,8 @@
+"""Assistant interfaces and built-in implementations
+
+* https://aider.chat/docs/leaderboards/
+"""
+
 from typing import Any, Mapping
 
 from .common import Assistant, Session, Toolbox

@@ -2,63 +2,18 @@ from __future__ import annotations
 
 import dataclasses
 import git
-import json
 import logging
 from pathlib import PurePosixPath
 import re
 import tempfile
 import time
-from typing import Callable, ClassVar, Match, Self, Sequence
+from typing import Match, Sequence
 
 from .assistants import Assistant, Toolbox
+from .common import Store, random_id, sql
 
 
 _logger = logging.getLogger(__name__)
-
-
-class _Note:
-    """Structured metadata attached to a commit"""
-
-    # https://stackoverflow.com/a/40496777
-
-    __prefix: ClassVar[str]
-
-    def __init_subclass__(cls, name) -> None:
-        cls.__prefix = f"{name}: "
-
-    @classmethod
-    def read(cls, repo: git.Repo, ref: str) -> Self | None:
-        for line in repo.git.notes("show", ref).splitlines():
-            if line.startswith(cls.__prefix):
-                data = json.loads(line[len(cls.__prefix) :])
-                _logger.debug("Read %r note. [ref=%s]", cls.__prefix, ref)
-                return cls(**data)
-        return None
-
-    def write(self, repo: git.Repo, ref: str) -> None:
-        assert dataclasses.is_dataclass(self)
-        data = dataclasses.asdict(self)
-        value = json.dumps(data, separators=(",", ":"))
-        repo.git.notes(
-            "append", "--no-separator", "-m", f"{self.__prefix}{value}", ref
-        )
-        _logger.debug("Write %r note. [ref=%s]", self.__prefix, ref)
-
-
-@dataclasses.dataclass(frozen=True)
-class _InitNote(_Note, name="draft-init"):
-    """Information about the current draft's branch"""
-
-    origin_branch: str
-    sync_sha: str | None
-
-
-@dataclasses.dataclass(frozen=True)
-class _SessionNote(_Note, name="draft-session"):
-    """Information about a commit's underlying assistant session"""
-
-    token_count: int
-    walltime: float
 
 
 @dataclasses.dataclass(frozen=True)
@@ -67,40 +22,14 @@ class _Branch:
 
     _name_pattern = re.compile(r"drafts/(.+)")
 
-    init_shortsha: str
-    init_note: _InitNote
+    suffix: str
 
     @property
     def name(self) -> str:
-        return f"drafts/{self.init_shortsha}"
-
-    def needs_rebase(self, repo: git.Repo) -> bool:
-        if not self.init_note.sync_sha:
-            return False
-        init_commit = repo.commit(self.init_shortsha)
-        (origin_commit,) = init_commit.parents
-        head_commit = repo.commit(self.init_note.origin_branch)
-        return origin_commit != head_commit
+        return f"drafts/{self.suffix}"
 
     def __str__(self) -> str:
         return self.name
-
-    @classmethod
-    def create(cls, repo: git.Repo, sync: Callable[[], str | None]) -> _Branch:
-        if not repo.active_branch:
-            raise RuntimeError("No currently active branch")
-        origin_branch = repo.active_branch.name
-
-        repo.git.checkout("--detach")
-        commit = repo.index.commit("draft! init")
-        init_shortsha = commit.hexsha[:7]
-        init_note = _InitNote(origin_branch, sync())
-        init_note.write(repo, init_shortsha)
-
-        branch = _Branch(init_shortsha, init_note)
-        branch_ref = repo.create_head(branch.name)
-        repo.git.checkout(branch_ref)
-        return branch
 
     @classmethod
     def active(cls, repo: git.Repo) -> _Branch | None:
@@ -109,10 +38,11 @@ class _Branch:
             match = cls._name_pattern.fullmatch(repo.active_branch.name)
         if not match:
             return None
-        init_shortsha = match[1]
-        init_note = _InitNote.read(repo, init_shortsha)
-        assert init_note
-        return _Branch(init_shortsha, init_note)
+        return _Branch(match[1])
+
+    @staticmethod
+    def new_suffix():
+        return random_id(9)
 
 
 class _Toolbox(Toolbox):
@@ -149,15 +79,49 @@ class _Toolbox(Toolbox):
 class Manager:
     """Draft state manager"""
 
-    def __init__(self, repo: git.Repo) -> None:
+    def __init__(self, store: Store, repo: git.Repo) -> None:
+        with store.cursor() as cursor:
+            cursor.executescript(sql("create-tables"))
+        self._store = store
         self._repo = repo
 
     @classmethod
-    def enclosing(cls, path: str | None = None) -> Manager:
-        return cls(git.Repo(path, search_parent_directories=True))
+    def create(cls, store: Store, path: str | None = None) -> Manager:
+        return cls(store, git.Repo(path, search_parent_directories=True))
+
+    def _create_branch(self, sync: bool) -> _Branch:
+        if not self._repo.active_branch:
+            raise RuntimeError("No currently active branch")
+        origin_branch = self._repo.active_branch.name
+        origin_sha = self._repo.commit().hexsha
+
+        self._repo.git.checkout("--detach")
+        sync_sha = self._sync() if sync else None
+        suffix = _Branch.new_suffix()
+
+        with self._store.cursor() as cursor:
+            cursor.execute(
+                sql("add-branch"),
+                {
+                    "suffix": suffix,
+                    "origin_branch": origin_branch,
+                    "origin_sha": origin_sha,
+                    "sync_sha": sync_sha,
+                },
+            )
+
+        branch = _Branch(suffix)
+        branch_ref = self._repo.create_head(branch.name)
+        self._repo.git.checkout(branch_ref)
+        return branch
 
     def generate_draft(
-        self, prompt: str, assistant: Assistant, checkout=False, reset=False
+        self,
+        prompt: str,
+        assistant: Assistant,
+        checkout=False,
+        reset=False,
+        sync=False,
     ) -> None:
         if not prompt.strip():
             raise ValueError("Empty prompt")
@@ -169,17 +133,36 @@ class Manager:
         branch = _Branch.active(self._repo)
         if branch:
             _logger.debug("Reusing active branch %s.", branch)
-            self._sync()
+            if sync:
+                self._sync()
         else:
-            branch = _Branch.create(self._repo, self._sync)
+            branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
+
+        with self._store.cursor() as cursor:
+            [(prompt_id,)] = cursor.execute(
+                sql("add-prompt"),
+                {
+                    "branch_suffix": branch.suffix,
+                    "contents": prompt,
+                },
+            )
 
         start_time = time.perf_counter()
         session = assistant.run(prompt, _Toolbox(self._repo))
         end_time = time.perf_counter()
         commit = self._repo.index.commit(f"draft! prompt\n\n{prompt}")
-        note = _SessionNote(session.token_count, end_time - start_time)
-        note.write(self._repo, commit.hexsha)
+
+        with self._store.cursor() as cursor:
+            cursor.execute(
+                sql("add-commit"),
+                {
+                    "sha": commit.hexsha,
+                    "prompt_id": prompt_id,
+                    "token_count": session.token_count,
+                    "walltime": end_time - start_time,
+                },
+            )
         _logger.info("Generated draft. [token_count=%s]", session.token_count)
 
         if checkout:
@@ -202,20 +185,27 @@ class Manager:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
-        if not apply and branch.needs_rebase(self._repo):
+
+        with self._store.cursor() as cursor:
+            [(origin_branch, origin_sha, sync_sha)] = cursor.execute(
+                sql("get-branch-by-suffix"), {"suffix": branch.suffix}
+            )
+
+        if (
+            not apply
+            and sync_sha
+            and self._repo.commit(origin_branch).hexsha != origin_sha
+        ):
             raise ValueError("Parent branch has moved, please rebase")
-        note = branch.init_note
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
         self._repo.git.checkout("--detach")
-        self._repo.git.reset(
-            "--mixed" if apply else "--hard", note.origin_branch
-        )
-        self._repo.git.checkout(note.origin_branch)
+        self._repo.git.reset("--mixed" if apply else "--hard", origin_branch)
+        self._repo.git.checkout(origin_branch)
 
-        if not apply and note.sync_sha:
-            self._repo.git.checkout(note.sync_sha, "--", ".")
+        if not apply and sync_sha:
+            self._repo.git.checkout(sync_sha, "--", ".")
         if delete:
             self._repo.git.branch("-D", branch.name)
