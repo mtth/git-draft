@@ -114,7 +114,6 @@ class OpenAIBot(Bot):
             role="user",
             content=prompt,
         )
-        print(message)
 
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,

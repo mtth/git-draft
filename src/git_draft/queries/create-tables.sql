@@ -1,5 +1,6 @@
 create table if not exists branches (
   suffix text primary key,
+  repo_path text not null,
   created_at timestamp default current_timestamp,
   origin_branch text not null,
   origin_sha text not null,
