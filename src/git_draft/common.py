@@ -91,8 +91,8 @@ class PromptRenderer:
         )
         return cls(env)
 
-    def render(self, template: str, **kwargs) -> str:
-        template = self._environment.get_template(f"{template}.jinja")
+    def render(self, template_name: str, **kwargs) -> str:
+        template = self._environment.get_template(f"{template_name}.jinja")
         return template.render(kwargs)
 
 
