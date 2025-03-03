@@ -1,21 +1,17 @@
 from __future__ import annotations
 
-import contextlib
 import dataclasses
-from datetime import datetime
-import functools
 import logging
 import os
 from pathlib import Path
 import random
 import shutil
-import sqlite3
 import subprocess
 import string
 import sys
 import tempfile
 import tomllib
-from typing import Any, Iterator, Mapping, Self, Sequence
+from typing import Any, Mapping, Self, Sequence
 import xdg_base_dirs
 
 
@@ -107,50 +103,6 @@ def open_editor(placeholder="") -> str:
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
-
-
-sqlite3.register_adapter(datetime, lambda d: d.isoformat())
-sqlite3.register_converter(
-    "timestamp", lambda v: datetime.fromisoformat(v.decode())
-)
-
-
-class Store:
-    _name = "db.v1.sqlite3"
-
-    def __init__(self, conn: sqlite3.Connection) -> None:
-        self._connection = conn
-
-    @classmethod
-    def persistent(cls) -> Store:
-        path = ensure_state_home() / cls._name
-        conn = sqlite3.connect(str(path), autocommit=False)
-        return cls(conn)
-
-    @classmethod
-    def in_memory(cls) -> Store:
-        return cls(sqlite3.connect(":memory:"))
-
-    @contextlib.contextmanager
-    def cursor(self) -> Iterator[sqlite3.Cursor]:
-        with contextlib.closing(self._connection.cursor()) as cursor:
-            try:
-                yield cursor
-            except:  # noqa
-                self._connection.rollback()
-                raise
-            else:
-                self._connection.commit()
-
-
-_query_root = package_root / "queries"
-
-
-@functools.cache
-def sql(name: str) -> str:
-    path = _query_root / f"{name}.sql"
-    with open(path) as reader:
-        return reader.read()
 
 
 _random = random.Random()

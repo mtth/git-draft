@@ -4,8 +4,8 @@ from pathlib import PurePosixPath
 import pytest
 
 from git_draft.bots import Action, Bot, Toolbox
-from git_draft.common import Store
 import git_draft.manager as sut
+from git_draft.store import Store
 
 
 class _FakeBot(Bot):
