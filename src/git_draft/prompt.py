@@ -16,15 +16,23 @@ class TemplatedPrompt:
 
     @classmethod
     def parse(cls, name: str, *args: str) -> Self:
+        """Parse arguments into a TemplatedPrompt.
+
+        Args:
+            name: The name of the template.
+            *args: Additional arguments for context, expected in 'key=value' format.
+        """
         return cls(name, dict(e.split("=", 1) for e in args))
 
 
 class PromptRenderer:
+    """Renderer for prompt templates using Jinja2"""
+
     def __init__(self, env: jinja2.Environment) -> None:
         self._environment = env
 
     @classmethod
-    def for_repo(cls, repo: git.Repo):
+    def for_repo(cls, repo: git.Repo) -> Self:
         env = jinja2.Environment(
             auto_reload=False,
             autoescape=False,
@@ -35,7 +43,7 @@ class PromptRenderer:
             undefined=jinja2.StrictUndefined,
         )
         env.globals["repo"] = {
-            "file_paths": repo.git.ls_files(),
+            "file_paths": repo.git.ls_files().splitlines(),
         }
         return cls(env)
 
