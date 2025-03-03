@@ -16,11 +16,12 @@ class TemplatedPrompt:
 
     @classmethod
     def parse(cls, name: str, *args: str) -> Self:
-        """Parse arguments into a TemplatedPrompt.
+        """Parse arguments into a TemplatedPrompt
 
         Args:
             name: The name of the template.
-            *args: Additional arguments for context, expected in 'key=value' format.
+            *args: Additional arguments for context, expected in 'key=value'
+                format.
         """
         return cls(name, dict(e.split("=", 1) for e in args))
 
