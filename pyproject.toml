@@ -1,66 +1,66 @@
 [project]
-name = 'git-draft'
-description = 'Version-controlled code assistant'
-authors = [{name='Matthieu Monsch', email='mtth@apache.org'}]
-license = 'MIT'
-readme = 'README.md'
-dynamic = ['version']
-requires-python = '>=3.12'
+name = "git-draft"
+description = "Version-controlled code assistant"
+authors = [{name="Matthieu Monsch", email="mtth@apache.org"}]
+license = "MIT"
+readme = "README.md"
+dynamic = ["version"]
+requires-python = ">=3.12"
 dependencies = [
-  'gitpython (>=3.1.44,<4)',
-  "xdg-base-dirs (>=6.0.2,<7.0.0)",
+  "gitpython (>=3.1.44,<4)",
   "jinja2 (>=3.1.5,<4.0.0)",
+  "xdg-base-dirs (>=6.0.2,<7.0.0)",
 ]
 
 [project.optional-dependencies]
-openai = ['openai (>=1.64.0,<2)']
+openai = ["openai (>=1.64.0,<2)"]
 
 [project.scripts]
-git-draft = 'git_draft.__main__:main'
+git-draft = "git_draft.__main__:main"
 
 [project.urls]
-repository = 'https://github.com/mtth/git-draft'
-documentation = 'https://mtth.github.io/git-draft'
+repository = "https://github.com/mtth/git-draft"
+documentation = "https://mtth.github.io/git-draft"
 
 [build-system]
-requires = ['poetry-core']
-build-backend = 'poetry.core.masonry.api'
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
 
 # Poetry
 
 [tool.poetry]
-version = '0.0.0' # Set programmatically
-packages = [{include='git_draft', from='src'}]
+version = "0.0.0" # Set programmatically
+packages = [{include="git_draft", from="src"}]
 
 [tool.poetry.dependencies]
-python = '>=3.12,<4'
+python = ">=3.12,<4"
 
 [tool.poetry.group.dev.dependencies]
-black = '^25.1.0'
-flake8 = '^7.0.0'
-flake8-pyproject = '^1.2.3'
-mypy = '^1.2.0'
-poethepoet = '^0.25.0'
-pytest = '^7.1.2'
+black = "^25.1.0"
+flake8 = "^7.0.0"
+flake8-pyproject = "^1.2.3"
+mypy = "^1.2.0"
+poethepoet = "^0.25.0"
+pytest = "^7.1.2"
 
 # Poe
 
 [tool.poe.tasks.fix]
-help = 'format source code'
-cmd = 'black ${args}'
+help = "format source code"
+cmd = "black ${args}"
 args = [
-  {name='args', help='target folders', positional=true, multiple=true, default='src tests'},
+  {name="args", help="target folders", positional=true, multiple=true, default="src tests"},
 ]
 
 [tool.poe.tasks.lint]
-help = 'lint source code'
+help = "lint source code"
 sequence = [
-  {cmd='black --check --quiet ${args}'},
-  {cmd='flake8 ${args}'},
-  {cmd='mypy ${args}'},
+  {cmd="black --check --quiet ${args}"},
+  {cmd="flake8 ${args}"},
+  {cmd="mypy ${args}"},
 ]
 args = [
-  {name='args', help='target folders', positional=true, multiple=true, default='src tests'},
+  {name="args", help="target folders", positional=true, multiple=true, default="src tests"},
 ]
 
 # Other tools
@@ -70,10 +70,10 @@ line-length = 79
 include = '\.py$'
 
 [tool.flake8]
-ignore = ['E203', 'E501', 'E704', 'W503']
+ignore = ["E203", "E501", "E704", "W503"]
 
 [tool.mypy]
-disable_error_code = 'import-untyped'
+disable_error_code = "import-untyped"
 
 [tool.pytest.ini_options]
-log_level = 'DEBUG'
+log_level = "DEBUG"
