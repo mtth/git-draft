@@ -1,0 +1,28 @@
+Add docstrings to all public functions and classes in {{ src_path }}. Be
+concise and do not repeat yourself.
+
+Focus on highlighting aspects which are not obvious from the name of the
+symbols. Take time to look at the implementation to discover any behaviors
+which could be surprising, and make sure to mention those in the docstring.
+
+Docstrings should use the "Args" format for arguments. See the following
+examples:
+
+
+```python
+def write_file(path: Path, contents: str) -> None:
+  """Update a file's contents
+
+  Args:
+    path: Path to the file to update.
+    contents: New file contents.
+  """
+  ...
+
+class Renderer:
+    """A smart renderer"""
+
+    ...
+```
+
+Use tabs for indentation and do not go over 79 characters.
