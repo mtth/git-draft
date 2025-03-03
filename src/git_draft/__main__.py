@@ -9,13 +9,13 @@ from .bots import Operation, load_bot
 from .common import (
     Config,
     PROGRAM,
-    Store,
     UnreachableError,
     ensure_state_home,
     open_editor,
 )
 from .manager import Manager
 from .prompt import TemplatedPrompt
+from .store import Store
 
 
 def new_parser() -> optparse.OptionParser:

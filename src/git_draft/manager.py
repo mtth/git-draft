@@ -12,8 +12,9 @@ import time
 from typing import Match, Sequence, override
 
 from .bots import Bot, OperationHook, Toolbox
-from .common import Store, random_id, sql
+from .common import random_id
 from .prompt import PromptRenderer, TemplatedPrompt
+from .store import Store, sql
 
 
 _logger = logging.getLogger(__name__)
