@@ -15,7 +15,7 @@ import string
 import sys
 import tempfile
 import tomllib
-from typing import Any, Iterator, Mapping, Self
+from typing import Any, Iterator, Mapping, Self, Sequence
 import xdg_base_dirs
 
 
@@ -25,16 +25,16 @@ PROGRAM = "git-draft"
 @dataclasses.dataclass(frozen=True)
 class Config:
     log_level: int
-    bots: Mapping[str, BotConfig]
+    bots: Sequence[BotConfig]
     # TODO: Add (prompt) templates.
-
-    @classmethod
-    def default(cls) -> Self:
-        return cls(logging.INFO, {})
 
     @staticmethod
     def path() -> Path:
         return xdg_base_dirs.xdg_config_home() / PROGRAM / "config.toml"
+
+    @classmethod
+    def default(cls) -> Self:
+        return cls(logging.INFO, [])
 
     @classmethod
     def load(cls) -> Self:
@@ -45,10 +45,9 @@ class Config:
         except FileNotFoundError:
             return cls.default()
         else:
-            bot_data = data.get("bots", {})
             return cls(
                 log_level=logging.getLevelName(data["log_level"]),
-                bots={k: BotConfig(**v) for k, v in bot_data.items()},
+                bots=[BotConfig(**v) for v in data.get("bots", [])],
             )
 
 
@@ -58,8 +57,9 @@ type JSONObject = Mapping[str, JSONValue]
 
 @dataclasses.dataclass(frozen=True)
 class BotConfig:
-    loader: str
-    kwargs: JSONObject | None = None
+    factory: str
+    name: str | None = None
+    config: JSONObject | None = None
     pythonpath: str | None = None
 
 
@@ -157,3 +157,7 @@ _alphabet = string.ascii_lowercase + string.digits
 
 def random_id(n: int) -> str:
     return "".join(_random.choices(_alphabet, k=n))
+
+
+class UnreachableError(RuntimeError):
+    pass

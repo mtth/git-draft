@@ -59,13 +59,14 @@ class TestConfig:
         text = """\
             log_level = "DEBUG"
 
-            [bots.foo]
-            loader = "foo:load"
+            [[bots]]
+            factory = "foo:load"
             pythonpath = "./abc"
 
-            [bots.bar]
-            loader = "bar"
-            kwargs = {one=1}
+            [[bots]]
+            name = "bar"
+            factory = "bar"
+            config = {one=1}
         """
         path = sut.Config.path()
         path.parent.mkdir(parents=True, exist_ok=True)
@@ -75,10 +76,10 @@ class TestConfig:
         config = sut.Config.load()
         assert config == sut.Config(
             log_level=logging.DEBUG,
-            bots={
-                "foo": sut.BotConfig(loader="foo:load", pythonpath="./abc"),
-                "bar": sut.BotConfig(loader="bar", kwargs={"one": 1}),
-            },
+            bots=[
+                sut.BotConfig(factory="foo:load", pythonpath="./abc"),
+                sut.BotConfig(factory="bar", name="bar", config={"one": 1}),
+            ],
         )
 
     def test_load_default(self) -> None:

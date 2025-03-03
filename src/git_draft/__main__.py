@@ -6,7 +6,14 @@ import optparse
 import sys
 
 from .bots import Operation, load_bot
-from .common import Config, PROGRAM, Store, ensure_state_home, open_editor
+from .common import (
+    Config,
+    PROGRAM,
+    Store,
+    UnreachableError,
+    ensure_state_home,
+    open_editor,
+)
 from .manager import Manager
 
 
@@ -50,7 +57,6 @@ def new_parser() -> optparse.OptionParser:
         "--bot",
         dest="bot",
         help="bot key",
-        default="openai",
     )
     parser.add_option(
         "-c",
@@ -107,7 +113,16 @@ def main() -> None:
     )
     command = getattr(opts, "command", "generate")
     if command == "generate":
-        bot = load_bot(opts.bot, {})
+        if not config.bots:
+            raise ValueError("No bots configured")
+        if opts.bot:
+            bot_configs = [c for c in config.bots if c.name == opts.bot]
+            if len(bot_configs) != 1:
+                raise ValueError(f"Found {len(bot_configs)} matching bots")
+            bot_config = bot_configs[0]
+        else:
+            bot_config = config.bots[0]
+        bot = load_bot(bot_config)
         prompt = opts.prompt
         if not prompt:
             if sys.stdin.isatty():
@@ -122,7 +137,7 @@ def main() -> None:
     elif command == "discard":
         manager.discard_draft(delete=opts.delete)
     else:
-        assert False, "unreachable"
+        raise UnreachableError()
 
 
 if __name__ == "__main__":
