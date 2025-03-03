@@ -7,3 +7,10 @@ tests. For example, if the surrounding code uses fixtures, do so as well.
 
 Do not stop until you have added at least one test. You should add separate
 tests to cover the normal execution path, and to cover any exceptional cases.
+
+For reference, here is the list of all currently available files in the
+repository:
+
+{% for path in repo.file_paths %}
+  * {{ path }}
+{% endfor %}
