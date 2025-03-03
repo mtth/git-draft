@@ -37,6 +37,7 @@ python = ">=3.12,<4"
 
 [tool.poetry.group.dev.dependencies]
 black = "^25.1.0"
+coverage = "^7.4.4"
 flake8 = "^7.0.0"
 flake8-pyproject = "^1.2.3"
 mypy = "^1.2.0"
@@ -63,11 +64,27 @@ args = [
   {name="args", help="target folders", positional=true, multiple=true, default="src tests"},
 ]
 
+[tool.poe.tasks.test]
+help = "run tests with coverage"
+sequence = [
+  {cmd="coverage run"},
+  {cmd="coverage report"},
+]
+
 # Other tools
 
 [tool.black]
 line-length = 79
 include = '\.py$'
+
+[tool.coverage.run]
+branch = true
+command_line = "-m pytest"
+relative_files = true
+
+[tool.coverage.report]
+include = ["src/**/*.py"]
+show_missing = true
 
 [tool.flake8]
 ignore = ["E203", "E501", "E704", "W503"]
