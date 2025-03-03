@@ -2,20 +2,10 @@ import git
 import os.path as osp
 from pathlib import PurePosixPath
 import pytest
-import tempfile
-from typing import Iterator
 
 from git_draft.bots import Action, Bot, Toolbox
 from git_draft.common import Store
 import git_draft.manager as sut
-
-
-@pytest.fixture
-def repo() -> Iterator[git.Repo]:
-    with tempfile.TemporaryDirectory() as name:
-        repo = git.Repo.init(name, initial_branch="main")
-        repo.index.commit("init")
-        yield repo
 
 
 class _FakeBot(Bot):

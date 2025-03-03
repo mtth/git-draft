@@ -9,13 +9,13 @@ from .bots import Operation, load_bot
 from .common import (
     Config,
     PROGRAM,
-    PromptRenderer,
     Store,
     UnreachableError,
     ensure_state_home,
     open_editor,
 )
 from .manager import Manager
+from .prompt import TemplatedPrompt
 
 
 def new_parser() -> optparse.OptionParser:
@@ -134,9 +134,7 @@ def main() -> None:
         prompt = opts.prompt
         if not prompt:
             if opts.template:
-                renderer = PromptRenderer.default()
-                kwargs = dict(e.split("=", 1) for e in args)
-                prompt = renderer.render(opts.template, **kwargs)
+                prompt = TemplatedPrompt.parse(opts.template, *args)
             elif sys.stdin.isatty():
                 prompt = open_editor("Enter your prompt here...")
             else:

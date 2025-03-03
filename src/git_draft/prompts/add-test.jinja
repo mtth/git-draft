@@ -1,1 +1,11 @@
-Add a test for {{ symbol }}.
+Add tests for {{ symbol }}. Follow existing conventions when implementing the
+tests. For example, if the surrounding code uses fixtures, do so as well.
+
+{% if src_path is defined %}The symbol to be tested is defined in {{ src_path }}.{% endif %}
+
+{% if test_path is defined %}The tests should be added to {{ test_path }}.{% endif %}
+
+Do not stop until you have added at least one test. You should add separate
+tests to cover the normal execution path, and to cover any exceptional cases.
+
+{% include "includes/file-list.jinja" %}
