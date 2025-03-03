@@ -82,12 +82,13 @@ class PromptRenderer:
     @classmethod
     def default(cls):
         env = jinja2.Environment(
+            auto_reload=False,
+            autoescape=False,
+            keep_trailing_newline=True,
             loader=jinja2.FileSystemLoader(
                 [Config.folder_path() / "prompts", str(_prompt_root)]
             ),
-            autoescape=False,
-            keep_trailing_newline=True,
-            auto_reload=False,
+            undefined=jinja2.StrictUndefined,
         )
         return cls(env)
 
