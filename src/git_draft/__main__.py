@@ -9,6 +9,7 @@ from .bots import Operation, load_bot
 from .common import (
     Config,
     PROGRAM,
+    PromptRenderer,
     Store,
     UnreachableError,
     ensure_state_home,
@@ -74,7 +75,7 @@ def new_parser() -> optparse.OptionParser:
         "-p",
         "--prompt",
         dest="prompt",
-        help="draft generation prompt, read from stdin if unset",
+        help="inline prompt",
     )
     parser.add_option(
         "-r",
@@ -88,6 +89,12 @@ def new_parser() -> optparse.OptionParser:
         help="commit prior worktree changes separately",
         action="store_true",
     )
+    parser.add_option(
+        "-t",
+        "--template",
+        dest="template",
+        help="prompt template",
+    )
 
     return parser
 
@@ -98,7 +105,7 @@ def print_operation(op: Operation) -> None:
 
 def main() -> None:
     config = Config.load()
-    (opts, _args) = new_parser().parse_args()
+    (opts, args) = new_parser().parse_args()
 
     log_path = ensure_state_home() / "log"
     if opts.log:
@@ -123,12 +130,18 @@ def main() -> None:
         else:
             bot_config = config.bots[0]
         bot = load_bot(bot_config)
+
         prompt = opts.prompt
         if not prompt:
-            if sys.stdin.isatty():
+            if opts.template:
+                renderer = PromptRenderer.default()
+                kwargs = dict(e.split("=", 1) for e in args)
+                prompt = renderer.render(opts.template, **kwargs)
+            elif sys.stdin.isatty():
                 prompt = open_editor("Enter your prompt here...")
             else:
                 prompt = sys.stdin.read()
+
         manager.generate_draft(
             prompt, bot, checkout=opts.checkout, reset=opts.reset
         )

@@ -68,9 +68,9 @@ class TestConfig:
             factory = "bar"
             config = {one=1}
         """
-        path = sut.Config.path()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        with open(path, "w") as f:
+        path = sut.Config.folder_path()
+        path.mkdir(parents=True, exist_ok=True)
+        with open(path / "config.toml", "w") as f:
             f.write(textwrap.dedent(text))
 
         config = sut.Config.load()
@@ -85,3 +85,13 @@ class TestConfig:
     def test_load_default(self) -> None:
         config = sut.Config.load()
         assert config.log_level == logging.INFO
+
+
+class TestPromptRenderer:
+    @pytest.fixture(autouse=True)
+    def setup(self) -> None:
+        self._renderer = sut.PromptRenderer.default()
+
+    def test_ok(self) -> None:
+        prompt = self._renderer.render("add-test", symbol="foo")
+        assert "foo" in prompt
