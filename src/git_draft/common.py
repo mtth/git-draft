@@ -4,7 +4,6 @@ import contextlib
 import dataclasses
 from datetime import datetime
 import functools
-import jinja2
 import logging
 import os
 from pathlib import Path
@@ -27,7 +26,7 @@ type JSONValue = Any
 type JSONObject = Mapping[str, JSONValue]
 
 
-_package_root = Path(__file__).parent
+package_root = Path(__file__).parent
 
 
 def ensure_state_home() -> Path:
@@ -70,31 +69,6 @@ class BotConfig:
     name: str | None = None
     config: JSONObject | None = None
     pythonpath: str | None = None
-
-
-_prompt_root = _package_root / "prompts"
-
-
-class PromptRenderer:
-    def __init__(self, env: jinja2.Environment) -> None:
-        self._environment = env
-
-    @classmethod
-    def default(cls):
-        env = jinja2.Environment(
-            auto_reload=False,
-            autoescape=False,
-            keep_trailing_newline=True,
-            loader=jinja2.FileSystemLoader(
-                [Config.folder_path() / "prompts", str(_prompt_root)]
-            ),
-            undefined=jinja2.StrictUndefined,
-        )
-        return cls(env)
-
-    def render(self, template_name: str, **kwargs) -> str:
-        template = self._environment.get_template(f"{template_name}.jinja")
-        return template.render(kwargs)
 
 
 _default_editors = ["vim", "emacs", "nano"]
@@ -169,7 +143,7 @@ class Store:
                 self._connection.commit()
 
 
-_query_root = _package_root / "queries"
+_query_root = package_root / "queries"
 
 
 @functools.cache

@@ -1,5 +1,10 @@
-Add docstrings to all public functions and classes in {{ src_path }}. Be
-concise and do not repeat yourself.
+{% if src_path is defined %}
+Add docstrings to all public functions and classes in {{ src_path }}.
+{% else %}
+Add docstrings to all public functions and classes in this repository.
+{% endif %}
+
+Be concise and do not repeat yourself.
 
 Focus on highlighting aspects which are not obvious from the name of the
 symbols. Take time to look at the implementation to discover any behaviors
@@ -11,12 +16,12 @@ examples:
 
 ```python
 def write_file(path: Path, contents: str) -> None:
-  """Update a file's contents
+    """Update a file's contents
 
-  Args:
-    path: Path to the file to update.
-    contents: New file contents.
-  """
+    Args:
+        path: Path to the file to update.
+        contents: New file contents.
+    """
   ...
 
 class Renderer:
@@ -24,3 +29,5 @@ class Renderer:
 
     ...
 ```
+
+{% include "includes/file-list.jinja" %}

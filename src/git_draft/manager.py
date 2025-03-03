@@ -13,6 +13,7 @@ from typing import Match, Sequence, override
 
 from .bots import Bot, OperationHook, Toolbox
 from .common import Store, random_id, sql
+from .prompt import PromptRenderer, TemplatedPrompt
 
 
 _logger = logging.getLogger(__name__)
@@ -135,13 +136,13 @@ class Manager:
 
     def generate_draft(
         self,
-        prompt: str,
+        prompt: str | TemplatedPrompt,
         bot: Bot,
         checkout=False,
         reset=False,
         sync=False,
     ) -> None:
-        if not prompt.strip():
+        if isinstance(prompt, str) and not prompt.strip():
             raise ValueError("Empty prompt")
         if self._repo.is_dirty(working_tree=False):
             if not reset:
@@ -157,24 +158,31 @@ class Manager:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
 
+        if isinstance(prompt, TemplatedPrompt):
+            renderer = PromptRenderer.for_repo(self._repo)
+            prompt_contents = renderer.render(prompt)
+        else:
+            prompt_contents = prompt
         with self._store.cursor() as cursor:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
                 {
                     "branch_suffix": branch.suffix,
-                    "contents": prompt,
+                    "contents": prompt_contents,
                 },
             )
 
         start_time = time.perf_counter()
         toolbox = _Toolbox(self._repo, self._operation_hook)
-        action = bot.act(prompt, toolbox)
+        action = bot.act(prompt_contents, toolbox)
         end_time = time.perf_counter()
 
         title = action.title
         if not title:
-            title = textwrap.shorten(prompt, break_on_hyphens=False, width=72)
-        commit = self._repo.index.commit(f"draft! {title}\n\n{prompt}")
+            title = _default_title(prompt_contents)
+        commit = self._repo.index.commit(
+            f"draft! {title}\n\n{prompt_contents}"
+        )
 
         with self._store.cursor() as cursor:
             cursor.execute(
@@ -247,3 +255,7 @@ class Manager:
             self._repo.git.checkout(sync_sha, "--", ".")
         if delete:
             self._repo.git.branch("-D", branch.name)
+
+
+def _default_title(prompt: str) -> str:
+    return textwrap.shorten(prompt, break_on_hyphens=False, width=72)
