@@ -4,6 +4,7 @@ import contextlib
 import dataclasses
 from datetime import datetime
 import functools
+import jinja2
 import logging
 import os
 from pathlib import Path
@@ -22,15 +23,27 @@ import xdg_base_dirs
 PROGRAM = "git-draft"
 
 
+type JSONValue = Any
+type JSONObject = Mapping[str, JSONValue]
+
+
+_package_root = Path(__file__).parent
+
+
+def ensure_state_home() -> Path:
+    path = xdg_base_dirs.xdg_state_home() / PROGRAM
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
 @dataclasses.dataclass(frozen=True)
 class Config:
     log_level: int
     bots: Sequence[BotConfig]
-    # TODO: Add (prompt) templates.
 
     @staticmethod
-    def path() -> Path:
-        return xdg_base_dirs.xdg_config_home() / PROGRAM / "config.toml"
+    def folder_path() -> Path:
+        return xdg_base_dirs.xdg_config_home() / PROGRAM
 
     @classmethod
     def default(cls) -> Self:
@@ -38,7 +51,7 @@ class Config:
 
     @classmethod
     def load(cls) -> Self:
-        path = cls.path()
+        path = cls.folder_path() / "config.toml"
         try:
             with open(path, "rb") as reader:
                 data = tomllib.load(reader)
@@ -51,10 +64,6 @@ class Config:
             )
 
 
-type JSONValue = Any
-type JSONObject = Mapping[str, JSONValue]
-
-
 @dataclasses.dataclass(frozen=True)
 class BotConfig:
     factory: str
@@ -63,10 +72,28 @@ class BotConfig:
     pythonpath: str | None = None
 
 
-def ensure_state_home() -> Path:
-    path = xdg_base_dirs.xdg_state_home() / PROGRAM
-    path.mkdir(parents=True, exist_ok=True)
-    return path
+_prompt_root = _package_root / "prompts"
+
+
+class PromptRenderer:
+    def __init__(self, env: jinja2.Environment) -> None:
+        self._environment = env
+
+    @classmethod
+    def default(cls):
+        env = jinja2.Environment(
+            loader=jinja2.FileSystemLoader(
+                [Config.folder_path() / "prompts", str(_prompt_root)]
+            ),
+            autoescape=False,
+            keep_trailing_newline=True,
+            auto_reload=False,
+        )
+        return cls(env)
+
+    def render(self, template: str, **kwargs) -> str:
+        template = self._environment.get_template(f"{template}.jinja")
+        return template.render(kwargs)
 
 
 _default_editors = ["vim", "emacs", "nano"]
@@ -141,7 +168,7 @@ class Store:
                 self._connection.commit()
 
 
-_query_root = Path(__file__).parent / "queries"
+_query_root = _package_root / "queries"
 
 
 @functools.cache
