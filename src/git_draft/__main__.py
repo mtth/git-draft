@@ -57,7 +57,6 @@ def new_parser() -> optparse.OptionParser:
         "--bot",
         dest="bot",
         help="bot key",
-        default="openai",
     )
     parser.add_option(
         "-c",
