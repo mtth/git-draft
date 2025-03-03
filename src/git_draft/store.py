@@ -14,7 +14,7 @@ sqlite3.register_converter(
 
 
 class Store:
-    _name = "db.v1.sqlite3"
+    _name = "v1.sqlite3"
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._connection = conn

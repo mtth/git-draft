@@ -6,12 +6,6 @@ import textwrap
 import git_draft.common as sut
 
 
-@pytest.fixture(autouse=True)
-def state_home(monkeypatch, tmp_path) -> None:
-    path = tmp_path / "state"
-    monkeypatch.setenv("XDG_STATE_HOME", str(path))
-
-
 def test_ensure_state_home() -> None:
     path = sut.ensure_state_home()
     assert path.exists()

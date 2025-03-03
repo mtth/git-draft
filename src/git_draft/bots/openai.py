@@ -109,12 +109,11 @@ class OpenAIBot(Bot):
         )
         thread = self._client.beta.threads.create()
 
-        message = self._client.beta.threads.messages.create(
+        self._client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=prompt,
         )
-        print(message)
 
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,

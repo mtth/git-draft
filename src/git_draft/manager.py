@@ -124,6 +124,7 @@ class Manager:
                 sql("add-branch"),
                 {
                     "suffix": suffix,
+                    "repo_path": self._repo.working_dir,
                     "origin_branch": origin_branch,
                     "origin_sha": origin_sha,
                     "sync_sha": sync_sha,
