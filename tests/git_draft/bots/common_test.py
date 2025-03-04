@@ -48,10 +48,10 @@ class TestToolbox:
         assert self._toolbox.operations[0].tool == "delete_file"
 
 
-class _FakeBot(sut.Bot):
+class FakeBot(sut.Bot):
     pass
 
 
 class TestBot:
     def test_state_folder_path(self) -> None:
-        assert "bots.common_test._FakeBot" in str(_FakeBot.state_folder_path())
+        assert "bots.common_test.FakeBot" in str(FakeBot.state_folder_path())
