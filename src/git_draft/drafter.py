@@ -63,7 +63,7 @@ class _Toolbox(Toolbox):
     @override
     def _list(self) -> Sequence[PurePosixPath]:
         # Show staged files.
-        return self._repo.git.ls_files()
+        return self._repo.git.ls_files().splitlines()
 
     @override
     def _read(self, path: PurePosixPath) -> str:
