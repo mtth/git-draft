@@ -6,14 +6,9 @@ import optparse
 import sys
 
 from .bots import Operation, load_bot
-from .common import (
-    Config,
-    PROGRAM,
-    UnreachableError,
-    ensure_state_home,
-    open_editor,
-)
+from .common import Config, PROGRAM, UnreachableError, ensure_state_home
 from .drafter import Drafter
+from .editor import open_editor
 from .prompt import TemplatedPrompt
 from .store import Store
 
