@@ -38,7 +38,7 @@ class _Branch:
     @classmethod
     def active(cls, repo: git.Repo) -> _Branch | None:
         match: Match | None = None
-        if repo.active_branch:
+        if not repo.head.is_detached:
             match = cls._name_pattern.fullmatch(repo.active_branch.name)
         if not match:
             return None
@@ -110,7 +110,7 @@ class Drafter:
         )
 
     def _create_branch(self, sync: bool) -> _Branch:
-        if not self._repo.active_branch:
+        if self._repo.head.is_detached:
             raise RuntimeError("No currently active branch")
         origin_branch = self._repo.active_branch.name
         origin_sha = self._repo.commit().hexsha

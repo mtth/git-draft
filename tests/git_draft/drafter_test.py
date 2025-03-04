@@ -2,9 +2,11 @@ import git
 import os.path as osp
 from pathlib import Path, PurePosixPath
 import pytest
+from typing import Sequence
 
 from git_draft.bots import Action, Bot, Toolbox
 import git_draft.drafter as sut
+from git_draft.prompt import TemplatedPrompt
 from git_draft.store import Store
 
 
@@ -50,61 +52,80 @@ class _FakeBot(Bot):
         return Action()
 
 
-@pytest.fixture
-def drafter(repo: git.Repo) -> sut.Drafter:
-    return sut.Drafter(Store.in_memory(), repo)
-
-
 class TestDrafter:
-    def test_generate_draft(
-        self, drafter: sut.Drafter, repo: git.Repo
-    ) -> None:
-        drafter.generate_draft("hello", _FakeBot())
-        commits = list(repo.iter_commits())
-        assert len(commits) == 2
+    @pytest.fixture(autouse=True)
+    def setup(self, repo: git.Repo) -> None:
+        self._repo = repo
+        self._drafter = sut.Drafter(Store.in_memory(), repo)
 
-    def test_generate_then_discard_draft(
-        self, drafter: sut.Drafter, repo: git.Repo
-    ) -> None:
-        drafter.generate_draft("hello", _FakeBot())
-        drafter.discard_draft()
-        assert len(list(repo.iter_commits())) == 1
+    def _path(self, name: str) -> Path:
+        return Path(self._repo.working_dir, name)
 
-    def test_discard_restores_worktree(
-        self, drafter: sut.Drafter, repo: git.Repo
-    ) -> None:
-        p1 = osp.join(repo.working_dir, "p1.txt")
-        with open(p1, "w") as writer:
-            writer.write("a1")
-        p2 = osp.join(repo.working_dir, "p2.txt")
-        with open(p2, "w") as writer:
-            writer.write("b1")
+    def _read(self, name: str) -> None:
+        with open(self._path(name)) as f:
+            return f.read()
 
-        drafter.generate_draft("hello", _FakeBot(), sync=True)
-        with open(p1, "w") as writer:
-            writer.write("a2")
+    def _write(self, name: str, contents="") -> None:
+        with open(self._path(name), "w") as f:
+            f.write(contents)
 
-        drafter.discard_draft()
+    def _commits(self) -> Sequence[git.Commit]:
+        return list(self._repo.iter_commits())
 
-        with open(p1) as reader:
-            assert reader.read() == "a1"
-        with open(p2) as reader:
-            assert reader.read() == "b1"
+    def test_generate_draft(self) -> None:
+        self._drafter.generate_draft("hello", _FakeBot())
+        assert len(self._commits()) == 2
 
-    def test_finalize_keeps_changes(
-        self, drafter: sut.Drafter, repo: git.Repo
-    ) -> None:
-        p1 = osp.join(repo.working_dir, "p1.txt")
-        with open(p1, "w") as writer:
-            writer.write("a1")
+    def test_generate_then_discard_draft(self) -> None:
+        self._drafter.generate_draft("hello", _FakeBot())
+        self._drafter.discard_draft()
+        assert len(self._commits()) == 1
 
-        drafter.generate_draft("hello", _FakeBot(), checkout=True)
-        with open(p1, "w") as writer:
-            writer.write("a2")
+    def test_generate_outside_branch(self) -> None:
+        self._repo.git.checkout("--detach")
+        with pytest.raises(RuntimeError):
+            self._drafter.generate_draft("ok", _FakeBot())
 
-        drafter.finalize_draft()
+    def test_generate_empty_prompt(self) -> None:
+        with pytest.raises(ValueError):
+            self._drafter.generate_draft("", _FakeBot())
 
-        with open(p1) as reader:
-            assert reader.read() == "a2"
-        with open(osp.join(repo.working_dir, "PROMPT")) as reader:
-            assert reader.read() == "hello"
+    def test_generate_dirty_index_no_reset(self) -> None:
+        self._write("log")
+        self._repo.git.add(all=True)
+        with pytest.raises(ValueError):
+            self._drafter.generate_draft("hi", _FakeBot())
+
+    def test_generate_dirty_index_reset_sync(self) -> None:
+        self._write("log", "11")
+        self._repo.git.add(all=True)
+        self._drafter.generate_draft("hi", _FakeBot(), reset=True, sync=True)
+        assert self._read("log") == "11"
+        assert not self._path("PROMPT").exists()
+        self._repo.git.checkout(".")
+        assert self._read("PROMPT") == "hi"
+        assert len(self._commits()) == 3  # init, sync, prompt
+
+    def test_generate_clean_index_sync(self) -> None:
+        prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
+        self._drafter.generate_draft(prompt, _FakeBot(), sync=True)
+        self._repo.git.checkout(".")
+        assert "abc" in self._read("PROMPT")
+        assert len(self._commits()) == 2  # init, prompt
+
+    def test_discard_restores_worktree(self) -> None:
+        self._write("p1.txt", "a1")
+        self._write("p2.txt", "b1")
+        self._drafter.generate_draft("hello", _FakeBot(), sync=True)
+        self._write("p1.txt", "a2")
+        self._drafter.discard_draft()
+        assert self._read("p1.txt") == "a1"
+        assert self._read("p2.txt") == "b1"
+
+    def test_finalize_keeps_changes(self) -> None:
+        self._write("p1.txt", "a1")
+        self._drafter.generate_draft("hello", _FakeBot(), checkout=True)
+        self._write("p1.txt", "a2")
+        self._drafter.finalize_draft()
+        assert self._read("p1.txt") == "a2"
+        assert self._read("PROMPT") == "hello"
