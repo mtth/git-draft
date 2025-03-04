@@ -244,7 +244,7 @@ class Drafter:
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
-            raise ValueError("Parent branch has moved, please rebase")
+            raise RuntimeError("Parent branch has moved, please rebase")
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for

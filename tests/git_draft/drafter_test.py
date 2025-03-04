@@ -130,12 +130,22 @@ class TestDrafter:
         with pytest.raises(RuntimeError):
             self._drafter.discard_draft()
 
+    def test_discard_after_branch_move(self) -> None:
+        self._write("log", "11")
+        self._drafter.generate_draft("hi", _FakeBot(), sync=True)
+        branch = self._repo.active_branch
+        self._repo.git.checkout("main")
+        self._repo.index.commit("advance")
+        self._repo.git.checkout(branch)
+        with pytest.raises(RuntimeError):
+            self._drafter.discard_draft()
+
     def test_discard_restores_worktree(self) -> None:
         self._write("p1.txt", "a1")
         self._write("p2.txt", "b1")
         self._drafter.generate_draft("hello", _FakeBot(), sync=True)
         self._write("p1.txt", "a2")
-        self._drafter.discard_draft()
+        self._drafter.discard_draft(delete=True)
         assert self._read("p1.txt") == "a1"
         assert self._read("p2.txt") == "b1"
 
