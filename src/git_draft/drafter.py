@@ -85,7 +85,7 @@ class _Toolbox(Toolbox):
 
 
 class Drafter:
-    """Draft state drafter"""
+    """Draft state orchestrator"""
 
     def __init__(
         self, store: Store, repo: git.Repo, hook: OperationHook | None = None
