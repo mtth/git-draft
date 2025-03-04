@@ -1,5 +1,4 @@
 import git
-import os.path as osp
 from pathlib import Path, PurePosixPath
 import pytest
 from typing import Sequence
@@ -61,7 +60,7 @@ class TestDrafter:
     def _path(self, name: str) -> Path:
         return Path(self._repo.working_dir, name)
 
-    def _read(self, name: str) -> None:
+    def _read(self, name: str) -> str:
         with open(self._path(name)) as f:
             return f.read()
 
