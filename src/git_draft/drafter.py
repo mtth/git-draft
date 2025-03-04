@@ -38,7 +38,7 @@ class _Branch:
     @classmethod
     def active(cls, repo: git.Repo) -> _Branch | None:
         match: Match | None = None
-        if repo.active_branch:
+        if not repo.head.is_detached:
             match = cls._name_pattern.fullmatch(repo.active_branch.name)
         if not match:
             return None
@@ -63,7 +63,7 @@ class _Toolbox(Toolbox):
     @override
     def _list(self) -> Sequence[PurePosixPath]:
         # Show staged files.
-        return self._repo.git.ls_files()
+        return self._repo.git.ls_files().splitlines()
 
     @override
     def _read(self, path: PurePosixPath) -> str:
@@ -110,7 +110,7 @@ class Drafter:
         )
 
     def _create_branch(self, sync: bool) -> _Branch:
-        if not self._repo.active_branch:
+        if self._repo.head.is_detached:
             raise RuntimeError("No currently active branch")
         origin_branch = self._repo.active_branch.name
         origin_sha = self._repo.commit().hexsha
@@ -244,7 +244,7 @@ class Drafter:
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
-            raise ValueError("Parent branch has moved, please rebase")
+            raise RuntimeError("Parent branch has moved, please rebase")
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
