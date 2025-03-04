@@ -1,3 +1,5 @@
+"""Prompt templating support"""
+
 import dataclasses
 import git
 import jinja2

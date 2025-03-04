@@ -45,7 +45,7 @@ class TestToolbox:
             assert f.read() == "hi"
 
 
-class _FakeBot(Bot):
+class FakeBot(Bot):
     def act(self, prompt: str, toolbox: Toolbox) -> Action:
         toolbox.write_file(PurePosixPath("PROMPT"), prompt)
         return Action()
@@ -72,33 +72,33 @@ class TestDrafter:
         return list(self._repo.iter_commits())
 
     def test_generate_draft(self) -> None:
-        self._drafter.generate_draft("hello", _FakeBot())
+        self._drafter.generate_draft("hello", FakeBot())
         assert len(self._commits()) == 2
 
     def test_generate_then_discard_draft(self) -> None:
-        self._drafter.generate_draft("hello", _FakeBot())
+        self._drafter.generate_draft("hello", FakeBot())
         self._drafter.discard_draft()
         assert len(self._commits()) == 1
 
     def test_generate_outside_branch(self) -> None:
         self._repo.git.checkout("--detach")
         with pytest.raises(RuntimeError):
-            self._drafter.generate_draft("ok", _FakeBot())
+            self._drafter.generate_draft("ok", FakeBot())
 
     def test_generate_empty_prompt(self) -> None:
         with pytest.raises(ValueError):
-            self._drafter.generate_draft("", _FakeBot())
+            self._drafter.generate_draft("", FakeBot())
 
     def test_generate_dirty_index_no_reset(self) -> None:
         self._write("log")
         self._repo.git.add(all=True)
         with pytest.raises(ValueError):
-            self._drafter.generate_draft("hi", _FakeBot())
+            self._drafter.generate_draft("hi", FakeBot())
 
     def test_generate_dirty_index_reset_sync(self) -> None:
         self._write("log", "11")
         self._repo.git.add(all=True)
-        self._drafter.generate_draft("hi", _FakeBot(), reset=True, sync=True)
+        self._drafter.generate_draft("hi", FakeBot(), reset=True, sync=True)
         assert self._read("log") == "11"
         assert not self._path("PROMPT").exists()
         self._repo.git.checkout(".")
@@ -107,13 +107,13 @@ class TestDrafter:
 
     def test_generate_clean_index_sync(self) -> None:
         prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
-        self._drafter.generate_draft(prompt, _FakeBot(), sync=True)
+        self._drafter.generate_draft(prompt, FakeBot(), sync=True)
         self._repo.git.checkout(".")
         assert "abc" in self._read("PROMPT")
         assert len(self._commits()) == 2  # init, prompt
 
     def test_generate_reuse_branch(self) -> None:
-        bot = _FakeBot()
+        bot = FakeBot()
         self._drafter.generate_draft("prompt1", bot)
         self._drafter.generate_draft("prompt2", bot)
         self._repo.git.checkout(".")
@@ -121,7 +121,7 @@ class TestDrafter:
         assert len(self._commits()) == 3  # init, prompt, prompt
 
     def test_generate_reuse_branch_sync(self) -> None:
-        bot = _FakeBot()
+        bot = FakeBot()
         self._drafter.generate_draft("prompt1", bot)
         self._drafter.generate_draft("prompt2", bot, sync=True)
         assert len(self._commits()) == 4  # init, prompt, sync, prompt
@@ -132,7 +132,7 @@ class TestDrafter:
 
     def test_discard_after_branch_move(self) -> None:
         self._write("log", "11")
-        self._drafter.generate_draft("hi", _FakeBot(), sync=True)
+        self._drafter.generate_draft("hi", FakeBot(), sync=True)
         branch = self._repo.active_branch
         self._repo.git.checkout("main")
         self._repo.index.commit("advance")
@@ -143,7 +143,7 @@ class TestDrafter:
     def test_discard_restores_worktree(self) -> None:
         self._write("p1.txt", "a1")
         self._write("p2.txt", "b1")
-        self._drafter.generate_draft("hello", _FakeBot(), sync=True)
+        self._drafter.generate_draft("hello", FakeBot(), sync=True)
         self._write("p1.txt", "a2")
         self._drafter.discard_draft(delete=True)
         assert self._read("p1.txt") == "a1"
@@ -151,7 +151,7 @@ class TestDrafter:
 
     def test_finalize_keeps_changes(self) -> None:
         self._write("p1.txt", "a1")
-        self._drafter.generate_draft("hello", _FakeBot(), checkout=True)
+        self._drafter.generate_draft("hello", FakeBot(), checkout=True)
         self._write("p1.txt", "a2")
         self._drafter.finalize_draft()
         assert self._read("p1.txt") == "a2"

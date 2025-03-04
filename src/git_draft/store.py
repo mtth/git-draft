@@ -1,3 +1,5 @@
+"""Persistent state storage"""
+
 import contextlib
 from datetime import datetime
 import functools
