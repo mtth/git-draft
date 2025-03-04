@@ -1,4 +1,4 @@
-# `git-draft(1)`
+# `git-draft(1)` [![CI](https://github.com/mtth/git-draft/actions/workflows/ci.yaml/badge.svg)](https://github.com/mtth/git-draft/actions/workflows/ci.yaml) [![Pypi badge](https://badge.fury.io/py/git-draft.svg)](https://pypi.python.org/pypi/git-draft/) [![codecov](https://codecov.io/gh/mtth/git-draft/graph/badge.svg?token=3OTKAI0FP6)](https://codecov.io/gh/mtth/git-draft)
 
 > [!NOTE]
 > WIP: Not quite functional yet.
