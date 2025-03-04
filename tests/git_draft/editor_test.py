@@ -1,4 +1,6 @@
+import pytest
 import shutil
+import subprocess
 
 import git_draft.editor as sut
 
@@ -40,3 +42,30 @@ class TestGuessEditorBinPath:
         monkeypatch.setenv("EDITOR", "")
 
         assert sut._guess_editor_binpath() == ""
+
+
+class TestOpenEditor:
+    def test_no_binpath(self, monkeypatch) -> None:
+        def which(_editor):
+            return ""
+
+        monkeypatch.setattr(shutil, "which", which)
+
+        with pytest.raises(ValueError):
+            sut.open_editor()
+
+    def test_ok(self, monkeypatch) -> None:
+        def which(editor):
+            return f"/bin/{editor}"
+
+        class Popen:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def communicate(self):
+                pass
+
+        monkeypatch.setattr(shutil, "which", which)
+        monkeypatch.setattr(subprocess, "Popen", Popen)
+
+        assert sut.open_editor(placeholder="hello") == "hello"

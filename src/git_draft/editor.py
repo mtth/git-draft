@@ -33,11 +33,11 @@ def open_editor(placeholder="") -> str:
             with open(temp.name, "w") as writer:
                 writer.write(placeholder)
 
-        stdout = open(_get_tty_filename(), "wb")
-        proc = subprocess.Popen(
-            [binpath, temp.name], close_fds=True, stdout=stdout
-        )
-        proc.communicate()
+        with open(_get_tty_filename(), "wb") as stdout:
+            proc = subprocess.Popen(
+                [binpath, temp.name], close_fds=True, stdout=stdout
+            )
+            proc.communicate()
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
