@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from typing import Callable, Sequence
 
-from ..common import JSONObject
+from ..common import ensure_state_home, JSONObject
 
 
 class Toolbox:
@@ -97,5 +97,11 @@ class Action:
 
 
 class Bot:
+    @classmethod
+    def state_folder_path(cls) -> Path:
+        path = ensure_state_home() / "bots" / cls.__qualname__
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
     def act(self, prompt: str, toolbox: Toolbox) -> Action:
         raise NotImplementedError()
