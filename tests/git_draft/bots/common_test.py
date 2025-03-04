@@ -46,3 +46,12 @@ class TestToolbox:
         self._toolbox.delete_file(PurePosixPath("/mock/path"))
         self._hook.assert_called_once()
         assert self._toolbox.operations[0].tool == "delete_file"
+
+
+class _FakeBot(sut.Bot):
+    pass
+
+
+class TestBot:
+    def test_state_folder_path(self) -> None:
+        assert "bots.common_test._FakeBot" in str(_FakeBot.state_folder_path())

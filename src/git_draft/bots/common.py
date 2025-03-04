@@ -99,9 +99,10 @@ class Action:
 class Bot:
     @classmethod
     def state_folder_path(cls) -> Path:
-        path = ensure_state_home() / "bots" / cls.__qualname__
-        path.mkdir(parents=True, exist_ok=True)
-        return path
+        name = cls.__qualname__
+        if cls.__module__:
+            name = f"{cls.__module__}.{name}"
+        return ensure_state_home() / "bots" / name
 
     def act(self, prompt: str, toolbox: Toolbox) -> Action:
         raise NotImplementedError()
