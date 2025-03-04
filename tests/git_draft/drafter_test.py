@@ -112,6 +112,24 @@ class TestDrafter:
         assert "abc" in self._read("PROMPT")
         assert len(self._commits()) == 2  # init, prompt
 
+    def test_generate_reuse_branch(self) -> None:
+        bot = _FakeBot()
+        self._drafter.generate_draft("prompt1", bot)
+        self._drafter.generate_draft("prompt2", bot)
+        self._repo.git.checkout(".")
+        assert self._read("PROMPT") == "prompt2"
+        assert len(self._commits()) == 3  # init, prompt, prompt
+
+    def test_generate_reuse_branch_sync(self) -> None:
+        bot = _FakeBot()
+        self._drafter.generate_draft("prompt1", bot)
+        self._drafter.generate_draft("prompt2", bot, sync=True)
+        assert len(self._commits()) == 4  # init, prompt, sync, prompt
+
+    def test_discard_outside_draft(self) -> None:
+        with pytest.raises(RuntimeError):
+            self._drafter.discard_draft()
+
     def test_discard_restores_worktree(self) -> None:
         self._write("p1.txt", "a1")
         self._write("p2.txt", "b1")
