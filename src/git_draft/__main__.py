@@ -13,7 +13,7 @@ from .common import (
     ensure_state_home,
     open_editor,
 )
-from .manager import Manager
+from .drafter import Drafter
 from .prompt import TemplatedPrompt
 from .store import Store
 
@@ -113,7 +113,7 @@ def main() -> None:
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
-    manager = Manager.create(
+    drafter = Drafter.create(
         store=Store.persistent(),
         path=opts.root,
         operation_hook=print_operation,
@@ -140,13 +140,13 @@ def main() -> None:
             else:
                 prompt = sys.stdin.read()
 
-        manager.generate_draft(
+        drafter.generate_draft(
             prompt, bot, checkout=opts.checkout, reset=opts.reset
         )
     elif command == "finalize":
-        manager.finalize_draft(delete=opts.delete)
+        drafter.finalize_draft(delete=opts.delete)
     elif command == "discard":
-        manager.discard_draft(delete=opts.delete)
+        drafter.discard_draft(delete=opts.delete)
     else:
         raise UnreachableError()
 
