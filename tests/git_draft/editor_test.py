@@ -58,6 +58,9 @@ class TestOpenEditor:
         def which(editor):
             return f"/bin/{editor}"
 
+        def open_tty(*_args):
+            return None
+
         class Popen:
             def __init__(self, *_args, **_kwargs):
                 pass
@@ -68,4 +71,4 @@ class TestOpenEditor:
         monkeypatch.setattr(shutil, "which", which)
         monkeypatch.setattr(subprocess, "Popen", Popen)
 
-        assert sut.open_editor(placeholder="hello") == "hello"
+        assert sut.open_editor("hello", _open_tty=open_tty) == "hello"

@@ -23,7 +23,7 @@ def _get_tty_filename():
     return "CON:" if sys.platform == "win32" else "/dev/tty"
 
 
-def open_editor(placeholder="") -> str:
+def open_editor(placeholder="", *, _open_tty=open) -> str:
     with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
         binpath = _guess_editor_binpath()
         if not binpath:
@@ -33,11 +33,11 @@ def open_editor(placeholder="") -> str:
             with open(temp.name, "w") as writer:
                 writer.write(placeholder)
 
-        with open(_get_tty_filename(), "wb") as stdout:
-            proc = subprocess.Popen(
-                [binpath, temp.name], close_fds=True, stdout=stdout
-            )
-            proc.communicate()
+        stdout = _open_tty(_get_tty_filename(), "wb")
+        proc = subprocess.Popen(
+            [binpath, temp.name], close_fds=True, stdout=stdout
+        )
+        proc.communicate()
 
         with open(temp.name, mode="r") as reader:
             return reader.read()
