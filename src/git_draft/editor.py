@@ -1,3 +1,5 @@
+"""CLI interactive editing utilities"""
+
 import os
 import shutil
 import subprocess
@@ -24,6 +26,11 @@ def _get_tty_filename():
 
 
 def open_editor(placeholder="", *, _open_tty=open) -> str:
+    """Open an editor to edit a file and return its contents
+
+    The method returns once the editor is closed. It respects the `$EDITOR`
+    environment variable.
+    """
     with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
         binpath = _guess_editor_binpath()
         if not binpath:
