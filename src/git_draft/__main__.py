@@ -57,7 +57,7 @@ def new_parser() -> optparse.OptionParser:
         "-b",
         "--bot",
         dest="bot",
-        help="bot key",
+        help="bot name",
     )
     parser.add_option(
         "-c",
