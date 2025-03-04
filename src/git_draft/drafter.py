@@ -84,8 +84,8 @@ class _Toolbox(Toolbox):
             )
 
 
-class Manager:
-    """Draft state manager"""
+class Drafter:
+    """Draft state drafter"""
 
     def __init__(
         self, store: Store, repo: git.Repo, hook: OperationHook | None = None
@@ -102,7 +102,7 @@ class Manager:
         store: Store,
         path: str | None = None,
         operation_hook: OperationHook | None = None,
-    ) -> Manager:
+    ) -> Drafter:
         return cls(
             store,
             git.Repo(path, search_parent_directories=True),

@@ -4,7 +4,7 @@ from pathlib import PurePosixPath
 import pytest
 
 from git_draft.bots import Action, Bot, Toolbox
-import git_draft.manager as sut
+import git_draft.drafter as sut
 from git_draft.store import Store
 
 
@@ -15,27 +15,27 @@ class _FakeBot(Bot):
 
 
 @pytest.fixture
-def manager(repo: git.Repo) -> sut.Manager:
-    return sut.Manager(Store.in_memory(), repo)
+def drafter(repo: git.Repo) -> sut.Drafter:
+    return sut.Drafter(Store.in_memory(), repo)
 
 
-class TestManager:
+class TestDrafter:
     def test_generate_draft(
-        self, manager: sut.Manager, repo: git.Repo
+        self, drafter: sut.Drafter, repo: git.Repo
     ) -> None:
-        manager.generate_draft("hello", _FakeBot())
+        drafter.generate_draft("hello", _FakeBot())
         commits = list(repo.iter_commits())
         assert len(commits) == 2
 
     def test_generate_then_discard_draft(
-        self, manager: sut.Manager, repo: git.Repo
+        self, drafter: sut.Drafter, repo: git.Repo
     ) -> None:
-        manager.generate_draft("hello", _FakeBot())
-        manager.discard_draft()
+        drafter.generate_draft("hello", _FakeBot())
+        drafter.discard_draft()
         assert len(list(repo.iter_commits())) == 1
 
     def test_discard_restores_worktree(
-        self, manager: sut.Manager, repo: git.Repo
+        self, drafter: sut.Drafter, repo: git.Repo
     ) -> None:
         p1 = osp.join(repo.working_dir, "p1.txt")
         with open(p1, "w") as writer:
@@ -44,11 +44,11 @@ class TestManager:
         with open(p2, "w") as writer:
             writer.write("b1")
 
-        manager.generate_draft("hello", _FakeBot(), sync=True)
+        drafter.generate_draft("hello", _FakeBot(), sync=True)
         with open(p1, "w") as writer:
             writer.write("a2")
 
-        manager.discard_draft()
+        drafter.discard_draft()
 
         with open(p1) as reader:
             assert reader.read() == "a1"
@@ -56,17 +56,17 @@ class TestManager:
             assert reader.read() == "b1"
 
     def test_finalize_keeps_changes(
-        self, manager: sut.Manager, repo: git.Repo
+        self, drafter: sut.Drafter, repo: git.Repo
     ) -> None:
         p1 = osp.join(repo.working_dir, "p1.txt")
         with open(p1, "w") as writer:
             writer.write("a1")
 
-        manager.generate_draft("hello", _FakeBot(), checkout=True)
+        drafter.generate_draft("hello", _FakeBot(), checkout=True)
         with open(p1, "w") as writer:
             writer.write("a2")
 
-        manager.finalize_draft()
+        drafter.finalize_draft()
 
         with open(p1) as reader:
             assert reader.read() == "a2"
