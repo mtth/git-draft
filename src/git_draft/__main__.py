@@ -126,7 +126,7 @@ def main() -> None:
         prompt: str | TemplatedPrompt
         if args:
             [arg, *values] = args
-            if values:
+            if values or " " not in arg:
                 prompt = TemplatedPrompt.parse(arg, *args)
             else:
                 prompt = arg
