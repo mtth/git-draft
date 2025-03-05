@@ -1,4 +1,6 @@
-{% if path is defined %}
+{% if symbol is defined and path is defined %}
+Add a docstring to {{ symbol }} defined in {{ path }}.
+{% elif path is defined %}
 Add docstrings to all public functions and classes in {{ path }}.
 {% else %}
 Add docstrings to all public functions and classes in this repository.

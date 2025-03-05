@@ -92,6 +92,12 @@ type OperationHook = Callable[[Operation], None]
 
 
 @dataclasses.dataclass(frozen=True)
+class Goal:
+    prompt: str
+    timeout: float | None
+
+
+@dataclasses.dataclass(frozen=True)
 class Action:
     title: str | None = None
 
@@ -107,5 +113,5 @@ class Bot:
             path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def act(self, prompt: str, toolbox: Toolbox) -> Action:
+    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         raise NotImplementedError()

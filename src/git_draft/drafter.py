@@ -11,7 +11,7 @@ import textwrap
 import time
 from typing import Match, Sequence, override
 
-from .bots import Bot, OperationHook, Toolbox
+from .bots import Bot, Goal, OperationHook, Toolbox
 from .common import random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -85,7 +85,7 @@ class _Toolbox(Toolbox):
                 f"{mode},{sha},{path}", add=True, cacheinfo=True
             )
 
-    def update_index(self) -> None:
+    def trim_index(self) -> None:
         diff = self._repo.git.diff(name_only=True, cached=True)
         untouched = [
             path
@@ -125,9 +125,10 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
-        checkout=False,
-        reset=False,
-        sync=False,
+        checkout: bool = False,
+        reset: bool = False,
+        sync: bool = False,
+        timeout: float | None = None,
     ) -> None:
         if isinstance(prompt, str) and not prompt.strip():
             raise ValueError("Empty prompt")
@@ -159,11 +160,12 @@ class Drafter:
             )
 
         start_time = time.perf_counter()
+        goal = Goal(prompt_contents, timeout)
         toolbox = _Toolbox(self._repo, self._operation_hook)
-        action = bot.act(prompt_contents, toolbox)
+        action = bot.act(goal, toolbox)
         end_time = time.perf_counter()
 
-        toolbox.update_index()
+        toolbox.trim_index()
         title = action.title
         if not title:
             title = _default_title(prompt_contents)

@@ -69,12 +69,6 @@ def new_parser() -> optparse.OptionParser:
         action="store_true",
     )
     parser.add_option(
-        "-p",
-        "--prompt",
-        dest="prompt",
-        help="inline prompt",
-    )
-    parser.add_option(
         "-r",
         "--reset",
         help="reset index before generating a new draft",
@@ -88,9 +82,9 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "-t",
-        "--template",
-        dest="template",
-        help="prompt template",
+        "--timeout",
+        dest="timeout",
+        help="bot generation timeout",
     )
 
     return parser
@@ -119,6 +113,7 @@ def main() -> None:
     if command == "generate":
         if not config.bots:
             raise ValueError("No bots configured")
+
         if opts.bot:
             bot_configs = [c for c in config.bots if c.name == opts.bot]
             if len(bot_configs) != 1:
@@ -128,11 +123,11 @@ def main() -> None:
             bot_config = config.bots[0]
         bot = load_bot(bot_config)
 
-        prompt = opts.prompt
-        if not prompt:
-            if opts.template:
-                prompt = TemplatedPrompt.parse(opts.template, *args)
-            elif sys.stdin.isatty():
+        prompt: str | TemplatedPrompt
+        if args:
+            prompt = TemplatedPrompt.parse(args[0], *args[1:])
+        else:
+            if sys.stdin.isatty():
                 prompt = open_editor("Enter your prompt here...")
             else:
                 prompt = sys.stdin.read()

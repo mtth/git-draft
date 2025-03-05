@@ -6,7 +6,7 @@ from pathlib import PurePosixPath
 import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
-from .common import Action, Bot, Toolbox
+from .common import Action, Bot, Goal, Toolbox
 
 
 _logger = logging.getLogger(__name__)
@@ -130,22 +130,22 @@ class _ThreadsBot(Bot):
         try:
             with open(path) as f:
                 assistant_id = f.read()
-        except FileNotFoundError:
+            client.beta.assistants.update(assistant_id, **config)
+        except (FileNotFoundError, openai.NotFoundError):
             assistant = client.beta.assistants.create(**config)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
-        else:
-            client.beta.assistants.update(assistant_id, **config)
         return cls(client, assistant_id)
 
-    def act(self, prompt: str, toolbox: Toolbox) -> Action:
+    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        # TODO: Use timeout.
         thread = self._client.beta.threads.create()
 
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=prompt,
+            content=goal.prompt,
         )
 
         with self._client.beta.threads.runs.stream(
