@@ -1,4 +1,3 @@
-import dataclasses
 import json
 import logging
 import openai
@@ -6,6 +5,7 @@ from pathlib import PurePosixPath
 import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
+from ..common import JSONObject
 from .common import Action, Bot, Goal, Toolbox
 
 
@@ -18,19 +18,19 @@ _DEFAULT_MODEL = "gpt-4o"
 def completions_bot(
     api_key: str | None = None,
     base_url: str | None = None,
-    model: str | None = _DEFAULT_MODEL,
+    model: str = _DEFAULT_MODEL,
 ) -> Bot:
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
-    return _CompletionsBot(client)
+    return _CompletionsBot(client, model)
 
 
 def threads_bot(
     api_key: str | None = None,
     base_url: str | None = None,
-    model: str | None = _DEFAULT_MODEL,
+    model: str = _DEFAULT_MODEL,
 ) -> Bot:
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
-    return _ThreadsBot.create(client)
+    return _ThreadsBot.create(client, model)
 
 
 class _ToolsFactory:
@@ -110,7 +110,8 @@ _INSTRUCTIONS = """\
 
 
 class _CompletionsBot(Bot):
-    def __init__(self, model: str) -> None:
+    def __init__(self, client: openai.OpenAI, model: str) -> None:
+        self._client = client
         self._model = model
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
@@ -134,7 +135,7 @@ class _ThreadsBot(Bot):
 
     @classmethod
     def create(cls, client: openai.OpenAI, model: str) -> Self:
-        assistant_kwargs = dict(
+        assistant_kwargs: JSONObject = dict(
             model=model,
             instructions=_INSTRUCTIONS,
             tools=_ToolsFactory(strict=True).params(),
@@ -144,9 +145,9 @@ class _ThreadsBot(Bot):
         try:
             with open(path) as f:
                 assistant_id = f.read()
-            client.beta.assistants.update(assistant_id, **kwargs)
+            client.beta.assistants.update(assistant_id, **assistant_kwargs)
         except (FileNotFoundError, openai.NotFoundError):
-            assistant = client.beta.assistants.create(**kwargs)
+            assistant = client.beta.assistants.create(**assistant_kwargs)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
