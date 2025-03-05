@@ -146,6 +146,17 @@ class TestDrafter:
         self._drafter.generate_draft("prompt2", bot, sync=True)
         assert len(self._commits()) == 4  # init, prompt, sync, prompt
 
+    def test_generate_noop(self) -> None:
+        self._write("unrelated", "a")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, _toolbox: Toolbox) -> Action:
+                return Action()
+
+        self._drafter.generate_draft("prompt", CustomBot())
+        assert len(self._commits()) == 2  # init, prompt
+        assert not self._commit_files("HEAD")
+
     def test_discard_outside_draft(self) -> None:
         with pytest.raises(RuntimeError):
             self._drafter.discard_draft()
