@@ -71,20 +71,29 @@ class TestDrafter:
     def _commits(self) -> Sequence[git.Commit]:
         return list(self._repo.iter_commits())
 
-    def _list_commit_files(self, ref: str) -> Sequence[str]:
+    def _commit_files(self, ref: str) -> frozenset[str]:
         text = self._repo.git.diff_tree(
             ref, no_commit_id=True, name_only=True, relative=True
         )
-        return text.splitlines()
+        return frozenset(text.splitlines())
 
     def test_generate_draft(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
         assert len(self._commits()) == 2
 
-    def test_generate_stages_worktree(self) -> None:
-        self._write("marker", "hi")
-        self._drafter.generate_draft("hello", FakeBot())
-        assert "marker" in self._list_commit_files("HEAD")
+    def test_generate_stages_then_resets_worktree(self) -> None:
+        self._write("p1", "a")
+        self._write("p2", "b")
+
+        class CustomBot(Bot):
+            def act(self, prompt: str, toolbox: Toolbox) -> Action:
+                assert toolbox.read_file(PurePosixPath("p1")) == "a"
+                toolbox.write_file(PurePosixPath("p2"), "B")
+                toolbox.write_file(PurePosixPath("p3"), "C")
+                return Action()
+
+        self._drafter.generate_draft("hello", CustomBot())
+        assert self._commit_files("HEAD") == set(["p2", "p3"])
 
     def test_generate_then_discard_draft(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
