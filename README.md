@@ -16,6 +16,5 @@
   template name. Otherwise an inline prompt.
 * Only include files that the bot has written in draft commits.
 * Add `--generate` timeout option.
-* Add URL and API key to `openai_bot`. Also add a compatibility version which
-  does not use threads, so that it can be used with tools only. Gemini only
-  supports the latter.
+* Add a compatibility OpenAI bot version which does not use threads, so that it
+  can be used with tools only. Gemini only supports the latter.

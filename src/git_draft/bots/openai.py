@@ -1,3 +1,4 @@
+import dataclasses
 import json
 import logging
 import openai
@@ -9,6 +10,24 @@ from .common import Action, Bot, Toolbox
 
 
 _logger = logging.getLogger(__name__)
+
+
+def threads_bot(
+    api_key: str | None = None, base_url: str | None = None
+) -> Bot:
+    client = openai.OpenAI(api_key=api_key, base_url=base_url)
+    return _ThreadsBot.create(client)
+
+
+# https://aider.chat/docs/more-info.html
+# https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
+_INSTRUCTIONS = """\
+    You are an expert software engineer, who writes correct and concise code.
+    Use the provided functions to find the filesyou need to answer the query,
+    read the content of the relevant ones, and save the changes you suggest.
+    When writing a file, include a summary description of the changes you have
+    made.
+"""
 
 
 def _function_tool_param(
@@ -75,18 +94,21 @@ _tools = [
 ]
 
 
-# https://aider.chat/docs/more-info.html
-# https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
-_INSTRUCTIONS = """\
-    You are an expert software engineer, who writes correct and concise code.
-    Use the provided functions to find the filesyou need to answer the query,
-    read the content of the relevant ones, and save the changes you suggest.
-    When writing a file, include a summary description of the changes you have
-    made.
-"""
+@dataclasses.dataclass(frozen=True)
+class _AssistantConfig:
+    instructions: str
+    model: str
+    tools: Sequence[openai.types.beta.AssistantToolParam]
 
 
-class OpenAIBot(Bot):
+_assistant_config = _AssistantConfig(
+    instructions=_INSTRUCTIONS,
+    model="gpt-4o",
+    tools=_tools,
+)
+
+
+class _ThreadsBot(Bot):
     """An OpenAI-backed bot
 
     See the following links for resources:
@@ -97,16 +119,27 @@ class OpenAIBot(Bot):
     * https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
     """
 
-    def __init__(self) -> None:
-        self._client = openai.OpenAI()
+    def __init__(self, client: openai.OpenAI, assistant_id: str) -> None:
+        self._client = client
+        self._assistant_id = assistant_id
+
+    @classmethod
+    def create(cls, client: openai.OpenAI) -> Self:
+        path = cls.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
+        config = dataclasses.asdict(_assistant_config)
+        try:
+            with open(path) as f:
+                assistant_id = f.read()
+        except FileNotFoundError:
+            assistant = client.beta.assistants.create(**config)
+            assistant_id = assistant.id
+            with open(path, "w") as f:
+                f.write(assistant_id)
+        else:
+            client.beta.assistants.update(assistant_id, **config)
+        return cls(client, assistant_id)
 
     def act(self, prompt: str, toolbox: Toolbox) -> Action:
-        # TODO: Reuse assistant.
-        assistant = self._client.beta.assistants.create(
-            instructions=_INSTRUCTIONS,
-            model="gpt-4o",
-            tools=_tools,
-        )
         thread = self._client.beta.threads.create()
 
         self._client.beta.threads.messages.create(
@@ -117,7 +150,7 @@ class OpenAIBot(Bot):
 
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
-            assistant_id=assistant.id,
+            assistant_id=self._assistant_id,
             event_handler=_EventHandler(self._client, toolbox),
         ) as stream:
             stream.until_done()

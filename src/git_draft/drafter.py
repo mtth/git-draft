@@ -109,33 +109,6 @@ class Drafter:
             operation_hook,
         )
 
-    def _create_branch(self, sync: bool) -> _Branch:
-        if self._repo.head.is_detached:
-            raise RuntimeError("No currently active branch")
-        origin_branch = self._repo.active_branch.name
-        origin_sha = self._repo.commit().hexsha
-
-        self._repo.git.checkout("--detach")
-        sync_sha = self._sync() if sync else None
-        suffix = _Branch.new_suffix()
-
-        with self._store.cursor() as cursor:
-            cursor.execute(
-                sql("add-branch"),
-                {
-                    "suffix": suffix,
-                    "repo_path": self._repo.working_dir,
-                    "origin_branch": origin_branch,
-                    "origin_sha": origin_sha,
-                    "sync_sha": sync_sha,
-                },
-            )
-
-        branch = _Branch(suffix)
-        branch_ref = self._repo.create_head(branch.name)
-        self._repo.git.checkout(branch_ref)
-        return branch
-
     def generate_draft(
         self,
         prompt: str | TemplatedPrompt,
@@ -154,8 +127,7 @@ class Drafter:
         branch = _Branch.active(self._repo)
         if branch:
             _logger.debug("Reusing active branch %s.", branch)
-            if sync:
-                self._sync()
+            self._stage_changes(sync)
         else:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
@@ -219,10 +191,37 @@ class Drafter:
     def discard_draft(self, delete=False) -> None:
         self._exit_draft(False, delete=delete)
 
-    def _sync(self) -> str | None:
-        if not self._repo.is_dirty(untracked_files=True):
-            return None
+    def _create_branch(self, sync: bool) -> _Branch:
+        if self._repo.head.is_detached:
+            raise RuntimeError("No currently active branch")
+        origin_branch = self._repo.active_branch.name
+        origin_sha = self._repo.commit().hexsha
+
+        self._repo.git.checkout("--detach")
+        sync_sha = self._stage_changes(sync)
+        suffix = _Branch.new_suffix()
+
+        with self._store.cursor() as cursor:
+            cursor.execute(
+                sql("add-branch"),
+                {
+                    "suffix": suffix,
+                    "repo_path": self._repo.working_dir,
+                    "origin_branch": origin_branch,
+                    "origin_sha": origin_sha,
+                    "sync_sha": sync_sha,
+                },
+            )
+
+        branch = _Branch(suffix)
+        branch_ref = self._repo.create_head(branch.name)
+        self._repo.git.checkout(branch_ref)
+        return branch
+
+    def _stage_changes(self, sync: bool) -> str | None:
         self._repo.git.add(all=True)
+        if not sync or not self._repo.is_dirty(untracked_files=True):
+            return None
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
