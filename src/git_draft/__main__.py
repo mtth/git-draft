@@ -125,11 +125,7 @@ def main() -> None:
 
         prompt: str | TemplatedPrompt
         if args:
-            [arg, *values] = args
-            if values or " " not in arg:
-                prompt = TemplatedPrompt.parse(arg, *args)
-            else:
-                prompt = arg
+            prompt = TemplatedPrompt.parse(args[0], *args[1:])
         else:
             if sys.stdin.isatty():
                 prompt = open_editor("Enter your prompt here...")
