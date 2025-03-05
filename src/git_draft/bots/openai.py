@@ -130,13 +130,12 @@ class _ThreadsBot(Bot):
         try:
             with open(path) as f:
                 assistant_id = f.read()
-        except FileNotFoundError:
+            client.beta.assistants.update(assistant_id, **config)
+        except (FileNotFoundError, openai.NotFoundError):
             assistant = client.beta.assistants.create(**config)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
-        else:
-            client.beta.assistants.update(assistant_id, **config)
         return cls(client, assistant_id)
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
