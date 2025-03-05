@@ -90,7 +90,7 @@ class _Toolbox(Toolbox):
         untouched = [
             path
             for path in diff.splitlines()
-            if path and not path in self._written
+            if path and path not in self._written
         ]
         if untouched:
             self._repo.git.reset("--", *untouched)
