@@ -12,11 +12,90 @@ from .common import Action, Bot, Goal, Toolbox
 _logger = logging.getLogger(__name__)
 
 
+_DEFAULT_MODEL = "gpt-4o"
+
+
+def completions_bot(
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = _DEFAULT_MODEL,
+) -> Bot:
+    client = openai.OpenAI(api_key=api_key, base_url=base_url)
+    return _CompletionsBot(client)
+
+
 def threads_bot(
-    api_key: str | None = None, base_url: str | None = None
+    api_key: str | None = None,
+    base_url: str | None = None,
+    model: str | None = _DEFAULT_MODEL,
 ) -> Bot:
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     return _ThreadsBot.create(client)
+
+
+class _ToolsFactory:
+    def __init__(self, strict: bool) -> None:
+        self._strict = strict
+
+    def _param(
+        self,
+        name: str,
+        description: str,
+        inputs: Mapping[str, Any] | None = None,
+        required_inputs: Sequence[str] | None = None,
+    ) -> openai.types.beta.FunctionToolParam:
+        param: openai.types.beta.FunctionToolParam = {
+            "type": "function",
+            "function": {
+                "name": name,
+                "description": textwrap.dedent(description),
+                "parameters": {
+                    "type": "object",
+                    "additionalProperties": False,
+                    "properties": inputs or {},
+                    "required": list(inputs.keys()) if inputs else [],
+                },
+            },
+        }
+        if self._strict:
+            param["function"]["strict"] = True
+        return param
+
+    def params(self) -> Sequence[openai.types.beta.AssistantToolParam]:
+        return [
+            self._param(
+                name="list_files",
+                description="List all available files",
+            ),
+            self._param(
+                name="read_file",
+                description="Get a file's contents",
+                inputs={
+                    "path": {
+                        "type": "string",
+                        "description": "Path of the file to be read",
+                    },
+                },
+            ),
+            self._param(
+                name="write_file",
+                description="""\
+                    Set a file's contents
+
+                    The file will be created if it does not already exist.
+                """,
+                inputs={
+                    "path": {
+                        "type": "string",
+                        "description": "Path of the file to be updated",
+                    },
+                    "contents": {
+                        "type": "string",
+                        "description": "New contents of the file",
+                    },
+                },
+            ),
+        ]
 
 
 # https://aider.chat/docs/more-info.html
@@ -30,82 +109,12 @@ _INSTRUCTIONS = """\
 """
 
 
-def _function_tool_param(
-    name: str,
-    description: str,
-    inputs: Mapping[str, Any] | None = None,
-    required_inputs: Sequence[str] | None = None,
-) -> openai.types.beta.FunctionToolParam:
-    return {
-        "type": "function",
-        "function": {
-            "name": name,
-            "description": textwrap.dedent(description),
-            "parameters": {
-                "type": "object",
-                "additionalProperties": False,
-                "properties": inputs or {},
-                "required": list(inputs.keys()) if inputs else [],
-            },
-            "strict": True,
-        },
-    }
+class _CompletionsBot(Bot):
+    def __init__(self, model: str) -> None:
+        self._model = model
 
-
-_tools = [
-    _function_tool_param(
-        name="list_files",
-        description="List all available files",
-    ),
-    _function_tool_param(
-        name="read_file",
-        description="Get a file's contents",
-        inputs={
-            "path": {
-                "type": "string",
-                "description": "Path of the file to be read",
-            },
-        },
-    ),
-    _function_tool_param(
-        name="write_file",
-        description="""\
-            Set a file's contents
-
-            The file will be created if it does not already exist.
-        """,
-        inputs={
-            "path": {
-                "type": "string",
-                "description": "Path of the file to be updated",
-            },
-            "contents": {
-                "type": "string",
-                "description": "New contents of the file",
-            },
-            "change_description": {
-                "type": "string",
-                "description": """\
-                    Brief description of the changes performed on this file
-                """,
-            },
-        },
-    ),
-]
-
-
-@dataclasses.dataclass(frozen=True)
-class _AssistantConfig:
-    instructions: str
-    model: str
-    tools: Sequence[openai.types.beta.AssistantToolParam]
-
-
-_assistant_config = _AssistantConfig(
-    instructions=_INSTRUCTIONS,
-    model="gpt-4o",
-    tools=_tools,
-)
+    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        raise NotImplementedError()  # TODO
 
 
 class _ThreadsBot(Bot):
@@ -124,18 +133,24 @@ class _ThreadsBot(Bot):
         self._assistant_id = assistant_id
 
     @classmethod
-    def create(cls, client: openai.OpenAI) -> Self:
+    def create(cls, client: openai.OpenAI, model: str) -> Self:
+        assistant_kwargs = dict(
+            model=model,
+            instructions=_INSTRUCTIONS,
+            tools=_ToolsFactory(strict=True).params(),
+        )
+
         path = cls.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
-        config = dataclasses.asdict(_assistant_config)
         try:
             with open(path) as f:
                 assistant_id = f.read()
-            client.beta.assistants.update(assistant_id, **config)
+            client.beta.assistants.update(assistant_id, **kwargs)
         except (FileNotFoundError, openai.NotFoundError):
-            assistant = client.beta.assistants.create(**config)
+            assistant = client.beta.assistants.create(**kwargs)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
+
         return cls(client, assistant_id)
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
