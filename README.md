@@ -11,9 +11,5 @@
 
 ## Ideas
 
-* Change prompt CLI inputs to `[PROMPT] [--] [ARGS]`. If `PROMPT` does not
-  contain any spaces or `ARGS` (or `--`) is present, it will be interpreted as a
-  template name. Otherwise an inline prompt.
-* Add `--generate` timeout option.
 * Add a compatibility OpenAI bot version which does not use threads, so that it
   can be used with tools only. Gemini only supports the latter.
