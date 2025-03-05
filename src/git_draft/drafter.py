@@ -59,6 +59,7 @@ class _Toolbox(Toolbox):
     def __init__(self, repo: git.Repo, hook: OperationHook | None) -> None:
         super().__init__(hook)
         self._repo = repo
+        self._written = set[str]()
 
     @override
     def _list(self) -> Sequence[PurePosixPath]:
@@ -72,16 +73,27 @@ class _Toolbox(Toolbox):
 
     @override
     def _write(self, path: PurePosixPath, contents: str) -> None:
+        self._written.add(str(path))
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
             temp.write(contents.encode("utf8"))
             temp.close()
-            sha = self._repo.git.hash_object("-w", "--path", path, temp.name)
+            sha = self._repo.git.hash_object("-w", temp.name, path=path)
             mode = 644  # TODO: Read from original file if it exists.
             self._repo.git.update_index(
-                "--add", "--cacheinfo", f"{mode},{sha},{path}"
+                f"{mode},{sha},{path}", add=True, cacheinfo=True
             )
+
+    def update_index(self) -> None:
+        diff = self._repo.git.diff(name_only=True, cached=True)
+        untouched = [
+            path
+            for path in diff.splitlines()
+            if path and not path in self._written
+        ]
+        if untouched:
+            self._repo.git.reset("--", *untouched)
 
 
 class Drafter:
@@ -151,6 +163,7 @@ class Drafter:
         action = bot.act(prompt_contents, toolbox)
         end_time = time.perf_counter()
 
+        toolbox.update_index()
         title = action.title
         if not title:
             title = _default_title(prompt_contents)
@@ -197,7 +210,7 @@ class Drafter:
         origin_branch = self._repo.active_branch.name
         origin_sha = self._repo.commit().hexsha
 
-        self._repo.git.checkout("--detach")
+        self._repo.git.checkout(detach=True)
         sync_sha = self._stage_changes(sync)
         suffix = _Branch.new_suffix()
 
@@ -248,7 +261,7 @@ class Drafter:
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
-        self._repo.git.checkout("--detach")
+        self._repo.git.checkout(detach=True)
         self._repo.git.reset("--mixed" if apply else "--hard", origin_branch)
         self._repo.git.checkout(origin_branch)
 
