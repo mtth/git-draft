@@ -85,7 +85,7 @@ class _Toolbox(Toolbox):
                 f"{mode},{sha},{path}", add=True, cacheinfo=True
             )
 
-    def update_index(self) -> None:
+    def trim_index(self) -> None:
         diff = self._repo.git.diff(name_only=True, cached=True)
         untouched = [
             path
@@ -163,7 +163,7 @@ class Drafter:
         action = bot.act(prompt_contents, toolbox)
         end_time = time.perf_counter()
 
-        toolbox.update_index()
+        toolbox.trim_index()
         title = action.title
         if not title:
             title = _default_title(prompt_contents)
