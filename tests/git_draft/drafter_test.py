@@ -87,9 +87,9 @@ class TestDrafter:
 
         class CustomBot(Bot):
             def act(self, prompt: str, toolbox: Toolbox) -> Action:
-                assert toolbox.read_file("p1") == "a"
-                toolbox.write_file("p2", "B")
-                toolbox.write_file("p3", "C")
+                assert toolbox.read_file(PurePosixPath("p1")) == "a"
+                toolbox.write_file(PurePosixPath("p2"), "B")
+                toolbox.write_file(PurePosixPath("p3"), "C")
                 return Action()
 
         self._drafter.generate_draft("hello", CustomBot())
