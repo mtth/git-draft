@@ -4,7 +4,6 @@ import logging
 import openai
 from pathlib import PurePosixPath
 import textwrap
-import time
 from typing import Any, Mapping, Self, Sequence, override
 
 from .common import Action, Bot, Goal, Toolbox
