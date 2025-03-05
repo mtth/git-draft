@@ -3,7 +3,7 @@ from pathlib import Path, PurePosixPath
 import pytest
 from typing import Sequence
 
-from git_draft.bots import Action, Bot, Toolbox
+from git_draft.bots import Action, Bot, Goal, Toolbox
 import git_draft.drafter as sut
 from git_draft.prompt import TemplatedPrompt
 from git_draft.store import Store
@@ -46,8 +46,8 @@ class TestToolbox:
 
 
 class FakeBot(Bot):
-    def act(self, prompt: str, toolbox: Toolbox) -> Action:
-        toolbox.write_file(PurePosixPath("PROMPT"), prompt)
+    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        toolbox.write_file(PurePosixPath("PROMPT"), goal.prompt)
         return Action()
 
 
@@ -86,7 +86,7 @@ class TestDrafter:
         self._write("p2", "b")
 
         class CustomBot(Bot):
-            def act(self, prompt: str, toolbox: Toolbox) -> Action:
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
                 assert toolbox.read_file(PurePosixPath("p1")) == "a"
                 toolbox.write_file(PurePosixPath("p2"), "B")
                 toolbox.write_file(PurePosixPath("p3"), "C")

@@ -7,11 +7,12 @@ import importlib
 import sys
 
 from ..common import BotConfig
-from .common import Action, Bot, Operation, OperationHook, Toolbox
+from .common import Action, Bot, Goal, Operation, OperationHook, Toolbox
 
 __all__ = [
     "Action",
     "Bot",
+    "Goal",
     "Operation",
     "OperationHook",
     "Toolbox",

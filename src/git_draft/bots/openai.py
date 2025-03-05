@@ -4,9 +4,10 @@ import logging
 import openai
 from pathlib import PurePosixPath
 import textwrap
+import time
 from typing import Any, Mapping, Self, Sequence, override
 
-from .common import Action, Bot, Toolbox
+from .common import Action, Bot, Goal, Toolbox
 
 
 _logger = logging.getLogger(__name__)
@@ -139,13 +140,14 @@ class _ThreadsBot(Bot):
             client.beta.assistants.update(assistant_id, **config)
         return cls(client, assistant_id)
 
-    def act(self, prompt: str, toolbox: Toolbox) -> Action:
+    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        # TODO: Use timeout.
         thread = self._client.beta.threads.create()
 
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
-            content=prompt,
+            content=goal.prompt,
         )
 
         with self._client.beta.threads.runs.stream(
