@@ -74,3 +74,7 @@ def random_id(n: int) -> str:
 
 class UnreachableError(RuntimeError):
     pass
+
+
+def reindent(s: str) -> str:
+    raise NotImplementedError()  # TODO

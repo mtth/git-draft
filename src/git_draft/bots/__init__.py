@@ -4,9 +4,11 @@
 """
 
 import importlib
+import os
 import sys
+import textwrap
 
-from ..common import BotConfig
+from ..common import BotConfig, reindent
 from .common import Action, Bot, Goal, Operation, OperationHook, Toolbox
 
 __all__ = [
@@ -19,20 +21,11 @@ __all__ = [
 ]
 
 
-def load_bot(config: BotConfig) -> Bot:
-    """Load and return a Bot instance using the provided configuration.
+def load_bot(config: BotConfig | None) -> Bot:
+    """Load and return a Bot instance using the provided configuration"""
+    if not config:
+        return _default_bot()
 
-    If a pythonpath is specified in the config and not already present in
-    sys.path, it is added. The function expects the config.factory in the
-    format 'module:symbol' or 'symbol'. If only 'symbol' is provided, the
-    current module is used.
-
-    Args:
-        config: BotConfig object containing bot configuration details.
-
-    Raises:
-        NotImplementedError: If the specified factory cannot be found.
-    """
     if config.pythonpath and config.pythonpath not in sys.path:
         sys.path.insert(0, config.pythonpath)
 
@@ -48,3 +41,32 @@ def load_bot(config: BotConfig) -> Bot:
 
     kwargs = config.config or {}
     return factory(**kwargs)
+
+
+def _default_bot() -> Bot:
+    if not "OPENAI_API_KEY" in os.environ:
+        raise RuntimeError(
+            reindent(
+                """
+                    The default bot implementation requires an OpenAI API key.
+                    Please specify one via the `$OPENAI_API_KEY` environment
+                    variable or enable a different bot in your configuration.
+                """
+            )
+        )
+
+    try:
+        from .openai import threads_bot
+
+    except ImportError:
+        raise RuntimeError(
+            reindent(
+                """
+                    The default bot implementation requires the `openai` Python
+                    package. Please install it or specify a different bot in
+                    your configuration.
+                """
+            )
+        )
+    else:
+        return threads_bot()

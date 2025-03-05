@@ -20,6 +20,7 @@ def completions_bot(
     base_url: str | None = None,
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
+    """Compatibility-mode bot, uses completions with function calling"""
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     return _CompletionsBot(client, model)
 
@@ -29,6 +30,7 @@ def threads_bot(
     base_url: str | None = None,
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
+    """Beta bot, uses assistant threads with function calling"""
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     return _ThreadsBot.create(client, model)
 
