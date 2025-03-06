@@ -1,11 +1,24 @@
+"""OpenAI API-backed bots
+
+They can be used with services other than OpenAPI as long as them implement a
+sufficient subset of the API. For example the `completions_bot` only requires
+tools support.
+
+See the following links for more resources:
+
+* https://platform.openai.com/docs/assistants/tools/function-calling
+* https://platform.openai.com/docs/assistants/deep-dive#runs-and-run-steps
+* https://platform.openai.com/docs/api-reference/assistants-streaming/events
+* https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
+"""
+
 import json
 import logging
 import openai
 from pathlib import PurePosixPath
-import textwrap
 from typing import Any, Mapping, Self, Sequence, override
 
-from ..common import JSONObject
+from ..common import JSONObject, reindent
 from .common import Action, Bot, Goal, Toolbox
 
 
@@ -50,7 +63,7 @@ class _ToolsFactory:
             "type": "function",
             "function": {
                 "name": name,
-                "description": textwrap.dedent(description),
+                "description": reindent(description),
                 "parameters": {
                     "type": "object",
                     "additionalProperties": False,
@@ -81,7 +94,7 @@ class _ToolsFactory:
             ),
             self._param(
                 name="write_file",
-                description="""\
+                description="""
                     Set a file's contents
 
                     The file will be created if it does not already exist.
@@ -102,12 +115,10 @@ class _ToolsFactory:
 
 # https://aider.chat/docs/more-info.html
 # https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
-_INSTRUCTIONS = """\
+_INSTRUCTIONS = """
     You are an expert software engineer, who writes correct and concise code.
-    Use the provided functions to find the filesyou need to answer the query,
+    Use the provided functions to find the files you need to answer the query,
     read the content of the relevant ones, and save the changes you suggest.
-    When writing a file, include a summary description of the changes you have
-    made.
 """
 
 
@@ -121,15 +132,6 @@ class _CompletionsBot(Bot):
 
 
 class _ThreadsBot(Bot):
-    """An OpenAI-backed bot
-
-    See the following links for resources:
-
-    * https://platform.openai.com/docs/assistants/tools/function-calling
-    * https://platform.openai.com/docs/assistants/deep-dive#runs-and-run-steps
-    * https://platform.openai.com/docs/api-reference/assistants-streaming/events
-    * https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
-    """
 
     def __init__(self, client: openai.OpenAI, assistant_id: str) -> None:
         self._client = client
@@ -139,7 +141,7 @@ class _ThreadsBot(Bot):
     def create(cls, client: openai.OpenAI, model: str) -> Self:
         assistant_kwargs: JSONObject = dict(
             model=model,
-            instructions=_INSTRUCTIONS,
+            instructions=reindent(_INSTRUCTIONS),
             tools=_ToolsFactory(strict=True).params(),
         )
 

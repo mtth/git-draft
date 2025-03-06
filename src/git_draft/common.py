@@ -85,6 +85,5 @@ def reindent(s: str, width=0) -> str:
         if b
     )
     return "\n\n".join(
-        textwrap.fill(p, width=width) if width else p
-        for p in paragraphs
+        textwrap.fill(p, width=width) if width else p for p in paragraphs
     )
