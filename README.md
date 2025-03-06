@@ -5,11 +5,7 @@
 
 ## Highlights
 
-* Concurrent editing. Continue editing while the assistant runs, without any
+* Concurrent edits. Continue editing while the assistant runs, without any
   risks of interference.
-
-
-## Ideas
-
-* Add a compatibility OpenAI bot version which does not use threads, so that it
-  can be used with tools only. Gemini only supports the latter.
+* Customizable prompt templates
+* Extensible bot API

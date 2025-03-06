@@ -2,11 +2,11 @@ import importlib
 import sys
 import pytest
 
-from git_draft.bots import Bot, load_bot
+import git_draft.bots as sut
 from git_draft.common import BotConfig
 
 
-class FakeBot(Bot):
+class FakeBot(sut.Bot):
     pass
 
 
@@ -19,10 +19,15 @@ class TestLoadBot:
         monkeypatch.setattr(importlib, "import_module", import_module)
 
         config = BotConfig(factory="fake_module:FakeBot")
-        bot = load_bot(config)
+        bot = sut.load_bot(config)
         assert isinstance(bot, FakeBot)
 
     def test_non_existing_factory(self) -> None:
         config = BotConfig("git_draft:unknown_factory")
         with pytest.raises(NotImplementedError):
-            load_bot(config)
+            sut.load_bot(config)
+
+    def test_default_no_key(self, monkeypatch) -> None:
+        monkeypatch.setenv("OPENAI_API_KEY", "")
+        with pytest.raises(RuntimeError):
+            sut.load_bot(None)

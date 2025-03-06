@@ -111,15 +111,13 @@ def main() -> None:
     )
     command = getattr(opts, "command", "generate")
     if command == "generate":
-        if not config.bots:
-            raise ValueError("No bots configured")
-
+        bot_config = None
         if opts.bot:
             bot_configs = [c for c in config.bots if c.name == opts.bot]
             if len(bot_configs) != 1:
                 raise ValueError(f"Found {len(bot_configs)} matching bots")
             bot_config = bot_configs[0]
-        else:
+        elif config.bots:
             bot_config = config.bots[0]
         bot = load_bot(bot_config)
 
