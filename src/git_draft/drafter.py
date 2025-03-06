@@ -202,10 +202,10 @@ class Drafter:
             self._repo.git.checkout("--", ".")
 
     def finalize_draft(self, delete=False) -> None:
-        self._exit_draft(True, delete=delete)
+        self._exit_draft(revert=True, delete=delete)
 
     def revert_draft(self, delete=False) -> None:
-        self._exit_draft(False, delete=delete)
+        self._exit_draft(revert=False, delete=delete)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -241,7 +241,7 @@ class Drafter:
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
-    def _exit_draft(self, apply: bool, delete=False) -> None:
+    def _exit_draft(self, *, revert: bool, delete: bool) -> None:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -255,7 +255,7 @@ class Drafter:
             [(origin_branch, origin_sha, sync_sha)] = rows
 
         if (
-            not apply
+            revert
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
@@ -271,7 +271,7 @@ class Drafter:
         # Finally, we revert the relevant files if needed. If a sync commit had
         # been created, we simply revert to it. Otherwise we compute which
         # files have changed due to draft commits and revert only those.
-        if not apply:
+        if revert:
             if sync_sha:
                 self._repo.git.checkout(sync_sha, "--", ".")
             else:
