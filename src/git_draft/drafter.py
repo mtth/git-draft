@@ -202,10 +202,10 @@ class Drafter:
             self._repo.git.checkout("--", ".")
 
     def finalize_draft(self, delete=False) -> None:
-        self._exit_draft(revert=True, delete=delete)
+        self._exit_draft(revert=False, delete=delete)
 
     def revert_draft(self, delete=False) -> None:
-        self._exit_draft(revert=False, delete=delete)
+        self._exit_draft(revert=True, delete=delete)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
