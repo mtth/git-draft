@@ -170,7 +170,8 @@ class Drafter:
         if not title:
             title = _default_title(prompt_contents)
         commit = self._repo.index.commit(
-            f"draft! {title}\n\n{prompt_contents}"
+            f"draft! {title}\n\n{prompt_contents}",
+            skip_hooks=True,
         )
 
         with self._store.cursor() as cursor:
