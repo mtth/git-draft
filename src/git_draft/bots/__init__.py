@@ -43,7 +43,7 @@ def load_bot(config: BotConfig | None) -> Bot:
 
 
 def _default_bot() -> Bot:
-    if "OPENAI_API_KEY" not in os.environ:
+    if not os.environ.get("OPENAI_API_KEY"):
         raise RuntimeError(
             reindent(
                 """

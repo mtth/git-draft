@@ -181,6 +181,7 @@ class _CompletionsBot(Bot):
                 tool_choice="required",
             )
             assert len(response.choices) == 1
+
             done = True
             calls = response.choices[0].message.tool_calls
             for call in calls or []:
