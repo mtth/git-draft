@@ -24,13 +24,13 @@ _logger = logging.getLogger(__name__)
 class _Branch:
     """Draft branch"""
 
-    _name_pattern = re.compile(r"drafts/(.+)")
+    _name_pattern = re.compile(r"draft/(.+)")
 
     suffix: str
 
     @property
     def name(self) -> str:
-        return f"drafts/{self.suffix}"
+        return f"draft/{self.suffix}"
 
     def __str__(self) -> str:
         return self.name
@@ -202,10 +202,10 @@ class Drafter:
             self._repo.git.checkout("--", ".")
 
     def finalize_draft(self, delete=False) -> None:
-        self._exit_draft(True, delete=delete)
+        self._exit_draft(revert=False, delete=delete)
 
-    def discard_draft(self, delete=False) -> None:
-        self._exit_draft(False, delete=delete)
+    def revert_draft(self, delete=False) -> None:
+        self._exit_draft(revert=True, delete=delete)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -241,7 +241,7 @@ class Drafter:
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
-    def _exit_draft(self, apply: bool, delete=False) -> None:
+    def _exit_draft(self, *, revert: bool, delete: bool) -> None:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -255,7 +255,7 @@ class Drafter:
             [(origin_branch, origin_sha, sync_sha)] = rows
 
         if (
-            not apply
+            revert
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
@@ -265,13 +265,26 @@ class Drafter:
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
         self._repo.git.checkout(detach=True)
-        self._repo.git.reset("--mixed" if apply else "--hard", origin_branch)
+        self._repo.git.reset("-N", origin_branch)
         self._repo.git.checkout(origin_branch)
 
-        if not apply and sync_sha:
-            self._repo.git.checkout(sync_sha, "--", ".")
+        # Finally, we revert the relevant files if needed. If a sync commit had
+        # been created, we simply revert to it. Otherwise we compute which
+        # files have changed due to draft commits and revert only those.
+        if revert:
+            if sync_sha:
+                self._repo.git.checkout(sync_sha, "--", ".")
+            else:
+                diffed = set(self._changed_files(f"{origin_branch}..{branch}"))
+                dirty = [p for p in self._changed_files("HEAD") if p in diffed]
+                if dirty:
+                    self._repo.git.checkout("--", *dirty)
+
         if delete:
             self._repo.git.branch("-D", branch.name)
+
+    def _changed_files(self, spec) -> Sequence[str]:
+        return self._repo.git.diff(spec, name_only=True).splitlines()
 
 
 def _default_title(prompt: str) -> str:

@@ -46,9 +46,9 @@ def new_parser() -> optparse.OptionParser:
             **kwargs,
         )
 
-    add_command("discard", help="discard the current draft")
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
+    add_command("revert", help="discard the current draft")
 
     parser.add_option(
         "-b",
@@ -135,8 +135,8 @@ def main() -> None:
         )
     elif command == "finalize":
         drafter.finalize_draft(delete=opts.delete)
-    elif command == "discard":
-        drafter.discard_draft(delete=opts.delete)
+    elif command == "revert":
+        drafter.revert_draft(delete=opts.delete)
     else:
         raise UnreachableError()
 
