@@ -24,13 +24,13 @@ _logger = logging.getLogger(__name__)
 class _Branch:
     """Draft branch"""
 
-    _name_pattern = re.compile(r"drafts/(.+)")
+    _name_pattern = re.compile(r"draft/(.+)")
 
     suffix: str
 
     @property
     def name(self) -> str:
-        return f"drafts/{self.suffix}"
+        return f"draft/{self.suffix}"
 
     def __str__(self) -> str:
         return self.name
@@ -265,7 +265,7 @@ class Drafter:
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
         self._repo.git.checkout(detach=True)
-        self._repo.git.reset(origin_branch)
+        self._repo.git.reset("-N", origin_branch)
         self._repo.git.checkout(origin_branch)
 
         # Finally, we revert the relevant files if needed. If a sync commit had
@@ -277,7 +277,8 @@ class Drafter:
             else:
                 diffed = set(self._changed_files(f"{origin_branch}..{branch}"))
                 dirty = [p for p in self._changed_files("HEAD") if p in diffed]
-                self._repo.git.checkout("--", *dirty)
+                if dirty:
+                    self._repo.git.checkout("--", *dirty)
 
         if delete:
             self._repo.git.branch("-D", branch.name)

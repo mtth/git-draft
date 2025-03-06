@@ -60,9 +60,12 @@ class TestDrafter:
     def _path(self, name: str) -> Path:
         return Path(self._repo.working_dir, name)
 
-    def _read(self, name: str) -> str:
-        with open(self._path(name)) as f:
-            return f.read()
+    def _read(self, name: str) -> str | None:
+        try:
+            with open(self._path(name)) as f:
+                return f.read()
+        except FileNotFoundError:
+            return None
 
     def _write(self, name: str, contents="") -> None:
         with open(self._path(name), "w") as f:
@@ -129,7 +132,7 @@ class TestDrafter:
         prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
         self._drafter.generate_draft(prompt, FakeBot(), sync=True)
         self._repo.git.checkout(".")
-        assert "abc" in self._read("PROMPT")
+        assert "abc" in (self._read("PROMPT") or "")
         assert len(self._commits()) == 2  # init, prompt
 
     def test_generate_reuse_branch(self) -> None:
@@ -179,6 +182,30 @@ class TestDrafter:
         self._drafter.revert_draft(delete=True)
         assert self._read("p1.txt") == "a1"
         assert self._read("p2.txt") == "b1"
+
+    def test_revert_keeps_untouched_files(self) -> None:
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.write_file(PurePosixPath("p2.txt"), "t2")
+                toolbox.write_file(PurePosixPath("p4.txt"), "t2")
+                return Action()
+
+        self._write("p1.txt", "t0")
+        self._write("p2.txt", "t0")
+        self._repo.git.add(all=True)
+        self._repo.index.commit("update")
+        self._write("p1.txt", "t1")
+        self._write("p2.txt", "t1")
+        self._write("p3.txt", "t1")
+        self._drafter.generate_draft("hello", CustomBot())
+        self._write("p1.txt", "t3")
+        self._write("p2.txt", "t3")
+        self._drafter.revert_draft()
+
+        assert self._read("p1.txt") == "t3"
+        assert self._read("p2.txt") == "t0"
+        assert self._read("p3.txt") == "t1"
+        assert self._read("p4.txt") is None
 
     def test_finalize_keeps_changes(self) -> None:
         self._write("p1.txt", "a1")
