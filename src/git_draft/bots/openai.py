@@ -15,8 +15,9 @@ See the following links for more resources:
 import json
 import logging
 import openai
+import os
 from pathlib import PurePosixPath
-from typing import Any, Mapping, Self, Sequence, override
+from typing import Any, Mapping, Self, Sequence, TypedDict, override
 
 from ..common import JSONObject, reindent
 from .common import Action, Bot, Goal, Toolbox
@@ -34,6 +35,8 @@ def completions_bot(
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
     """Compatibility-mode bot, uses completions with function calling"""
+    if api_key and api_key.startswith("$"):
+        api_key = os.environ[api_key[1:]]
     client = openai.OpenAI(api_key=api_key, base_url=base_url)
     return _CompletionsBot(client, model)
 
@@ -76,7 +79,7 @@ class _ToolsFactory:
             param["function"]["strict"] = True
         return param
 
-    def params(self) -> Sequence[openai.types.beta.AssistantToolParam]:
+    def params(self) -> Sequence[openai.types.chat.ChatCompletionToolParam]:
         return [
             self._param(
                 name="list_files",
@@ -122,13 +125,83 @@ _INSTRUCTIONS = """
 """
 
 
+class _ToolHandler[V]:
+    def __init__(self, toolbox: Toolbox) -> None:
+        self._toolbox = toolbox
+
+    def _on_read_file(self, path: PurePosixPath, contents: str) -> V:
+        raise NotImplementedError()
+
+    def _on_write_file(self, path: PurePosixPath) -> V:
+        raise NotImplementedError()
+
+    def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
+        raise NotImplementedError()
+
+    def handle_function(self, function: Any) -> V:
+        name = function.name
+        inputs = json.loads(function.arguments)
+        _logger.info("Requested function: %s", function)
+        if name == "read_file":
+            path = PurePosixPath(inputs["path"])
+            return self._on_read_file(path, self._toolbox.read_file(path))
+        elif name == "write_file":
+            path = PurePosixPath(inputs["path"])
+            contents = inputs["contents"]
+            self._toolbox.write_file(path, contents)
+            return self._on_write_file(path)
+        else:
+            assert name == "list_files" and not inputs
+            paths = self._toolbox.list_files()
+            return self._on_list_files(paths)
+
+
 class _CompletionsBot(Bot):
     def __init__(self, client: openai.OpenAI, model: str) -> None:
         self._client = client
         self._model = model
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
-        raise NotImplementedError()  # TODO
+        tools = _ToolsFactory(strict=False).params()
+        tool_handler = _CompletionsToolHandler(toolbox)
+
+        messages: list[openai.types.chat.ChatCompletionMessageParam] = [
+            {"role": "system", "content": reindent(_INSTRUCTIONS)},
+            {"role": "user", "content": goal.prompt},
+        ]
+
+        while True:
+            response = self._client.chat.completions.create(
+                model=self._model,
+                messages=messages,
+                tools=tools,
+            )
+            calls = response.choices[0].message.tool_calls
+            if not calls:
+                break
+            for call in calls:
+                messages.append(
+                    {
+                        "role": "user",
+                        "content": tool_handler.handle_function(call.function),
+                    }
+                )
+
+        return Action()
+
+
+class _CompletionsToolHandler(_ToolHandler[str]):
+    def _on_read_file(self, path: PurePosixPath, contents: str) -> str:
+        return (
+            f"Here are the contents of `{path}`:\n\n```\n{contents}\n```\n" ""
+        )
+
+    def _on_write_file(self, path: PurePosixPath) -> str:
+        return f"The file at {path} has been updated to match."
+
+    def _on_list_files(self, paths: Sequence[PurePosixPath]) -> str:
+        joined = "\n".join(f"* {p}" for p in paths)
+        return f"Here are the available files: {joined}"
 
 
 class _ThreadsBot(Bot):
@@ -198,21 +271,8 @@ class _EventHandler(openai.AssistantEventHandler):
     def _handle_action(self, run_id: str, data: Any) -> None:
         tool_outputs = list[Any]()
         for tool in data.required_action.submit_tool_outputs.tool_calls:
-            name = tool.function.name
-            inputs = json.loads(tool.function.arguments)
-            _logger.info("Requested tool: %s", tool)
-            if name == "read_file":
-                path = PurePosixPath(inputs["path"])
-                output = self._toolbox.read_file(path)
-            elif name == "write_file":
-                path = PurePosixPath(inputs["path"])
-                contents = inputs["contents"]
-                self._toolbox.write_file(path, contents)
-                output = "OK"
-            elif name == "list_files":
-                assert not inputs
-                output = "\n".join(str(p) for p in self._toolbox.list_files())
-            tool_outputs.append({"tool_call_id": tool.id, "output": output})
+            handler = _ThreadToolHandler(self._toolbox, tool.id)
+            tool_outputs.append(handler.handle_function(tool.function))
 
         run = self.current_run
         assert run, "No ongoing run"
@@ -223,3 +283,26 @@ class _EventHandler(openai.AssistantEventHandler):
             event_handler=self.clone(),
         ) as stream:
             stream.until_done()
+
+
+class _ToolOutput(TypedDict):
+    tool_call_id: str
+    output: str
+
+
+class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
+    def __init__(self, toolbox: Toolbox, call_id: str) -> None:
+        super().__init__(toolbox)
+        self._call_id = call_id
+
+    def _wrap(self, output: str) -> _ToolOutput:
+        return _ToolOutput(tool_call_id=self._call_id, output=output)
+
+    def _on_read_file(self, path: PurePosixPath, contents: str) -> _ToolOutput:
+        return self._wrap(contents)
+
+    def _on_write_file(self, path: PurePosixPath) -> _ToolOutput:
+        return self._wrap("OK")
+
+    def _on_list_files(self, paths: Sequence[PurePosixPath]) -> _ToolOutput:
+        return self._wrap("\n".join((str(p) for p in paths)))

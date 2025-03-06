@@ -71,14 +71,16 @@ _alphabet = string.ascii_lowercase + string.digits
 
 
 def random_id(n: int) -> str:
+    """Generates a random length n string of lowercase letters and digits"""
     return "".join(_random.choices(_alphabet, k=n))
 
 
 class UnreachableError(RuntimeError):
-    pass
+    """Indicates unreachable code was unexpectedly executed"""
 
 
 def reindent(s: str, width=0) -> str:
+    """Reindents text by dedenting and optionally wrapping paragraphs"""
     paragraphs = (
         " ".join(textwrap.dedent("\n".join(g)).splitlines())
         for b, g in itertools.groupby(s.splitlines(), bool)

@@ -36,7 +36,7 @@ def load_bot(config: BotConfig | None) -> Bot:
 
     factory = getattr(module, symbol, None)
     if not factory:
-        raise NotImplementedError(f"Unknown bot factory: {factory}")
+        raise NotImplementedError(f"Unknown bot factory: {config.factory}")
 
     kwargs = config.config or {}
     return factory(**kwargs)
