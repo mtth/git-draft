@@ -6,7 +6,6 @@
 import importlib
 import os
 import sys
-import textwrap
 
 from ..common import BotConfig, reindent
 from .common import Action, Bot, Goal, Operation, OperationHook, Toolbox
@@ -44,7 +43,7 @@ def load_bot(config: BotConfig | None) -> Bot:
 
 
 def _default_bot() -> Bot:
-    if not "OPENAI_API_KEY" in os.environ:
+    if "OPENAI_API_KEY" not in os.environ:
         raise RuntimeError(
             reindent(
                 """

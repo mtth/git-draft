@@ -59,3 +59,27 @@ class TestConfig:
     def test_load_default(self) -> None:
         config = sut.Config.load()
         assert config.log_level == logging.INFO
+
+
+@pytest.mark.parametrize(
+    "text,width,want",
+    [
+        ("", 10, ""),
+        ("abc", 5, "abc"),
+        ("ab", 0, "ab"),
+        ("\nabc def", 4, "abc\ndef"),
+        ("  abc\n  def  ", 10, "abc def"),
+        (
+            """
+                This is a fun paragraph
+                which continues.
+
+                And another.
+            """,
+            60,
+            "This is a fun paragraph which continues.\n\nAnd another.",
+        ),
+    ],
+)
+def test_reindent(text, width, want):
+    assert sut.reindent(text, width) == want

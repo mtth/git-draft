@@ -3,10 +3,12 @@
 from __future__ import annotations
 
 import dataclasses
+import itertools
 import logging
 from pathlib import Path
 import random
 import string
+import textwrap
 import tomllib
 from typing import Any, Mapping, Self, Sequence
 import xdg_base_dirs
@@ -76,5 +78,13 @@ class UnreachableError(RuntimeError):
     pass
 
 
-def reindent(s: str) -> str:
-    raise NotImplementedError()  # TODO
+def reindent(s: str, width=0) -> str:
+    paragraphs = (
+        " ".join(textwrap.dedent("\n".join(g)).splitlines())
+        for b, g in itertools.groupby(s.splitlines(), bool)
+        if b
+    )
+    return "\n\n".join(
+        textwrap.fill(p, width=width) if width else p
+        for p in paragraphs
+    )
