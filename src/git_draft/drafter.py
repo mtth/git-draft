@@ -204,7 +204,7 @@ class Drafter:
     def finalize_draft(self, delete=False) -> None:
         self._exit_draft(True, delete=delete)
 
-    def discard_draft(self, delete=False) -> None:
+    def revert_draft(self, delete=False) -> None:
         self._exit_draft(False, delete=delete)
 
     def _create_branch(self, sync: bool) -> _Branch:
@@ -265,13 +265,25 @@ class Drafter:
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
         self._repo.git.checkout(detach=True)
-        self._repo.git.reset("--mixed" if apply else "--hard", origin_branch)
+        self._repo.git.reset(origin_branch)
         self._repo.git.checkout(origin_branch)
 
-        if not apply and sync_sha:
-            self._repo.git.checkout(sync_sha, "--", ".")
+        # Finally, we revert the relevant files if needed. If a sync commit had
+        # been created, we simply revert to it. Otherwise we compute which
+        # files have changed due to draft commits and revert only those.
+        if not apply:
+            if sync_sha:
+                self._repo.git.checkout(sync_sha, "--", ".")
+            else:
+                diffed = set(self._changed_files(f"{origin_branch}..{branch}"))
+                dirty = [p for p in self._changed_files("HEAD") if p in diffed]
+                self._repo.git.checkout("--", *dirty)
+
         if delete:
             self._repo.git.branch("-D", branch.name)
+
+    def _changed_files(self, spec) -> Sequence[str]:
+        return self._repo.git.diff(spec, name_only=True).splitlines()
 
 
 def _default_title(prompt: str) -> str:

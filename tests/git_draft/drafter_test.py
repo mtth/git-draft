@@ -95,9 +95,9 @@ class TestDrafter:
         self._drafter.generate_draft("hello", CustomBot())
         assert self._commit_files("HEAD") == set(["p2", "p3"])
 
-    def test_generate_then_discard_draft(self) -> None:
+    def test_generate_then_revert_draft(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
-        self._drafter.discard_draft()
+        self._drafter.revert_draft()
         assert len(self._commits()) == 1
 
     def test_generate_outside_branch(self) -> None:
@@ -157,11 +157,11 @@ class TestDrafter:
         assert len(self._commits()) == 2  # init, prompt
         assert not self._commit_files("HEAD")
 
-    def test_discard_outside_draft(self) -> None:
+    def test_revert_outside_draft(self) -> None:
         with pytest.raises(RuntimeError):
-            self._drafter.discard_draft()
+            self._drafter.revert_draft()
 
-    def test_discard_after_branch_move(self) -> None:
+    def test_revert_after_branch_move(self) -> None:
         self._write("log", "11")
         self._drafter.generate_draft("hi", FakeBot(), sync=True)
         branch = self._repo.active_branch
@@ -169,14 +169,14 @@ class TestDrafter:
         self._repo.index.commit("advance")
         self._repo.git.checkout(branch)
         with pytest.raises(RuntimeError):
-            self._drafter.discard_draft()
+            self._drafter.revert_draft()
 
-    def test_discard_restores_worktree(self) -> None:
+    def test_revert_restores_worktree(self) -> None:
         self._write("p1.txt", "a1")
         self._write("p2.txt", "b1")
         self._drafter.generate_draft("hello", FakeBot(), sync=True)
         self._write("p1.txt", "a2")
-        self._drafter.discard_draft(delete=True)
+        self._drafter.revert_draft(delete=True)
         assert self._read("p1.txt") == "a1"
         assert self._read("p2.txt") == "b1"
 
