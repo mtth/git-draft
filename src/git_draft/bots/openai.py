@@ -122,6 +122,9 @@ _INSTRUCTIONS = """
     You are an expert software engineer, who writes correct and concise code.
     Use the provided functions to find the files you need to answer the query,
     read the content of the relevant ones, and save the changes you suggest.
+
+    You should stop when and ONLY WHEN all the files you need to change have
+    been updated.
 """
 
 
@@ -175,29 +178,30 @@ class _CompletionsBot(Bot):
                 model=self._model,
                 messages=messages,
                 tools=tools,
+                tool_choice="required",
             )
+            assert len(response.choices) == 1
+            done = True
             calls = response.choices[0].message.tool_calls
-            if not calls:
+            for call in calls or []:
+                output = tool_handler.handle_function(call.function)
+                if output is not None:
+                    done = False
+                    messages.append({"role": "user", "content": output})
+            if done:
                 break
-            for call in calls:
-                messages.append(
-                    {
-                        "role": "user",
-                        "content": tool_handler.handle_function(call.function),
-                    }
-                )
 
         return Action()
 
 
-class _CompletionsToolHandler(_ToolHandler[str]):
+class _CompletionsToolHandler(_ToolHandler[str | None]):
     def _on_read_file(self, path: PurePosixPath, contents: str) -> str:
         return (
             f"Here are the contents of `{path}`:\n\n```\n{contents}\n```\n" ""
         )
 
-    def _on_write_file(self, path: PurePosixPath) -> str:
-        return f"The file at {path} has been updated to match."
+    def _on_write_file(self, path: PurePosixPath) -> None:
+        return None
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> str:
         joined = "\n".join(f"* {p}" for p in paths)
