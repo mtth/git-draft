@@ -14,14 +14,14 @@ See the following links for more resources:
 
 import json
 import logging
-import openai
 import os
 from pathlib import PurePosixPath
 from typing import Any, Mapping, Self, Sequence, TypedDict, override
 
+import openai
+
 from ..common import JSONObject, reindent
 from .common import Action, Bot, Goal, Toolbox
-
 
 _logger = logging.getLogger(__name__)
 

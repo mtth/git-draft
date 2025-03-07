@@ -1,7 +1,8 @@
 import logging
 from pathlib import Path
-import pytest
 import textwrap
+
+import pytest
 
 import git_draft.common as sut
 

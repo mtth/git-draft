@@ -8,7 +8,6 @@ from typing import Iterator, Self
 
 from .common import ensure_state_home, package_root
 
-
 sqlite3.register_adapter(datetime, lambda d: d.isoformat())
 sqlite3.register_converter(
     "timestamp", lambda v: datetime.fromisoformat(v.decode())

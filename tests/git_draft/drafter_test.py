@@ -1,7 +1,8 @@
-import git
 from pathlib import Path, PurePosixPath
-import pytest
 from typing import Sequence
+
+import git
+import pytest
 
 from git_draft.bots import Action, Bot, Goal, Toolbox
 import git_draft.drafter as sut
@@ -182,6 +183,12 @@ class TestDrafter:
         self._drafter.revert_draft(delete=True)
         assert self._read("p1.txt") == "a1"
         assert self._read("p2.txt") == "b1"
+
+    def test_revert_discards_unused_files(self) -> None:
+        self._drafter.generate_draft("hello", FakeBot())
+        assert self._read("PROMPT") is None
+        self._drafter.revert_draft()
+        assert self._read("PROMPT") is None
 
     def test_revert_keeps_untouched_files(self) -> None:
         class CustomBot(Bot):
