@@ -98,20 +98,22 @@ def new_parser() -> optparse.OptionParser:
 
 class _ToolPrinter(ToolVisitor):
     def on_list_files(
-        self, paths: Sequence[PurePosixPath], reason: str | None
-    ) -> None: ...
+        self, _paths: Sequence[PurePosixPath], reason: str | None
+    ) -> None:
+        print("Listing available files...")
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
-    ) -> None: ...
+    ) -> None:
+        print(f"Reading {path}...")
 
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
-    ) -> None: ...
+    ) -> None:
+        print(f"Updated {path}.")
 
-    def on_delete_file(
-        self, path: PurePosixPath, reason: str | None
-    ) -> None: ...
+    def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+        print(f"Deleted {path}.")
 
 
 def main() -> None:
@@ -156,13 +158,13 @@ def main() -> None:
             checkout=opts.checkout,
             reset=opts.reset,
         )
-        print(f"Generated draft {name}")
+        print(f"Generated {name}.")
     elif command == "finalize":
         name = drafter.finalize_draft(delete=opts.delete)
-        print(f"Finalized {name}")
+        print(f"Finalized {name}.")
     elif command == "revert":
         name = drafter.revert_draft(delete=opts.delete)
-        print(f"Reverted {name}")
+        print(f"Reverted {name}.")
     else:
         raise UnreachableError()
 
