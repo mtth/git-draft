@@ -98,21 +98,21 @@ def new_parser() -> optparse.OptionParser:
 
 class _ToolPrinter(ToolVisitor):
     def on_list_files(
-        self, _paths: Sequence[PurePosixPath], reason: str | None
+        self, _paths: Sequence[PurePosixPath], _reason: str | None
     ) -> None:
         print("Listing available files...")
 
     def on_read_file(
-        self, path: PurePosixPath, contents: str | None, reason: str | None
+        self, path: PurePosixPath, _contents: str | None, _reason: str | None
     ) -> None:
         print(f"Reading {path}...")
 
     def on_write_file(
-        self, path: PurePosixPath, contents: str, reason: str | None
+        self, path: PurePosixPath, _contents: str, _reason: str | None
     ) -> None:
         print(f"Updated {path}.")
 
-    def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+    def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
         print(f"Deleted {path}.")
 
 
