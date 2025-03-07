@@ -5,14 +5,17 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 import optparse
+from pathlib import PurePosixPath
 import sys
+from typing import Sequence
 
-from .bots import Operation, load_bot
+from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
 from .prompt import TemplatedPrompt
 from .store import Store
+from .toolbox import ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
@@ -93,8 +96,22 @@ def new_parser() -> optparse.OptionParser:
     return parser
 
 
-def print_operation(op: Operation) -> None:
-    print(op)
+class _ToolPrinter(ToolVisitor):
+    def on_list_files(
+        self, paths: Sequence[PurePosixPath], reason: str | None
+    ) -> None: ...
+
+    def on_read_file(
+        self, path: PurePosixPath, contents: str | None, reason: str | None
+    ) -> None: ...
+
+    def on_write_file(
+        self, path: PurePosixPath, contents: str, reason: str | None
+    ) -> None: ...
+
+    def on_delete_file(
+        self, path: PurePosixPath, reason: str | None
+    ) -> None: ...
 
 
 def main() -> None:
@@ -110,7 +127,6 @@ def main() -> None:
     drafter = Drafter.create(
         store=Store.persistent(),
         path=opts.root,
-        operation_hook=print_operation,
     )
     command = getattr(opts, "command", "generate")
     if command == "generate":
@@ -133,9 +149,14 @@ def main() -> None:
             else:
                 prompt = sys.stdin.read()
 
-        drafter.generate_draft(
-            prompt, bot, checkout=opts.checkout, reset=opts.reset
+        name = drafter.generate_draft(
+            prompt,
+            bot,
+            tool_visitors=[_ToolPrinter()],
+            checkout=opts.checkout,
+            reset=opts.reset,
         )
+        print(f"Generated draft {name}")
     elif command == "finalize":
         name = drafter.finalize_draft(delete=opts.delete)
         print(f"Finalized {name}")

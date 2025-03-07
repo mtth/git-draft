@@ -8,7 +8,7 @@ import os
 import sys
 
 from ..common import BotConfig, reindent
-from ..toolbox import Operation, OperationHook, Toolbox
+from ..toolbox import Toolbox
 from .common import Action, Bot, Goal
 
 
@@ -16,8 +16,6 @@ __all__ = [
     "Action",
     "Bot",
     "Goal",
-    "Operation",
-    "OperationHook",
     "Toolbox",
 ]
 

@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import dataclasses
+from datetime import datetime
 import json
 import logging
+from pathlib import PurePosixPath
 import re
 import textwrap
 import time
@@ -10,11 +12,11 @@ from typing import Match, Sequence
 
 import git
 
-from .bots import Bot, Goal, OperationHook
-from .common import random_id
+from .bots import Bot, Goal
+from .common import JSONObject, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
-from .toolbox import StagingToolbox
+from .toolbox import StagingToolbox, ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
@@ -52,37 +54,26 @@ class _Branch:
 class Drafter:
     """Draft state orchestrator"""
 
-    def __init__(
-        self, store: Store, repo: git.Repo, hook: OperationHook | None = None
-    ) -> None:
+    def __init__(self, store: Store, repo: git.Repo) -> None:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
         self._store = store
         self._repo = repo
-        self._operation_hook = hook
 
     @classmethod
-    def create(
-        cls,
-        store: Store,
-        path: str | None = None,
-        operation_hook: OperationHook | None = None,
-    ) -> Drafter:
-        return cls(
-            store,
-            git.Repo(path, search_parent_directories=True),
-            operation_hook,
-        )
+    def create(cls, store: Store, path: str | None = None) -> Drafter:
+        return cls(store, git.Repo(path, search_parent_directories=True))
 
     def generate_draft(
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        tool_visitors: Sequence[ToolVisitor] | None = None,
         checkout: bool = False,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
-    ) -> None:
+    ) -> str:
         if isinstance(prompt, str) and not prompt.strip():
             raise ValueError("Empty prompt")
         if self._repo.is_dirty(working_tree=False):
@@ -98,7 +89,9 @@ class Drafter:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
 
-        toolbox = StagingToolbox(self._repo, self._operation_hook)
+        operation_recorder = _OperationRecorder()
+        tool_visitors = [operation_recorder] + list(tool_visitors or [])
+        toolbox = StagingToolbox(self._repo, tool_visitors)
         if isinstance(prompt, TemplatedPrompt):
             renderer = PromptRenderer.for_toolbox(toolbox)
             prompt_contents = renderer.render(prompt)
@@ -118,6 +111,7 @@ class Drafter:
         goal = Goal(prompt_contents, timeout)
         action = bot.act(goal, toolbox)
         end_time = time.perf_counter()
+        walltime = end_time - start_time
 
         toolbox.trim_index()
         title = action.title
@@ -134,7 +128,7 @@ class Drafter:
                 {
                     "commit_sha": commit.hexsha,
                     "prompt_id": prompt_id,
-                    "walltime": end_time - start_time,
+                    "walltime": walltime,
                 },
             )
             cursor.executemany(
@@ -147,13 +141,14 @@ class Drafter:
                         "details": json.dumps(o.details),
                         "started_at": o.start,
                     }
-                    for o in toolbox.operations
+                    for o in operation_recorder.operations
                 ],
             )
-        _logger.info("Generated draft.")
 
+        _logger.info("Generated draft.")
         if checkout:
             self._repo.git.checkout("--", ".")
+        return str(branch)
 
     def finalize_draft(self, delete=False) -> str:
         return self._exit_draft(revert=False, delete=delete)
@@ -241,6 +236,49 @@ class Drafter:
 
     def _changed_files(self, spec) -> Sequence[str]:
         return self._repo.git.diff(spec, name_only=True).splitlines()
+
+
+class _OperationRecorder(ToolVisitor):
+    def __init__(self) -> None:
+        self.operations = list[_Operation]()
+
+    def on_list_files(
+        self, paths: Sequence[PurePosixPath], reason: str | None
+    ) -> None:
+        self._record(reason, "list_files", count=len(paths))
+
+    def on_read_file(
+        self, path: PurePosixPath, contents: str | None, reason: str | None
+    ) -> None:
+        self._record(
+            reason,
+            "read_file",
+            path=str(path),
+            size=-1 if contents is None else len(contents),
+        )
+
+    def on_write_file(
+        self, path: PurePosixPath, contents: str, reason: str | None
+    ) -> None:
+        self._record(reason, "write_file", path=str(path), size=len(contents))
+
+    def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+        self._record(reason, "delete_file", path=str(path))
+
+    def _record(self, reason: str | None, tool: str, **kwargs) -> None:
+        self.operations.append(
+            _Operation(
+                tool=tool, details=kwargs, reason=reason, start=datetime.now()
+            )
+        )
+
+
+@dataclasses.dataclass(frozen=True)
+class _Operation:
+    tool: str
+    details: JSONObject
+    reason: str | None
+    start: datetime
 
 
 def _default_title(prompt: str) -> str:
