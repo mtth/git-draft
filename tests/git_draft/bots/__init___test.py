@@ -1,5 +1,6 @@
 import importlib
 import sys
+
 import pytest
 
 import git_draft.bots as sut

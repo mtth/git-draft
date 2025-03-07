@@ -1,6 +1,7 @@
-from pathlib import PurePosixPath
-import pytest
 import unittest.mock
+from pathlib import PurePosixPath
+
+import pytest
 
 import git_draft.bots.common as sut
 

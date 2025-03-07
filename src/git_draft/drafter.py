@@ -1,21 +1,21 @@
 from __future__ import annotations
 
 import dataclasses
-import git
 import json
 import logging
-from pathlib import PurePosixPath
 import re
 import tempfile
 import textwrap
 import time
+from pathlib import PurePosixPath
 from typing import Match, Sequence, override
+
+import git
 
 from .bots import Bot, Goal, OperationHook, Toolbox
 from .common import random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
-
 
 _logger = logging.getLogger(__name__)
 

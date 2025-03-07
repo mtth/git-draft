@@ -6,7 +6,6 @@ import subprocess
 import sys
 import tempfile
 
-
 _default_editors = ["vim", "emacs", "nano"]
 
 

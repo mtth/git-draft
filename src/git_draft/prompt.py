@@ -1,12 +1,12 @@
 """Prompt templating support"""
 
 import dataclasses
-import git
-import jinja2
 from typing import Mapping, Self
 
-from .common import Config, package_root
+import git
+import jinja2
 
+from .common import Config, package_root
 
 _prompt_root = package_root / "prompts"
 

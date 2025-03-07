@@ -5,7 +5,7 @@ from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Callable, Sequence
 
-from ..common import ensure_state_home, JSONObject
+from ..common import JSONObject, ensure_state_home
 
 
 class Toolbox:
