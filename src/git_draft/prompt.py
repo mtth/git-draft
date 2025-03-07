@@ -3,10 +3,11 @@
 import dataclasses
 from typing import Mapping, Self
 
-import git
 import jinja2
 
+from .bots import Toolbox
 from .common import Config, package_root
+
 
 _prompt_root = package_root / "prompts"
 
@@ -35,7 +36,7 @@ class PromptRenderer:
         self._environment = env
 
     @classmethod
-    def for_repo(cls, repo: git.Repo) -> Self:
+    def for_toolbox(cls, toolbox: Toolbox) -> Self:
         env = jinja2.Environment(
             auto_reload=False,
             autoescape=False,
@@ -46,7 +47,7 @@ class PromptRenderer:
             undefined=jinja2.StrictUndefined,
         )
         env.globals["repo"] = {
-            "file_paths": repo.git.ls_files().splitlines(),
+            "file_paths": [str(p) for p in toolbox.list_files()],
         }
         return cls(env)
 

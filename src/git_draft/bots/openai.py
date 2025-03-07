@@ -23,6 +23,7 @@ import openai
 from ..common import JSONObject, reindent
 from .common import Action, Bot, Goal, Toolbox
 
+
 _logger = logging.getLogger(__name__)
 
 
@@ -132,7 +133,7 @@ class _ToolHandler[V]:
     def __init__(self, toolbox: Toolbox) -> None:
         self._toolbox = toolbox
 
-    def _on_read_file(self, path: PurePosixPath, contents: str) -> V:
+    def _on_read_file(self, path: PurePosixPath, contents: str | None) -> V:
         raise NotImplementedError()
 
     def _on_write_file(self, path: PurePosixPath) -> V:
@@ -196,10 +197,10 @@ class _CompletionsBot(Bot):
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
-    def _on_read_file(self, path: PurePosixPath, contents: str) -> str:
-        return (
-            f"Here are the contents of `{path}`:\n\n```\n{contents}\n```\n" ""
-        )
+    def _on_read_file(self, path: PurePosixPath, contents: str | None) -> str:
+        if contents is None:
+            return f"`{path}` does not exist."
+        return f"The contents of `{path}` are:\n\n```\n{contents}\n```\n"
 
     def _on_write_file(self, path: PurePosixPath) -> None:
         return None
@@ -303,8 +304,10 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
     def _wrap(self, output: str) -> _ToolOutput:
         return _ToolOutput(tool_call_id=self._call_id, output=output)
 
-    def _on_read_file(self, path: PurePosixPath, contents: str) -> _ToolOutput:
-        return self._wrap(contents)
+    def _on_read_file(
+        self, path: PurePosixPath, contents: str | None
+    ) -> _ToolOutput:
+        return self._wrap(contents or "")
 
     def _on_write_file(self, path: PurePosixPath) -> _ToolOutput:
         return self._wrap("OK")
