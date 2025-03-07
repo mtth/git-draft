@@ -14,6 +14,7 @@ from typing import Any, Mapping, Self, Sequence
 
 import xdg_base_dirs
 
+
 PROGRAM = "git-draft"
 
 

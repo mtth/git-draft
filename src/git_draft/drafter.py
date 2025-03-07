@@ -3,19 +3,19 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
-from pathlib import PurePosixPath
 import re
-import tempfile
 import textwrap
 import time
-from typing import Match, Sequence, override
+from typing import Match, Sequence
 
 import git
 
-from .bots import Bot, Goal, OperationHook, Toolbox
+from .bots import Bot, Goal, OperationHook
 from .common import random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
+from .toolbox import StagingToolbox
+
 
 _logger = logging.getLogger(__name__)
 
@@ -47,53 +47,6 @@ class _Branch:
     @staticmethod
     def new_suffix():
         return random_id(9)
-
-
-class _Toolbox(Toolbox):
-    """Git-index backed toolbox
-
-    All files are directly read from and written to the index. This allows
-    concurrent editing without interference.
-    """
-
-    def __init__(self, repo: git.Repo, hook: OperationHook | None) -> None:
-        super().__init__(hook)
-        self._repo = repo
-        self._written = set[str]()
-
-    @override
-    def _list(self) -> Sequence[PurePosixPath]:
-        # Show staged files.
-        return self._repo.git.ls_files().splitlines()
-
-    @override
-    def _read(self, path: PurePosixPath) -> str:
-        # Read the file from the index.
-        return self._repo.git.show(f":{path}")
-
-    @override
-    def _write(self, path: PurePosixPath, contents: str) -> None:
-        self._written.add(str(path))
-        # Update the index without touching the worktree.
-        # https://stackoverflow.com/a/25352119
-        with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
-            temp.write(contents.encode("utf8"))
-            temp.close()
-            sha = self._repo.git.hash_object("-w", temp.name, path=path)
-            mode = 644  # TODO: Read from original file if it exists.
-            self._repo.git.update_index(
-                f"{mode},{sha},{path}", add=True, cacheinfo=True
-            )
-
-    def trim_index(self) -> None:
-        diff = self._repo.git.diff(name_only=True, cached=True)
-        untouched = [
-            path
-            for path in diff.splitlines()
-            if path and path not in self._written
-        ]
-        if untouched:
-            self._repo.git.reset("--", *untouched)
 
 
 class Drafter:
@@ -139,17 +92,19 @@ class Drafter:
 
         branch = _Branch.active(self._repo)
         if branch:
-            _logger.debug("Reusing active branch %s.", branch)
             self._stage_changes(sync)
+            _logger.debug("Reusing active branch %s.", branch)
         else:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
 
+        toolbox = StagingToolbox(self._repo, self._operation_hook)
         if isinstance(prompt, TemplatedPrompt):
-            renderer = PromptRenderer.for_repo(self._repo)
+            renderer = PromptRenderer.for_toolbox(toolbox)
             prompt_contents = renderer.render(prompt)
         else:
             prompt_contents = prompt
+
         with self._store.cursor() as cursor:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
@@ -161,7 +116,6 @@ class Drafter:
 
         start_time = time.perf_counter()
         goal = Goal(prompt_contents, timeout)
-        toolbox = _Toolbox(self._repo, self._operation_hook)
         action = bot.act(goal, toolbox)
         end_time = time.perf_counter()
 
@@ -201,11 +155,11 @@ class Drafter:
         if checkout:
             self._repo.git.checkout("--", ".")
 
-    def finalize_draft(self, delete=False) -> None:
-        self._exit_draft(revert=False, delete=delete)
+    def finalize_draft(self, delete=False) -> str:
+        return self._exit_draft(revert=False, delete=delete)
 
-    def revert_draft(self, delete=False) -> None:
-        self._exit_draft(revert=True, delete=delete)
+    def revert_draft(self, delete=False) -> str:
+        return self._exit_draft(revert=True, delete=delete)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -241,7 +195,7 @@ class Drafter:
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
-    def _exit_draft(self, *, revert: bool, delete: bool) -> None:
+    def _exit_draft(self, *, revert: bool, delete: bool) -> str:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -268,7 +222,7 @@ class Drafter:
         self._repo.git.reset("-N", origin_branch)
         self._repo.git.checkout(origin_branch)
 
-        # Finally, we revert the relevant files if needed. If a sync commit had
+        # Next, we revert the relevant files if needed. If a sync commit had
         # been created, we simply revert to it. Otherwise we compute which
         # files have changed due to draft commits and revert only those.
         if revert:
@@ -282,6 +236,8 @@ class Drafter:
 
         if delete:
             self._repo.git.branch("-D", branch.name)
+
+        return branch.name
 
     def _changed_files(self, spec) -> Sequence[str]:
         return self._repo.git.diff(spec, name_only=True).splitlines()

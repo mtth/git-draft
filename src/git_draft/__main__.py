@@ -15,6 +15,9 @@ from .prompt import TemplatedPrompt
 from .store import Store
 
 
+_logger = logging.getLogger(__name__)
+
+
 def new_parser() -> optparse.OptionParser:
     parser = optparse.OptionParser(
         prog=PROGRAM,
@@ -134,12 +137,19 @@ def main() -> None:
             prompt, bot, checkout=opts.checkout, reset=opts.reset
         )
     elif command == "finalize":
-        drafter.finalize_draft(delete=opts.delete)
+        name = drafter.finalize_draft(delete=opts.delete)
+        print(f"Finalized {name}")
     elif command == "revert":
-        drafter.revert_draft(delete=opts.delete)
+        name = drafter.revert_draft(delete=opts.delete)
+        print(f"Reverted {name}")
     else:
         raise UnreachableError()
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as err:
+        _logger.exception("Program failed.")
+        print(f"Error: {err}", file=sys.stderr)
+        sys.exit(1)
