@@ -4,8 +4,8 @@ from typing import Sequence
 import git
 import pytest
 
-import git_draft.drafter as sut
 from git_draft.bots import Action, Bot, Goal, Toolbox
+import git_draft.drafter as sut
 from git_draft.prompt import TemplatedPrompt
 from git_draft.store import Store
 

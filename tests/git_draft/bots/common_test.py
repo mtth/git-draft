@@ -1,5 +1,5 @@
-import unittest.mock
 from pathlib import PurePosixPath
+import unittest.mock
 
 import pytest
 

@@ -3,11 +3,11 @@ from __future__ import annotations
 import dataclasses
 import json
 import logging
+from pathlib import PurePosixPath
 import re
 import tempfile
 import textwrap
 import time
-from pathlib import PurePosixPath
 from typing import Match, Sequence, override
 
 import git

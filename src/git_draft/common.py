@@ -5,11 +5,11 @@ from __future__ import annotations
 import dataclasses
 import itertools
 import logging
+from pathlib import Path
 import random
 import string
 import textwrap
 import tomllib
-from pathlib import Path
 from typing import Any, Mapping, Self, Sequence
 
 import xdg_base_dirs

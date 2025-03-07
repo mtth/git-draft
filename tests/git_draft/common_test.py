@@ -1,6 +1,6 @@
 import logging
-import textwrap
 from pathlib import Path
+import textwrap
 
 import pytest
 
