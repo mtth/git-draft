@@ -4,6 +4,8 @@ import dataclasses
 from datetime import datetime
 import json
 import logging
+import os
+import os.path as osp
 from pathlib import PurePosixPath
 import re
 import textwrap
@@ -69,7 +71,6 @@ class Drafter:
         prompt: str | TemplatedPrompt,
         bot: Bot,
         tool_visitors: Sequence[ToolVisitor] | None = None,
-        checkout: bool = False,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
@@ -107,11 +108,13 @@ class Drafter:
                 },
             )
 
+        _logger.debug("Running bot... [bot=%s]", bot)
         start_time = time.perf_counter()
         goal = Goal(prompt_contents, timeout)
         action = bot.act(goal, toolbox)
         end_time = time.perf_counter()
         walltime = end_time - start_time
+        _logger.info("Completed bot action. [action=%s]", action)
 
         toolbox.trim_index()
         title = action.title
@@ -145,16 +148,18 @@ class Drafter:
                 ],
             )
 
-        _logger.info("Generated draft.")
-        if checkout:
-            self._repo.git.checkout("--", ".")
+        _logger.info("Generated %s.", branch)
         return str(branch)
 
-    def finalize_draft(self, delete=False) -> str:
-        return self._exit_draft(revert=False, delete=delete)
+    def finalize_draft(self, clean=False, delete=False) -> str:
+        name = self._exit_draft(revert=False, clean=clean, delete=delete)
+        _logger.info("Finalized %s.", name)
+        return name
 
     def revert_draft(self, delete=False) -> str:
-        return self._exit_draft(revert=True, delete=delete)
+        name = self._exit_draft(revert=True, clean=False, delete=delete)
+        _logger.info("Reverted %s.", name)
+        return name
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -190,7 +195,7 @@ class Drafter:
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
-    def _exit_draft(self, *, revert: bool, delete: bool) -> str:
+    def _exit_draft(self, *, revert: bool, clean: bool, delete: bool) -> str:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -200,7 +205,7 @@ class Drafter:
                 sql("get-branch-by-suffix"), {"suffix": branch.suffix}
             )
             if not rows:
-                raise RuntimeError("Unrecognized branch")
+                raise RuntimeError("Unrecognized draft branch")
             [(origin_branch, origin_sha, sync_sha)] = rows
 
         if (
@@ -208,7 +213,16 @@ class Drafter:
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
-            raise RuntimeError("Parent branch has moved, please rebase")
+            raise RuntimeError("Parent branch has moved, please rebase first")
+
+        if clean:
+            # We delete files which have been deleted in the draft manually,
+            # otherwise they would still show up as untracked.
+            origin_delta = self._delta(f"{origin_branch}..{branch}")
+            deleted = self._untracked() & origin_delta.deleted
+            for path in deleted:
+                os.remove(osp.join(self._repo.working_dir, path))
+            _logger.info("Cleaned up files. [deleted=%s]", deleted)
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
@@ -217,25 +231,60 @@ class Drafter:
         self._repo.git.reset("-N", origin_branch)
         self._repo.git.checkout(origin_branch)
 
-        # Next, we revert the relevant files if needed. If a sync commit had
-        # been created, we simply revert to it. Otherwise we compute which
-        # files have changed due to draft commits and revert only those.
         if revert:
+            # We revert the relevant files if needed. If a sync commit had been
+            # created, we simply revert to it. Otherwise we compute which files
+            # have changed due to draft commits and revert only those.
             if sync_sha:
-                self._repo.git.checkout(sync_sha, "--", ".")
+                delta = self._delta(sync_sha)
+                if delta.changed:
+                    self._repo.git.checkout(sync_sha, "--", ".")
+                _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
             else:
-                diffed = set(self._changed_files(f"{origin_branch}..{branch}"))
-                dirty = [p for p in self._changed_files("HEAD") if p in diffed]
-                if dirty:
-                    self._repo.git.checkout("--", *dirty)
+                origin_delta = self._delta(f"{origin_branch}..{branch}")
+                head_delta = self._delta("HEAD")
+                changed = head_delta.touched & origin_delta.changed
+                if changed:
+                    self._repo.git.checkout("--", *changed)
+                deleted = head_delta.touched & origin_delta.deleted
+                if deleted:
+                    self._repo.git.rm("--", *deleted)
+                _logger.info(
+                    "Reverted touched files. [changed=%s, deleted=%s]",
+                    changed,
+                    deleted,
+                )
 
         if delete:
             self._repo.git.branch("-D", branch.name)
+            _logger.debug("Deleted branch %s.", branch)
 
         return branch.name
 
-    def _changed_files(self, spec) -> Sequence[str]:
-        return self._repo.git.diff(spec, name_only=True).splitlines()
+    def _untracked(self) -> frozenset[str]:
+        text = self._repo.git.ls_files(exclude_standard=True, others=True)
+        return frozenset(text.splitlines())
+
+    def _delta(self, spec) -> _Delta:
+        changed = list[str]()
+        deleted = list[str]()
+        for line in self._repo.git.diff(spec, name_status=True).splitlines():
+            state, name = line.split(None, 1)
+            if state == "D":
+                deleted.append(name)
+            else:
+                changed.append(name)
+        return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+
+
+@dataclasses.dataclass(frozen=True)
+class _Delta:
+    changed: frozenset[str]
+    deleted: frozenset[str]
+
+    @property
+    def touched(self) -> frozenset[str]:
+        return self.changed | self.deleted
 
 
 class _OperationRecorder(ToolVisitor):
@@ -266,11 +315,11 @@ class _OperationRecorder(ToolVisitor):
         self._record(reason, "delete_file", path=str(path))
 
     def _record(self, reason: str | None, tool: str, **kwargs) -> None:
-        self.operations.append(
-            _Operation(
-                tool=tool, details=kwargs, reason=reason, start=datetime.now()
-            )
+        op = _Operation(
+            tool=tool, details=kwargs, reason=reason, start=datetime.now()
         )
+        _logger.debug("Recorded operation. [op=%s]", op)
+        self.operations.append(op)
 
 
 @dataclasses.dataclass(frozen=True)

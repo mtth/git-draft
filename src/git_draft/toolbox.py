@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import PurePosixPath
 import tempfile
 from typing import Callable, Protocol, Sequence, override
 
 import git
+
+
+_logger = logging.getLogger(__name__)
 
 
 class Toolbox:
@@ -58,7 +62,7 @@ class Toolbox:
         self,
         path: PurePosixPath,
         reason: str | None = None,
-    ) -> None:
+    ) -> bool:
         self._dispatch(lambda v: v.on_delete_file(path, reason))
         return self._delete(path)
 
@@ -71,7 +75,7 @@ class Toolbox:
     def _write(self, path: PurePosixPath, contents: str) -> None:
         raise NotImplementedError()
 
-    def _delete(self, path: PurePosixPath) -> None:
+    def _delete(self, path: PurePosixPath) -> bool:
         raise NotImplementedError()
 
 
@@ -94,7 +98,7 @@ class ToolVisitor(Protocol):
 
 
 class StagingToolbox(Toolbox):
-    """Git-index backed toolbox
+    """Git-index backed toolbox implementation
 
     All files are directly read from and written to the index. This allows
     concurrent editing without interference with the working directory.
@@ -132,12 +136,18 @@ class StagingToolbox(Toolbox):
             )
 
     @override
-    def _delete(self, path: PurePosixPath) -> None:
-        self._updated.add(str(path))
-        raise NotImplementedError()  # TODO
+    def _delete(self, path: PurePosixPath) -> bool:
+        try:
+            self._repo.git.rm("--", str(path), cached=True)
+        except git.GitCommandError as err:
+            _logger.warning("Failed to delete file. [err=%r]", err)
+            return False
+        else:
+            self._updated.add(str(path))
+            return True
 
     def trim_index(self) -> None:
-        """Unstage any files which have not been written to."""
+        """Unstage any files which have not been written to"""
         diff = self._repo.git.diff(name_only=True, cached=True)
         untouched = [
             path
@@ -146,3 +156,4 @@ class StagingToolbox(Toolbox):
         ]
         if untouched:
             self._repo.git.reset("--", *untouched)
+            _logger.debug("Trimmed index. [reset_paths=%s]", untouched)
