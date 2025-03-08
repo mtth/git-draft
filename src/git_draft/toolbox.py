@@ -1,10 +1,14 @@
 from __future__ import annotations
 
+import logging
 from pathlib import PurePosixPath
 import tempfile
 from typing import Callable, Protocol, Sequence, override
 
 import git
+
+
+_logger = logging.getLogger(__name__)
 
 
 class Toolbox:
@@ -94,7 +98,7 @@ class ToolVisitor(Protocol):
 
 
 class StagingToolbox(Toolbox):
-    """Git-index backed toolbox
+    """Git-index backed toolbox implementation
 
     All files are directly read from and written to the index. This allows
     concurrent editing without interference with the working directory.
@@ -134,10 +138,11 @@ class StagingToolbox(Toolbox):
     @override
     def _delete(self, path: PurePosixPath) -> None:
         self._updated.add(str(path))
-        raise NotImplementedError()  # TODO
+        self._repo.git.rm("--", str(path), cached=True)
+
 
     def trim_index(self) -> None:
-        """Unstage any files which have not been written to."""
+        """Unstage any files which have not been written to"""
         diff = self._repo.git.diff(name_only=True, cached=True)
         untouched = [
             path
@@ -146,3 +151,4 @@ class StagingToolbox(Toolbox):
         ]
         if untouched:
             self._repo.git.reset("--", *untouched)
+            _logger.debug("Trimmed index. [reset_paths=%s]", untouched)

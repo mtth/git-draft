@@ -107,11 +107,13 @@ class Drafter:
                 },
             )
 
+        _logger.debug("Running bot... [bot=%s]", bot)
         start_time = time.perf_counter()
         goal = Goal(prompt_contents, timeout)
         action = bot.act(goal, toolbox)
         end_time = time.perf_counter()
         walltime = end_time - start_time
+        _logger.info("Completed bot action. [action=%s]", action)
 
         toolbox.trim_index()
         title = action.title
@@ -145,9 +147,11 @@ class Drafter:
                 ],
             )
 
-        _logger.info("Generated draft.")
-        if checkout:
+        if checkout and commit.tree:
+            _logger.debug("Checking out draft contents.")
             self._repo.git.checkout("--", ".")
+
+        _logger.info("Generated draft.")
         return str(branch)
 
     def finalize_draft(self, delete=False) -> str:
@@ -200,7 +204,7 @@ class Drafter:
                 sql("get-branch-by-suffix"), {"suffix": branch.suffix}
             )
             if not rows:
-                raise RuntimeError("Unrecognized branch")
+                raise RuntimeError("Unrecognized draft branch")
             [(origin_branch, origin_sha, sync_sha)] = rows
 
         if (
@@ -208,7 +212,7 @@ class Drafter:
             and sync_sha
             and self._repo.commit(origin_branch).hexsha != origin_sha
         ):
-            raise RuntimeError("Parent branch has moved, please rebase")
+            raise RuntimeError("Parent branch has moved, please rebase first")
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
@@ -223,14 +227,17 @@ class Drafter:
         if revert:
             if sync_sha:
                 self._repo.git.checkout(sync_sha, "--", ".")
+                _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
             else:
                 diffed = set(self._changed_files(f"{origin_branch}..{branch}"))
                 dirty = [p for p in self._changed_files("HEAD") if p in diffed]
                 if dirty:
                     self._repo.git.checkout("--", *dirty)
+                    _logger.info("Reverted changed files. [paths=%s]", dirty)
 
         if delete:
             self._repo.git.branch("-D", branch.name)
+            _logger.debug("Deleted branch %s.", branch)
 
         return branch.name
 
@@ -266,11 +273,11 @@ class _OperationRecorder(ToolVisitor):
         self._record(reason, "delete_file", path=str(path))
 
     def _record(self, reason: str | None, tool: str, **kwargs) -> None:
-        self.operations.append(
-            _Operation(
-                tool=tool, details=kwargs, reason=reason, start=datetime.now()
-            )
+        op = _Operation(
+            tool=tool, details=kwargs, reason=reason, start=datetime.now()
         )
+        _logger.debug("Recorded operation. [op=%s]", op)
+        self.operations.append(op)
 
 
 @dataclasses.dataclass(frozen=True)

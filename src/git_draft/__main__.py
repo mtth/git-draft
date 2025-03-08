@@ -36,7 +36,7 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "--root",
-        help="path used to locate repository",
+        help="path used to locate repository root",
         dest="root",
     )
 
@@ -96,7 +96,7 @@ def new_parser() -> optparse.OptionParser:
     return parser
 
 
-class _ToolPrinter(ToolVisitor):
+class ToolPrinter(ToolVisitor):
     def on_list_files(
         self, _paths: Sequence[PurePosixPath], _reason: str | None
     ) -> None:
@@ -126,10 +126,7 @@ def main() -> None:
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
-    drafter = Drafter.create(
-        store=Store.persistent(),
-        path=opts.root,
-    )
+    drafter = Drafter.create(store=Store.persistent(), path=opts.root)
     command = getattr(opts, "command", "generate")
     if command == "generate":
         bot_config = None
@@ -154,7 +151,7 @@ def main() -> None:
         name = drafter.generate_draft(
             prompt,
             bot,
-            tool_visitors=[_ToolPrinter()],
+            tool_visitors=[ToolPrinter()],
             checkout=opts.checkout,
             reset=opts.reset,
         )

@@ -125,6 +125,30 @@ class TestDrafter:
         assert len(self._commits()) == 2  # init, prompt
         assert not self._commit_files("HEAD")
 
+    def test_generate_checkout_empty(self) -> None:
+        self._write("p1", "a")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, _toolbox: Toolbox) -> Action:
+                return Action()
+
+        self._drafter.generate_draft("hello", CustomBot(), checkout=True)
+        assert self._read("p1") == "a"
+
+    def test_generate_delete_dirty_finalize(self) -> None:
+        self._write("p1", "a")
+        self._repo.index.commit("advance")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.delete_file(PurePosixPath("p1"))
+                return Action()
+
+        self._drafter.generate_draft("hello", CustomBot(), checkout=True)
+        assert self._read("p1") is None
+        self._drafter.finalize_draft()
+        assert self._read("p1") is None
+
     def test_revert_outside_draft(self) -> None:
         with pytest.raises(RuntimeError):
             self._drafter.revert_draft()
