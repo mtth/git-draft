@@ -140,7 +140,7 @@ class TestDrafter:
 
         self._drafter.generate_draft("hello", CustomBot())
 
-    def test_sync_delete(self) -> None:
+    def test_sync_delete_revert(self) -> None:
         self._write("p1", "a")
         self._repo.git.add(all=True)
         self._repo.index.commit("advance")
@@ -152,6 +152,9 @@ class TestDrafter:
                 return Action()
 
         self._drafter.generate_draft("hello", CustomBot(), sync=True)
+        assert self._read("p1") is None
+
+        self._drafter.revert_draft()
         assert self._read("p1") is None
 
     def test_generate_delete_finalize_clean(self) -> None:

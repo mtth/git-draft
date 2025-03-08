@@ -64,8 +64,8 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "-c",
-        "--checkout",
-        help="check out generated changes",
+        "--clean",
+        help="remove deleted files from work directory",
         action="store_true",
     )
     parser.add_option(
@@ -152,12 +152,11 @@ def main() -> None:
             prompt,
             bot,
             tool_visitors=[ToolPrinter()],
-            checkout=opts.checkout,
             reset=opts.reset,
         )
         print(f"Generated {name}.")
     elif command == "finalize":
-        name = drafter.finalize_draft(delete=opts.delete)
+        name = drafter.finalize_draft(clean=opts.clean, delete=opts.delete)
         print(f"Finalized {name}.")
     elif command == "revert":
         name = drafter.revert_draft(delete=opts.delete)

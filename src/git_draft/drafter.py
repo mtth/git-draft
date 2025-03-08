@@ -71,7 +71,6 @@ class Drafter:
         prompt: str | TemplatedPrompt,
         bot: Bot,
         tool_visitors: Sequence[ToolVisitor] | None = None,
-        checkout: bool = False,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
@@ -237,9 +236,9 @@ class Drafter:
             # created, we simply revert to it. Otherwise we compute which files
             # have changed due to draft commits and revert only those.
             if sync_sha:
-                # TODO: Check that this works even if the sync commit only has
-                # deletions.
-                self._repo.git.checkout(sync_sha, "--", ".")
+                delta = self._delta(sync_sha)
+                if delta.changed:
+                    self._repo.git.checkout(sync_sha, "--", ".")
                 _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
             else:
                 origin_delta = self._delta(f"{origin_branch}..{branch}")
