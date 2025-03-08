@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt
+from .prompt import TemplatedPrompt, list_templates
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -38,6 +38,11 @@ def new_parser() -> optparse.OptionParser:
         "--root",
         help="path used to locate repository root",
         dest="root",
+    )
+    parser.add_option(
+        "--templates",
+        help="list available templates and exit",
+        action="store_true",
     )
 
     def add_command(name: str, **kwargs) -> None:
@@ -126,6 +131,11 @@ def main() -> None:
         print(log_path)
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
+
+    if opts.templates:
+        for template in list_templates():
+            print(template)
+        return
 
     drafter = Drafter.create(store=Store.persistent(), path=opts.root)
     command = getattr(opts, "command", "generate")

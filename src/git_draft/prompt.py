@@ -1,7 +1,9 @@
 """Prompt templating support"""
 
 import dataclasses
-from typing import Mapping, Self
+import os
+import os.path as osp
+from typing import Mapping, Self, Sequence
 
 import jinja2
 
@@ -37,15 +39,7 @@ class PromptRenderer:
 
     @classmethod
     def for_toolbox(cls, toolbox: Toolbox) -> Self:
-        env = jinja2.Environment(
-            auto_reload=False,
-            autoescape=False,
-            keep_trailing_newline=True,
-            loader=jinja2.FileSystemLoader(
-                [Config.folder_path() / "prompts", str(_prompt_root)]
-            ),
-            undefined=jinja2.StrictUndefined,
-        )
+        env = _jinja_environment()
         env.globals["repo"] = {
             "file_paths": [str(p) for p in toolbox.list_files()],
         }
@@ -54,3 +48,23 @@ class PromptRenderer:
     def render(self, prompt: TemplatedPrompt) -> str:
         template = self._environment.get_template(f"{prompt.template}.jinja")
         return template.render(prompt.context)
+
+
+def list_templates() -> Sequence[str]:
+    return [
+        osp.splitext(name)[0]
+        for name in _jinja_environment().list_templates(extensions=["jinja"])
+        if not any(p.startswith(".") for p in name.split(os.sep))
+    ]
+
+
+def _jinja_environment() -> jinja2.Environment:
+    return jinja2.Environment(
+        auto_reload=False,
+        autoescape=False,
+        keep_trailing_newline=True,
+        loader=jinja2.FileSystemLoader(
+            [Config.folder_path() / "prompts", str(_prompt_root)]
+        ),
+        undefined=jinja2.StrictUndefined,
+    )
