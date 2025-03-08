@@ -1,3 +1,4 @@
+import os
 from pathlib import Path, PurePosixPath
 from typing import Sequence
 
@@ -36,6 +37,9 @@ class TestDrafter:
         with open(self._path(name), "w") as f:
             f.write(contents)
 
+    def _delete(self, name: str) -> None:
+        os.remove(self._path(name))
+
     def _commits(self) -> Sequence[git.Commit]:
         return list(self._repo.iter_commits())
 
@@ -44,6 +48,9 @@ class TestDrafter:
             ref, no_commit_id=True, name_only=True, relative=True
         )
         return frozenset(text.splitlines())
+
+    def _checkout(self) -> None:
+        self._repo.git.checkout("--", ".")
 
     def test_generate_draft(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
@@ -125,18 +132,31 @@ class TestDrafter:
         assert len(self._commits()) == 2  # init, prompt
         assert not self._commit_files("HEAD")
 
-    def test_generate_checkout_empty(self) -> None:
-        self._write("p1", "a")
-
+    def test_delete_unknown_file(self) -> None:
         class CustomBot(Bot):
-            def act(self, _goal: Goal, _toolbox: Toolbox) -> Action:
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.delete_file(PurePosixPath("p1"))
                 return Action()
 
-        self._drafter.generate_draft("hello", CustomBot(), checkout=True)
-        assert self._read("p1") == "a"
+        self._drafter.generate_draft("hello", CustomBot())
 
-    def test_generate_delete_dirty_finalize(self) -> None:
+    def test_sync_delete(self) -> None:
         self._write("p1", "a")
+        self._repo.git.add(all=True)
+        self._repo.index.commit("advance")
+        self._delete("p1")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.write_file(PurePosixPath("p2"), "b")
+                return Action()
+
+        self._drafter.generate_draft("hello", CustomBot(), sync=True)
+        assert self._read("p1") is None
+
+    def test_generate_delete_finalize_clean(self) -> None:
+        self._write("p1", "a")
+        self._repo.git.add(all=True)
         self._repo.index.commit("advance")
 
         class CustomBot(Bot):
@@ -144,9 +164,10 @@ class TestDrafter:
                 toolbox.delete_file(PurePosixPath("p1"))
                 return Action()
 
-        self._drafter.generate_draft("hello", CustomBot(), checkout=True)
-        assert self._read("p1") is None
-        self._drafter.finalize_draft()
+        self._drafter.generate_draft("hello", CustomBot())
+        assert self._read("p1") == "a"
+
+        self._drafter.finalize_draft(clean=True)
         assert self._read("p1") is None
 
     def test_revert_outside_draft(self) -> None:
@@ -204,7 +225,8 @@ class TestDrafter:
 
     def test_finalize_keeps_changes(self) -> None:
         self._write("p1.txt", "a1")
-        self._drafter.generate_draft("hello", FakeBot(), checkout=True)
+        self._drafter.generate_draft("hello", FakeBot())
+        self._checkout()
         self._write("p1.txt", "a2")
         self._drafter.finalize_draft()
         assert self._read("p1.txt") == "a2"

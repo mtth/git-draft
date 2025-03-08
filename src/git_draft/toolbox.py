@@ -62,7 +62,7 @@ class Toolbox:
         self,
         path: PurePosixPath,
         reason: str | None = None,
-    ) -> None:
+    ) -> bool:
         self._dispatch(lambda v: v.on_delete_file(path, reason))
         return self._delete(path)
 
@@ -75,7 +75,7 @@ class Toolbox:
     def _write(self, path: PurePosixPath, contents: str) -> None:
         raise NotImplementedError()
 
-    def _delete(self, path: PurePosixPath) -> None:
+    def _delete(self, path: PurePosixPath) -> bool:
         raise NotImplementedError()
 
 
@@ -136,10 +136,15 @@ class StagingToolbox(Toolbox):
             )
 
     @override
-    def _delete(self, path: PurePosixPath) -> None:
-        self._updated.add(str(path))
-        self._repo.git.rm("--", str(path), cached=True)
-
+    def _delete(self, path: PurePosixPath) -> bool:
+        try:
+            self._repo.git.rm("--", str(path), cached=True)
+        except git.GitCommandError as err:
+            _logger.warning("Failed to delete file. [err=%r]", err)
+            return False
+        else:
+            self._updated.add(str(path))
+            return True
 
     def trim_index(self) -> None:
         """Unstage any files which have not been written to"""
