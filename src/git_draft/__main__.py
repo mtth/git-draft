@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 import optparse
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import sys
 from typing import Sequence
 
@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt, template_source, templates_table
+from .prompt import Template, TemplatedPrompt, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -142,6 +142,17 @@ class ToolPrinter(ToolVisitor):
         print(f"Deleted {path}.")
 
 
+def edit(text: str | None, path: Path | None) -> str | None:
+    if sys.stdin.isatty():
+        return open_editor(text or "", path)
+    else:
+        if path and text is not None:
+            with open(path, "w") as f:
+                f.write(text)
+        print(path)
+        return None
+
+
 def main() -> None:
     config = Config.load()
     (opts, args) = new_parser().parse_args()
@@ -193,9 +204,21 @@ def main() -> None:
         table = drafter.history_table(args[0] if args else None)
         if table:
             print(table.to_json() if opts.json else table)
+    elif command == "show-prompts":
+        raise NotImplementedError()  # TODO
     elif command == "show-templates":
         if args:
-            print(template_source(args[0]))
+            name = args[0]
+            tpl = Template.find(name)
+            if opts.edit:
+                if tpl:
+                    edit(tpl.source, tpl.local_path())
+                else:
+                    edit("", Template.local_path_for(name))
+            else:
+                if not tpl:
+                    raise ValueError(f"No template named {name!r}")
+                print(tpl.source)
         else:
             table = templates_table()
             print(table.to_json() if opts.json else table)

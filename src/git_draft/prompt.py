@@ -1,10 +1,12 @@
 """Prompt templating support"""
 
+from __future__ import annotations
+
 import dataclasses
 import enum
 import itertools
 import os
-import os.path as osp
+from pathlib import Path
 from typing import Mapping, Self
 
 import jinja2
@@ -12,9 +14,6 @@ import jinja2.meta
 
 from .bots import Toolbox
 from .common import Config, Table, package_root
-
-
-_prompt_root = package_root / "prompts"
 
 
 _extension = "jinja"
@@ -37,7 +36,7 @@ class TemplatedPrompt:
         return cls(name, dict(e.split("=", 1) for e in args))
 
 
-class _Global(enum.StrEnum):
+class _GlobalVariable(enum.StrEnum):
     REPO = enum.auto()
 
 
@@ -50,7 +49,7 @@ class PromptRenderer:
     @classmethod
     def for_toolbox(cls, toolbox: Toolbox) -> Self:
         env = _jinja_environment()
-        env.globals[_Global.REPO] = {
+        env.globals[_GlobalVariable.REPO] = {
             "file_paths": [str(p) for p in toolbox.list_files()],
         }
         return cls(env)
@@ -67,37 +66,47 @@ def templates_table() -> Table:
     for rel_path in env.list_templates(extensions=[_extension]):
         if any(p.startswith(".") for p in rel_path.split(os.sep)):
             continue
-        tpl = _Template.create(rel_path, env)
-        local = "y" if tpl.is_local else "n"
+        tpl = Template._load(rel_path, env)
+        local = "y" if tpl.is_local() else "n"
         table.data.add_row([tpl.name, local, tpl.preamble or "-"])
     return table
 
 
-def template_source(name: str) -> str:
-    env = _jinja_environment()
-    try:
-        tpl = _Template.create(f"{name}.{_extension}", env)
-    except jinja2.TemplateNotFound:
-        raise ValueError(f"No template named {name!r}")
-    return tpl.source
+class _PromptFolder(enum.Enum):
+    BUILTIN = package_root / "prompts"
+    LOCAL = Config.folder_path() / "prompts"
+
+    @property
+    def path(self) -> Path:
+        return self.value
+
+
+def _extract_preamble(source: str, env: jinja2.Environment) -> str | None:
+    """Returns the template's leading comment's contents, if preset"""
+    tokens = list(itertools.islice(env.lex(source), 3))
+    if len(tokens) == 3 and tokens[1][1] == "comment":
+        return tokens[1][2].strip()
+    return None
 
 
 @dataclasses.dataclass(frozen=True)
-class _Template:
-    rel_path: str
-    abs_path: str | None
+class Template:
+    rel_path: Path
+    abs_path: Path
     source: str
     preamble: str | None
 
     @property
     def name(self) -> str:
-        return osp.splitext(self.rel_path)[0]
+        return str(self.rel_path.parent / self.rel_path.stem)
 
-    @property
     def is_local(self) -> bool:
-        if not self.abs_path:
-            return False
-        return str(_prompt_root) not in self.abs_path
+        return not self.abs_path.is_relative_to(_PromptFolder.BUILTIN.path)
+
+    def local_path(self) -> Path:
+        if self.is_local():
+            return self.abs_path
+        return _PromptFolder.LOCAL.path / self.rel_path
 
     def extract_variables(self, env: jinja2.Environment) -> frozenset[str]:
         """Returns the names of variables directly used in the template
@@ -110,19 +119,24 @@ class _Template:
         return frozenset(jinja2.meta.find_undeclared_variables(ast))
 
     @classmethod
-    def create(cls, rel_path: str, env: jinja2.Environment) -> Self:
+    def _load(cls, rel_path: str, env: jinja2.Environment) -> Self:
         assert env.loader, "No loader in environment"
         source, abs_path, _uptodate = env.loader.get_source(env, rel_path)
-        preamble = cls._extract_preamble(source, env)
-        return cls(rel_path, abs_path, source, preamble)
+        assert abs_path, "Missing template path"
+        preamble = _extract_preamble(source, env)
+        return cls(Path(rel_path), Path(abs_path), source, preamble)
+
+    @classmethod
+    def find(cls, name: str) -> Self | None:
+        env = _jinja_environment()
+        try:
+            return cls._load(f"{name}.{_extension}", env)
+        except jinja2.TemplateNotFound:
+            return None
 
     @staticmethod
-    def _extract_preamble(source: str, env: jinja2.Environment) -> str | None:
-        """Returns the template's leading comment's contents, if preset"""
-        tokens = list(itertools.islice(env.lex(source), 3))
-        if len(tokens) == 3 and tokens[1][1] == "comment":
-            return tokens[1][2].strip()
-        return None
+    def local_path_for(name: str) -> Path:
+        return _PromptFolder.LOCAL.path / Path(f"{name}.{_extension}")
 
 
 def _jinja_environment() -> jinja2.Environment:
@@ -130,8 +144,6 @@ def _jinja_environment() -> jinja2.Environment:
         auto_reload=False,
         autoescape=False,
         keep_trailing_newline=True,
-        loader=jinja2.FileSystemLoader(
-            [Config.folder_path() / "prompts", str(_prompt_root)]
-        ),
+        loader=jinja2.FileSystemLoader([p.path for p in _PromptFolder]),
         undefined=jinja2.StrictUndefined,
     )
