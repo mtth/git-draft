@@ -6,8 +6,6 @@ import functools
 import sqlite3
 from typing import Iterator, Self
 
-import prettytable
-
 from .common import ensure_state_home, package_root
 
 
@@ -53,7 +51,3 @@ def sql(name: str) -> str:
     path = _query_root / f"{name}.sql"
     with open(path) as reader:
         return reader.read()
-
-
-def pretty_table(cursor: sqlite3.Cursor) -> prettytable.PrettyTable | None:
-    return prettytable.from_db_cursor(cursor, border=False)

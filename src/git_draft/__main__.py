@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt, list_templates
+from .prompt import TemplatedPrompt, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -39,18 +39,13 @@ def new_parser() -> optparse.OptionParser:
         help="path used to locate repository root",
         dest="root",
     )
-    parser.add_option(
-        "--templates",
-        help="list available templates and exit",
-        action="store_true",
-    )
 
-    def add_command(name: str, **kwargs) -> None:
+    def add_command(name: str, short: str | None = None, **kwargs) -> None:
         def callback(_option, _opt, _value, parser) -> None:
             parser.values.command = name
 
         parser.add_option(
-            f"-{name[0].upper()}",
+            f"-{short or name[0].upper()}",
             f"--{name}",
             action="callback",
             callback=callback,
@@ -60,7 +55,8 @@ def new_parser() -> optparse.OptionParser:
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
     add_command("revert", help="discard the current draft")
-    add_command("list", help="list drafts")
+    add_command("list", help="list drafts or prompts")
+    add_command("list-templates", short="T", help="list templates")
 
     parser.add_option(
         "-b",
@@ -99,6 +95,13 @@ def new_parser() -> optparse.OptionParser:
         help="bot generation timeout",
     )
 
+    parser.add_option(
+        "-j",
+        "--json",
+        help="use JSON for table output",
+        action="store_true",
+    )
+
     return parser
 
 
@@ -131,11 +134,6 @@ def main() -> None:
         print(log_path)
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
-
-    if opts.templates:
-        for template in list_templates():
-            print(template)
-        return
 
     drafter = Drafter.create(store=Store.persistent(), path=opts.root)
     command = getattr(opts, "command", "generate")
@@ -175,8 +173,11 @@ def main() -> None:
         print(f"Reverted {name}.")
     elif command == "list":
         table = drafter.details_table(args[0] if args else None)
-        if table is not None and len(table.rows):
-            print(table)
+        if table:
+            print(table.to_json() if opts.json else table)
+    elif command == "list-templates":
+        table = templates_table()
+        print(table.to_json() if opts.json else table)
     else:
         raise UnreachableError()
 

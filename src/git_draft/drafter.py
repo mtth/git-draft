@@ -13,12 +13,11 @@ import time
 from typing import Match, Sequence
 
 import git
-import prettytable
 
 from .bots import Bot, Goal
-from .common import JSONObject, qualified_class_name, random_id
+from .common import JSONObject, Table, qualified_class_name, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
-from .store import Store, pretty_table, sql
+from .store import Store, sql
 from .toolbox import StagingToolbox, ToolVisitor
 
 
@@ -173,9 +172,7 @@ class Drafter:
         _logger.info("Reverted %s.", name)
         return name
 
-    def details_table(
-        self, branch_name: str | None = None
-    ) -> prettytable.PrettyTable | None:
+    def details_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
         branch = _Branch.active(self._repo, branch_name)
         if branch:
@@ -187,14 +184,13 @@ class Drafter:
                         "branch_suffix": branch.suffix,
                     },
                 )
-                return pretty_table(results)
+                return Table.from_cursor(results)
         else:
             with self._store.cursor() as cursor:
-                print(path)
                 results = cursor.execute(
                     sql("list-drafts"), {"repo_path": path}
                 )
-                return pretty_table(results)
+                return Table.from_cursor(results)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
