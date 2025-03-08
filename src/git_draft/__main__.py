@@ -55,6 +55,7 @@ def new_parser() -> optparse.OptionParser:
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
     add_command("revert", help="discard the current draft")
+    add_command("list", help="list drafts")
 
     parser.add_option(
         "-b",
@@ -161,6 +162,8 @@ def main() -> None:
     elif command == "revert":
         name = drafter.revert_draft(delete=opts.delete)
         print(f"Reverted {name}.")
+    elif command == "list":
+        print(drafter.drafts_table() or "")
     else:
         raise UnreachableError()
 

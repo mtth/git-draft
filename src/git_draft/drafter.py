@@ -13,6 +13,7 @@ import time
 from typing import Match, Sequence
 
 import git
+import prettytable
 
 from .bots import Bot, Goal
 from .common import JSONObject, random_id
@@ -64,7 +65,10 @@ class Drafter:
 
     @classmethod
     def create(cls, store: Store, path: str | None = None) -> Drafter:
-        return cls(store, git.Repo(path, search_parent_directories=True))
+        try:
+            return cls(store, git.Repo(path, search_parent_directories=True))
+        except git.NoSuchPathError:
+            raise ValueError(f"No git repository at {path}")
 
     def generate_draft(
         self,
@@ -160,6 +164,12 @@ class Drafter:
         name = self._exit_draft(revert=True, clean=False, delete=delete)
         _logger.info("Reverted %s.", name)
         return name
+
+    def drafts_table(self) -> prettytable.PrettyTable | None:
+        path = self._repo.working_dir
+        with self._store.cursor() as cursor:
+            results = cursor.execute(sql("list-drafts"), {"repo_path": path})
+            return prettytable.from_db_cursor(results, border=False)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -275,6 +285,15 @@ class Drafter:
             else:
                 changed.append(name)
         return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+
+
+@dataclasses.dataclass(frozen=True)
+class Draft:
+    suffix: str
+    created_at: datetime
+    prompt_count: int
+    walltime: float
+    operation_count: int
 
 
 @dataclasses.dataclass(frozen=True)
