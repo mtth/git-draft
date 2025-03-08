@@ -5,7 +5,7 @@ from __future__ import annotations
 import importlib.metadata
 import logging
 import optparse
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import sys
 from typing import Sequence
 
@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt, template_source, templates_table
+from .prompt import Template, TemplatedPrompt, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -54,9 +54,9 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
-    add_command("history", help="show history drafts or prompts")
-    add_command("revert", help="discard the current draft")
-    add_command("templates", help="show template information")
+    add_command("show-drafts", short="D", help="show draft history")
+    add_command("show-prompts", short="P", help="show prompt history")
+    add_command("show-templates", short="T", help="show template information")
 
     parser.add_option(
         "-b",
@@ -76,7 +76,12 @@ def new_parser() -> optparse.OptionParser:
         help="delete draft after finalizing or discarding",
         action="store_true",
     )
-    # TODO: Add edit option. Works both for prompts and templates.
+    parser.add_option(
+        "-e",
+        "--edit",
+        help="edit prompt or template",
+        action="store_true",
+    )
     parser.add_option(
         "-j",
         "--json",
@@ -85,8 +90,8 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "-r",
-        "--reset",
-        help="reset index before generating a new draft",
+        "--revert",
+        help="abandon any changes since draft creation",
         action="store_true",
     )
     parser.add_option(
@@ -95,11 +100,23 @@ def new_parser() -> optparse.OptionParser:
         help="commit prior worktree changes separately",
         action="store_true",
     )
+
     parser.add_option(
-        "-t",
+        "--no-reset",
+        help="abort if there are any staged changes",
+        dest="reset",
+        action="store_false",
+    )
+    parser.add_option(
+        "--reset",
+        help="reset index before generating a new draft",
+        dest="reset",
+        action="store_true",
+    )
+    parser.add_option(
         "--timeout",
         dest="timeout",
-        help="bot generation timeout",
+        help="generation timeout",
     )
 
     return parser
@@ -123,6 +140,17 @@ class ToolPrinter(ToolVisitor):
 
     def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
         print(f"Deleted {path}.")
+
+
+def edit(text: str | None, path: Path | None) -> str | None:
+    if sys.stdin.isatty():
+        return open_editor(text or "", path)
+    else:
+        if path and text is not None:
+            with open(path, "w") as f:
+                f.write(text)
+        print(path)
+        return None
 
 
 def main() -> None:
@@ -162,22 +190,35 @@ def main() -> None:
             bot,
             bot_name=opts.bot,
             tool_visitors=[ToolPrinter()],
-            reset=opts.reset,
+            reset=config.auto_reset if opts.reset is None else opts.reset,
+            sync=opts.sync,
         )
         print(f"Generated {name}.")
     elif command == "finalize":
-        name = drafter.finalize_draft(clean=opts.clean, delete=opts.delete)
-        print(f"Finalized {name}.")
-    elif command == "revert":
-        name = drafter.revert_draft(delete=opts.delete)
-        print(f"Reverted {name}.")
-    elif command == "history":
+        name = drafter.exit_draft(
+            revert=opts.revert, clean=opts.clean, delete=opts.delete
+        )
+        verb = "Reverted" if opts.revert else "Finalized"
+        print(f"{verb} {name}.")
+    elif command == "show-drafts":
         table = drafter.history_table(args[0] if args else None)
         if table:
             print(table.to_json() if opts.json else table)
-    elif command == "templates":
+    elif command == "show-prompts":
+        raise NotImplementedError()  # TODO
+    elif command == "show-templates":
         if args:
-            print(template_source(args[0]))
+            name = args[0]
+            tpl = Template.find(name)
+            if opts.edit:
+                if tpl:
+                    edit(tpl.source, tpl.local_path())
+                else:
+                    edit("", Template.local_path_for(name))
+            else:
+                if not tpl:
+                    raise ValueError(f"No template named {name!r}")
+                print(tpl.source)
         else:
             table = templates_table()
             print(table.to_json() if opts.json else table)

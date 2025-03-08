@@ -72,7 +72,7 @@ class TestDrafter:
 
     def test_generate_then_revert_draft(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
-        self._drafter.revert_draft()
+        self._drafter.exit_draft(revert=True)
         assert len(self._commits()) == 1
 
     def test_generate_outside_branch(self) -> None:
@@ -154,7 +154,7 @@ class TestDrafter:
         self._drafter.generate_draft("hello", CustomBot(), sync=True)
         assert self._read("p1") is None
 
-        self._drafter.revert_draft()
+        self._drafter.exit_draft(revert=True)
         assert self._read("p1") is None
 
     def test_generate_delete_finalize_clean(self) -> None:
@@ -170,12 +170,12 @@ class TestDrafter:
         self._drafter.generate_draft("hello", CustomBot())
         assert self._read("p1") == "a"
 
-        self._drafter.finalize_draft(clean=True)
+        self._drafter.exit_draft(revert=False, clean=True)
         assert self._read("p1") is None
 
     def test_revert_outside_draft(self) -> None:
         with pytest.raises(RuntimeError):
-            self._drafter.revert_draft()
+            self._drafter.exit_draft(revert=True)
 
     def test_revert_after_branch_move(self) -> None:
         self._write("log", "11")
@@ -185,21 +185,21 @@ class TestDrafter:
         self._repo.index.commit("advance")
         self._repo.git.checkout(branch)
         with pytest.raises(RuntimeError):
-            self._drafter.revert_draft()
+            self._drafter.exit_draft(revert=True)
 
     def test_revert_restores_worktree(self) -> None:
         self._write("p1.txt", "a1")
         self._write("p2.txt", "b1")
         self._drafter.generate_draft("hello", FakeBot(), sync=True)
         self._write("p1.txt", "a2")
-        self._drafter.revert_draft(delete=True)
+        self._drafter.exit_draft(revert=True, delete=True)
         assert self._read("p1.txt") == "a1"
         assert self._read("p2.txt") == "b1"
 
     def test_revert_discards_unused_files(self) -> None:
         self._drafter.generate_draft("hello", FakeBot())
         assert self._read("PROMPT") is None
-        self._drafter.revert_draft()
+        self._drafter.exit_draft(revert=True)
         assert self._read("PROMPT") is None
 
     def test_revert_keeps_untouched_files(self) -> None:
@@ -219,7 +219,7 @@ class TestDrafter:
         self._drafter.generate_draft("hello", CustomBot())
         self._write("p1.txt", "t3")
         self._write("p2.txt", "t3")
-        self._drafter.revert_draft()
+        self._drafter.exit_draft(revert=True)
 
         assert self._read("p1.txt") == "t3"
         assert self._read("p2.txt") == "t0"
@@ -231,7 +231,7 @@ class TestDrafter:
         self._drafter.generate_draft("hello", FakeBot())
         self._checkout()
         self._write("p1.txt", "a2")
-        self._drafter.finalize_draft()
+        self._drafter.exit_draft(revert=False)
         assert self._read("p1.txt") == "a2"
         assert self._read("PROMPT") == "hello"
 

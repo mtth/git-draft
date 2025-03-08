@@ -22,33 +22,33 @@ class TestTemplate:
         self._env = sut._jinja_environment()
 
     def test_fields(self):
-        tpl = sut._Template.create("add-test.jinja", self._env)
-        assert not tpl.is_local
-        assert tpl.name == "add-test"
+        tpl = sut.Template._load("includes/.file-list.jinja", self._env)
+        assert not tpl.is_local()
+        assert tpl.name == "includes/.file-list"
+        assert tpl.local_path() != tpl.abs_path
 
     def test_preamble_ok(self):
-        tpl = sut._Template.create("add-test.jinja", self._env)
+        tpl = sut.Template._load("add-test.jinja", self._env)
         assert "symbol" in tpl.preamble
 
     def test_preamble_missing(self):
-        tpl = sut._Template.create("includes/.file-list.jinja", self._env)
+        tpl = sut.Template._load("includes/.file-list.jinja", self._env)
         assert tpl.preamble is None
 
     def test_extract_variables(self):
-        tpl = sut._Template.create("add-test.jinja", self._env)
+        tpl = sut.Template._load("add-test.jinja", self._env)
         variables = tpl.extract_variables(self._env)
         assert "symbol" in variables
         assert "repo" not in variables
 
+    def test_find_ok(self) -> None:
+        tpl = sut.Template.find("add-test")
+        assert tpl
+        assert "symbol" in tpl.source
+
+    def test_find_missing(self) -> None:
+        assert sut.Template.find("foo") is None
+
 
 def test_templates_table() -> None:
     assert sut.templates_table()
-
-
-class TestTemplateSource:
-    def test_ok(self) -> None:
-        assert "symbol" in sut.template_source("add-test")
-
-    def test_not_found(self) -> None:
-        with pytest.raises(ValueError):
-            assert "symbol" in sut.template_source("foo")
