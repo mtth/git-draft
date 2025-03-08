@@ -15,7 +15,7 @@ from typing import Match, Sequence
 import git
 
 from .bots import Bot, Goal
-from .common import JSONObject, random_id
+from .common import JSONObject, Table, qualified_class_name, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
 from .toolbox import StagingToolbox, ToolVisitor
@@ -28,7 +28,7 @@ _logger = logging.getLogger(__name__)
 class _Branch:
     """Draft branch"""
 
-    _name_pattern = re.compile(r"draft/(.+)")
+    _pattern = re.compile(r"draft/(.+)")
 
     suffix: str
 
@@ -40,11 +40,13 @@ class _Branch:
         return self.name
 
     @classmethod
-    def active(cls, repo: git.Repo) -> _Branch | None:
+    def active(cls, repo: git.Repo, name: str | None = None) -> _Branch | None:
         match: Match | None = None
-        if not repo.head.is_detached:
-            match = cls._name_pattern.fullmatch(repo.active_branch.name)
+        if name or not repo.head.is_detached:
+            match = cls._pattern.fullmatch(name or repo.active_branch.name)
         if not match:
+            if name:
+                raise ValueError(f"Not a valid draft branch name: {name!r}")
             return None
         return _Branch(match[1])
 
@@ -64,12 +66,16 @@ class Drafter:
 
     @classmethod
     def create(cls, store: Store, path: str | None = None) -> Drafter:
-        return cls(store, git.Repo(path, search_parent_directories=True))
+        try:
+            return cls(store, git.Repo(path, search_parent_directories=True))
+        except git.NoSuchPathError:
+            raise ValueError(f"No git repository at {path}")
 
     def generate_draft(
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        bot_name: str | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
         reset: bool = False,
         sync: bool = False,
@@ -94,9 +100,11 @@ class Drafter:
         tool_visitors = [operation_recorder] + list(tool_visitors or [])
         toolbox = StagingToolbox(self._repo, tool_visitors)
         if isinstance(prompt, TemplatedPrompt):
+            template: str | None = prompt.template
             renderer = PromptRenderer.for_toolbox(toolbox)
             prompt_contents = renderer.render(prompt)
         else:
+            template = None
             prompt_contents = prompt
 
         with self._store.cursor() as cursor:
@@ -104,6 +112,7 @@ class Drafter:
                 sql("add-prompt"),
                 {
                     "branch_suffix": branch.suffix,
+                    "template": template,
                     "contents": prompt_contents,
                 },
             )
@@ -131,6 +140,8 @@ class Drafter:
                 {
                     "commit_sha": commit.hexsha,
                     "prompt_id": prompt_id,
+                    "bot_name": bot_name,
+                    "bot_class": qualified_class_name(bot.__class__),
                     "walltime": walltime,
                 },
             )
@@ -160,6 +171,26 @@ class Drafter:
         name = self._exit_draft(revert=True, clean=False, delete=delete)
         _logger.info("Reverted %s.", name)
         return name
+
+    def history_table(self, branch_name: str | None = None) -> Table:
+        path = self._repo.working_dir
+        branch = _Branch.active(self._repo, branch_name)
+        if branch:
+            with self._store.cursor() as cursor:
+                results = cursor.execute(
+                    sql("list-prompts"),
+                    {
+                        "repo_path": path,
+                        "branch_suffix": branch.suffix,
+                    },
+                )
+                return Table.from_cursor(results)
+        else:
+            with self._store.cursor() as cursor:
+                results = cursor.execute(
+                    sql("list-drafts"), {"repo_path": path}
+                )
+                return Table.from_cursor(results)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:

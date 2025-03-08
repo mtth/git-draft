@@ -7,11 +7,13 @@ import itertools
 import logging
 from pathlib import Path
 import random
+import sqlite3
 import string
 import textwrap
 import tomllib
-from typing import Any, Mapping, Self, Sequence
+from typing import Any, Mapping, Self, Sequence, Type
 
+import prettytable
 import xdg_base_dirs
 
 
@@ -90,3 +92,37 @@ def reindent(s: str, width=0) -> str:
     return "\n\n".join(
         textwrap.fill(p, width=width) if width else p for p in paragraphs
     )
+
+
+def qualified_class_name(cls: Type) -> str:
+    name = cls.__qualname__
+    return f"{cls.__module__}.{name}" if cls.__module__ else name
+
+
+class Table:
+    """Pretty-printable table"""
+
+    _kwargs = dict(border=False)  # Shared options
+
+    def __init__(self, data: prettytable.PrettyTable) -> None:
+        self.data = data
+        self.data.align = "l"
+
+    def __bool__(self) -> bool:
+        return len(self.data.rows) > 0
+
+    def __str__(self) -> str:
+        return str(self.data) if self else ""
+
+    def to_json(self) -> str:
+        return self.data.get_json_string(header=False)
+
+    @classmethod
+    def empty(cls) -> Self:
+        return cls(prettytable.PrettyTable([], **cls._kwargs))
+
+    @classmethod
+    def from_cursor(cls, cursor: sqlite3.Cursor) -> Self:
+        table = prettytable.from_db_cursor(cursor, **cls._kwargs)
+        assert table
+        return cls(table)

@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt
+from .prompt import TemplatedPrompt, template_source, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -40,12 +40,12 @@ def new_parser() -> optparse.OptionParser:
         dest="root",
     )
 
-    def add_command(name: str, **kwargs) -> None:
+    def add_command(name: str, short: str | None = None, **kwargs) -> None:
         def callback(_option, _opt, _value, parser) -> None:
             parser.values.command = name
 
         parser.add_option(
-            f"-{name[0].upper()}",
+            f"-{short or name[0].upper()}",
             f"--{name}",
             action="callback",
             callback=callback,
@@ -54,7 +54,9 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
+    add_command("history", help="show history drafts or prompts")
     add_command("revert", help="discard the current draft")
+    add_command("templates", help="show template information")
 
     parser.add_option(
         "-b",
@@ -72,6 +74,13 @@ def new_parser() -> optparse.OptionParser:
         "-d",
         "--delete",
         help="delete draft after finalizing or discarding",
+        action="store_true",
+    )
+    # TODO: Add edit option. Works both for prompts and templates.
+    parser.add_option(
+        "-j",
+        "--json",
+        help="use JSON for table output",
         action="store_true",
     )
     parser.add_option(
@@ -151,6 +160,7 @@ def main() -> None:
         name = drafter.generate_draft(
             prompt,
             bot,
+            bot_name=opts.bot,
             tool_visitors=[ToolPrinter()],
             reset=opts.reset,
         )
@@ -161,6 +171,16 @@ def main() -> None:
     elif command == "revert":
         name = drafter.revert_draft(delete=opts.delete)
         print(f"Reverted {name}.")
+    elif command == "history":
+        table = drafter.history_table(args[0] if args else None)
+        if table:
+            print(table.to_json() if opts.json else table)
+    elif command == "templates":
+        if args:
+            print(template_source(args[0]))
+        else:
+            table = templates_table()
+            print(table.to_json() if opts.json else table)
     else:
         raise UnreachableError()
 
