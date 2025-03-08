@@ -234,3 +234,12 @@ class TestDrafter:
         self._drafter.finalize_draft()
         assert self._read("p1.txt") == "a2"
         assert self._read("PROMPT") == "hello"
+
+    def test_history_table_empty(self) -> None:
+        table = self._drafter.history_table()
+        assert not table
+
+    def test_history_table_active_draft(self) -> None:
+        self._drafter.generate_draft("hello", FakeBot())
+        table = self._drafter.history_table()
+        assert table

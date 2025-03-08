@@ -172,7 +172,7 @@ def main() -> None:
         name = drafter.revert_draft(delete=opts.delete)
         print(f"Reverted {name}.")
     elif command == "history":
-        table = drafter.details_table(args[0] if args else None)
+        table = drafter.history_table(args[0] if args else None)
         if table:
             print(table.to_json() if opts.json else table)
     elif command == "templates":

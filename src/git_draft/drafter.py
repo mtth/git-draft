@@ -172,7 +172,7 @@ class Drafter:
         _logger.info("Reverted %s.", name)
         return name
 
-    def details_table(self, branch_name: str | None = None) -> Table:
+    def history_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
         branch = _Branch.active(self._repo, branch_name)
         if branch:
