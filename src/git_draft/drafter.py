@@ -16,7 +16,7 @@ import git
 import prettytable
 
 from .bots import Bot, Goal
-from .common import JSONObject, random_id
+from .common import JSONObject, qualified_class_name, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
 from .toolbox import StagingToolbox, ToolVisitor
@@ -108,6 +108,7 @@ class Drafter:
                 sql("add-prompt"),
                 {
                     "branch_suffix": branch.suffix,
+                    "bot_class": qualified_class_name(bot.__class__),
                     "contents": prompt_contents,
                 },
             )
@@ -285,15 +286,6 @@ class Drafter:
             else:
                 changed.append(name)
         return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
-
-
-@dataclasses.dataclass(frozen=True)
-class Draft:
-    suffix: str
-    created_at: datetime
-    prompt_count: int
-    walltime: float
-    operation_count: int
 
 
 @dataclasses.dataclass(frozen=True)

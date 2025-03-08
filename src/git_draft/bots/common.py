@@ -3,7 +3,7 @@ from __future__ import annotations
 import dataclasses
 from pathlib import Path
 
-from ..common import ensure_state_home
+from ..common import ensure_state_home, qualified_class_name
 from ..toolbox import Toolbox
 
 
@@ -21,9 +21,7 @@ class Action:
 class Bot:
     @classmethod
     def state_folder_path(cls, ensure_exists=False) -> Path:
-        name = cls.__qualname__
-        if cls.__module__:
-            name = f"{cls.__module__}.{name}"
+        name = qualified_class_name(cls)
         path = ensure_state_home() / "bots" / name
         if ensure_exists:
             path.mkdir(parents=True, exist_ok=True)

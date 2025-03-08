@@ -10,7 +10,7 @@ import random
 import string
 import textwrap
 import tomllib
-from typing import Any, Mapping, Self, Sequence
+from typing import Any, Mapping, Self, Sequence, Type
 
 import xdg_base_dirs
 
@@ -90,3 +90,8 @@ def reindent(s: str, width=0) -> str:
     return "\n\n".join(
         textwrap.fill(p, width=width) if width else p for p in paragraphs
     )
+
+
+def qualified_class_name(cls: Type) -> str:
+    name = cls.__qualname__
+    return f"{cls.__module__}.{name}" if cls.__module__ else name

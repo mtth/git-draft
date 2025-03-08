@@ -11,6 +11,7 @@ create table if not exists prompts (
   id integer primary key,
   created_at timestamp default current_timestamp,
   branch_suffix text not null,
+  bot_class text not null,
   contents text not null,
   foreign key (branch_suffix) references branches(suffix)
 );
