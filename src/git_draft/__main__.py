@@ -76,6 +76,13 @@ def new_parser() -> optparse.OptionParser:
         help="delete draft after finalizing or discarding",
         action="store_true",
     )
+    # TODO: Add edit option. Works both for prompts and templates.
+    parser.add_option(
+        "-j",
+        "--json",
+        help="use JSON for table output",
+        action="store_true",
+    )
     parser.add_option(
         "-r",
         "--reset",
@@ -93,13 +100,6 @@ def new_parser() -> optparse.OptionParser:
         "--timeout",
         dest="timeout",
         help="bot generation timeout",
-    )
-
-    parser.add_option(
-        "-j",
-        "--json",
-        help="use JSON for table output",
-        action="store_true",
     )
 
     return parser
