@@ -190,6 +190,7 @@ class Drafter:
                 return pretty_table(results)
         else:
             with self._store.cursor() as cursor:
+                print(path)
                 results = cursor.execute(
                     sql("list-drafts"), {"repo_path": path}
                 )

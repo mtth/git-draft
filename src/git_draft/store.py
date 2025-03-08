@@ -56,4 +56,4 @@ def sql(name: str) -> str:
 
 
 def pretty_table(cursor: sqlite3.Cursor) -> prettytable.PrettyTable | None:
-    return prettytable.from_db_cursor(cursor, border=False, print_empty=False)
+    return prettytable.from_db_cursor(cursor, border=False)

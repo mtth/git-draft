@@ -165,7 +165,7 @@ def main() -> None:
         print(f"Reverted {name}.")
     elif command == "list":
         table = drafter.details_table(args[0] if args else None)
-        if table and len(table.rows):
+        if table is not None and len(table.rows):
             print(table)
     else:
         raise UnreachableError()
