@@ -18,12 +18,12 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-'git draft' [options] [--generate] [--bot BOT] [--edit] [--no-reset | --reset]
-                      [--sync] [TEMPLATE [VARIABLE...]]
-'git draft' [options] --finalize [--clean | --revert] [--delete]
-'git draft' [options] --show-drafts [--json]
-'git draft' [options] --show-prompts [--json] [PROMPT]
-'git draft' [options] --show-templates [--json | [--edit] TEMPLATE]
+git draft [options] [--generate] [--bot BOT] [--edit] [--reset | --no-reset]
+                    [--sync] [TEMPLATE [VARIABLE...]]
+git draft [options] --finalize [--clean | --revert] [--delete]
+git draft [options] --show-drafts [--json]
+git draft [options] --show-prompts [--json] [PROMPT]
+git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 
 == Description

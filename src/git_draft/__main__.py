@@ -189,11 +189,11 @@ def main() -> None:
         )
         verb = "Reverted" if opts.revert else "Finalized"
         print(f"{verb} {name}.")
-    elif command == "history":
+    elif command == "show-drafts":
         table = drafter.history_table(args[0] if args else None)
         if table:
             print(table.to_json() if opts.json else table)
-    elif command == "templates":
+    elif command == "show-templates":
         if args:
             print(template_source(args[0]))
         else:
