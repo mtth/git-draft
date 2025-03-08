@@ -35,16 +35,13 @@ def ensure_state_home() -> Path:
 
 @dataclasses.dataclass(frozen=True)
 class Config:
-    log_level: int
-    bots: Sequence[BotConfig]
+    log_level: int = logging.INFO
+    auto_reset: bool = True
+    bots: Sequence[BotConfig] = dataclasses.field(default_factory=lambda: [])
 
     @staticmethod
     def folder_path() -> Path:
         return xdg_base_dirs.xdg_config_home() / PROGRAM
-
-    @classmethod
-    def default(cls) -> Self:
-        return cls(logging.INFO, [])
 
     @classmethod
     def load(cls) -> Self:
@@ -53,12 +50,13 @@ class Config:
             with open(path, "rb") as reader:
                 data = tomllib.load(reader)
         except FileNotFoundError:
-            return cls.default()
+            return cls()
         else:
-            return cls(
-                log_level=logging.getLevelName(data["log_level"]),
-                bots=[BotConfig(**v) for v in data.get("bots", [])],
-            )
+            if level := data["log_level"]:
+                data["log_level"] = logging.getLevelName(level)
+            if bots := data["bots"]:
+                data["bots"] = [BotConfig(**v) for v in bots]
+            return cls(**data)
 
 
 @dataclasses.dataclass(frozen=True)

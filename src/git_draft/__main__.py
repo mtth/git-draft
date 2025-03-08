@@ -54,9 +54,9 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
-    add_command("history", help="show history drafts or prompts")
-    add_command("revert", help="discard the current draft")
-    add_command("templates", help="show template information")
+    add_command("show-drafts", short="D", help="show draft history")
+    add_command("show-prompts", short="P", help="show prompt history")
+    add_command("show-templates", short="T", help="show template information")
 
     parser.add_option(
         "-b",
@@ -76,7 +76,12 @@ def new_parser() -> optparse.OptionParser:
         help="delete draft after finalizing or discarding",
         action="store_true",
     )
-    # TODO: Add edit option. Works both for prompts and templates.
+    parser.add_option(
+        "-e",
+        "--edit",
+        help="edit prompt or template",
+        action="store_true",
+    )
     parser.add_option(
         "-j",
         "--json",
@@ -85,8 +90,8 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "-r",
-        "--reset",
-        help="reset index before generating a new draft",
+        "--revert",
+        help="abandon any changes since draft creation",
         action="store_true",
     )
     parser.add_option(
@@ -95,11 +100,23 @@ def new_parser() -> optparse.OptionParser:
         help="commit prior worktree changes separately",
         action="store_true",
     )
+
     parser.add_option(
-        "-t",
+        "--no-reset",
+        help="abort if there are any staged changes",
+        dest="reset",
+        action="store_false",
+    )
+    parser.add_option(
+        "--reset",
+        help="reset index before generating a new draft",
+        dest="reset",
+        action="store_true",
+    )
+    parser.add_option(
         "--timeout",
         dest="timeout",
-        help="bot generation timeout",
+        help="generation timeout",
     )
 
     return parser
@@ -162,15 +179,16 @@ def main() -> None:
             bot,
             bot_name=opts.bot,
             tool_visitors=[ToolPrinter()],
-            reset=opts.reset,
+            reset=config.auto_reset if opts.reset is None else opts.reset,
+            sync=opts.sync,
         )
         print(f"Generated {name}.")
     elif command == "finalize":
-        name = drafter.finalize_draft(clean=opts.clean, delete=opts.delete)
-        print(f"Finalized {name}.")
-    elif command == "revert":
-        name = drafter.revert_draft(delete=opts.delete)
-        print(f"Reverted {name}.")
+        name = drafter.exit_draft(
+            revert=opts.revert, clean=opts.clean, delete=opts.delete
+        )
+        verb = "Reverted" if opts.revert else "Finalized"
+        print(f"{verb} {name}.")
     elif command == "history":
         table = drafter.history_table(args[0] if args else None)
         if table:

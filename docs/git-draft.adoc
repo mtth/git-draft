@@ -12,25 +12,98 @@ v{manversion}
 
 git-draft - git-friendly code assistant
 
-IMPORTANT: _git-draft_ is WIP.
-Options documented below may not be implemented yet.
+IMPORTANT: `git-draft` is WIP.
 
 
 == Synopsis
 
-*git-draft* _[--generate]_ _[--prompt PROMPT]_ _[--reset]_ _[TEMPLATE [...]]_
-
-*git-draft* _--finalize_ _[--delete]_
-
-*git-draft* _--discard_ _[--delete]_
+[verse]
+'git draft' [options] [--generate] [--bot BOT] [--edit] [--no-reset | --reset]
+                      [--sync] [TEMPLATE [VARIABLE...]]
+'git draft' [options] --finalize [--clean | --revert] [--delete]
+'git draft' [options] --show-drafts [--json]
+'git draft' [options] --show-prompts [--json] [PROMPT]
+'git draft' [options] --show-templates [--json | [--edit] TEMPLATE]
 
 
 == Description
 
-_git-draft_ is a git-centric way to edit code using AI.
+`git-draft` is a git-centric way to edit code using AI.
 
-=== How it works
 
+== Options
+
+-b BOT::
+--bot=BOT::
+  Bot name.
+
+-c::
+--clean::
+  TODO
+
+-d::
+--delete::
+  Delete finalized branch.
+
+-e::
+--edit::
+  Edit.
+
+-F::
+--finalize::
+  TODO
+
+-G::
+--generate::
+  TODO
+
+-h::
+--help::
+  Show help message and exit.
+
+-j::
+--json::
+  Use JSON output.
+
+--log::
+  Show log path and exit.
+
+--reset::
+--no-reset::
+  TODO
+
+-r::
+--revert::
+  Abandon any changes since draft creation.
+
+--root::
+  Repository search root.
+
+-D::
+--show-drafts::
+  TODO
+
+-P::
+--show-prompts::
+  TODO
+
+-T::
+--show-templates::
+  TODO
+
+-s::
+--sync::
+  Create a sync commit with any changes.
+
+-t TIMEOUT::
+--timeout=TIMEOUT::
+  Action timeout.
+
+--version::
+  Show version and exit.
+
+
+== Examples
 
 The workhorse command is `git draft --generate` which leverages AI to edit our code.
 A prompt can be specified as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft --generate`.
@@ -52,4 +125,4 @@ Note that you can come back to an existing draft anytime (by checking its branch
 
 == See also
 
-_git(1)_
+`git(1)`

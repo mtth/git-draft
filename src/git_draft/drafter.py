@@ -162,15 +162,72 @@ class Drafter:
         _logger.info("Generated %s.", branch)
         return str(branch)
 
-    def finalize_draft(self, clean=False, delete=False) -> str:
-        name = self._exit_draft(revert=False, clean=clean, delete=delete)
-        _logger.info("Finalized %s.", name)
-        return name
+    def exit_draft(self, *, revert: bool, clean=False, delete=False) -> str:
+        branch = _Branch.active(self._repo)
+        if not branch:
+            raise RuntimeError("Not currently on a draft branch")
 
-    def revert_draft(self, delete=False) -> str:
-        name = self._exit_draft(revert=True, clean=False, delete=delete)
-        _logger.info("Reverted %s.", name)
-        return name
+        with self._store.cursor() as cursor:
+            rows = cursor.execute(
+                sql("get-branch-by-suffix"), {"suffix": branch.suffix}
+            )
+            if not rows:
+                raise RuntimeError("Unrecognized draft branch")
+            [(origin_branch, origin_sha, sync_sha)] = rows
+
+        if (
+            revert
+            and sync_sha
+            and self._repo.commit(origin_branch).hexsha != origin_sha
+        ):
+            raise RuntimeError("Parent branch has moved, please rebase first")
+
+        if clean and not revert:
+            # We delete files which have been deleted in the draft manually,
+            # otherwise they would still show up as untracked.
+            origin_delta = self._delta(f"{origin_branch}..{branch}")
+            deleted = self._untracked() & origin_delta.deleted
+            for path in deleted:
+                os.remove(osp.join(self._repo.working_dir, path))
+            _logger.info("Cleaned up files. [deleted=%s]", deleted)
+
+        # We do a small dance to move back to the original branch, keeping the
+        # draft branch untouched. See https://stackoverflow.com/a/15993574 for
+        # the inspiration.
+        self._repo.git.checkout(detach=True)
+        self._repo.git.reset("-N", origin_branch)
+        self._repo.git.checkout(origin_branch)
+
+        if revert:
+            # We revert the relevant files if needed. If a sync commit had been
+            # created, we simply revert to it. Otherwise we compute which files
+            # have changed due to draft commits and revert only those.
+            if sync_sha:
+                delta = self._delta(sync_sha)
+                if delta.changed:
+                    self._repo.git.checkout(sync_sha, "--", ".")
+                _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
+            else:
+                origin_delta = self._delta(f"{origin_branch}..{branch}")
+                head_delta = self._delta("HEAD")
+                changed = head_delta.touched & origin_delta.changed
+                if changed:
+                    self._repo.git.checkout("--", *changed)
+                deleted = head_delta.touched & origin_delta.deleted
+                if deleted:
+                    self._repo.git.rm("--", *deleted)
+                _logger.info(
+                    "Reverted touched files. [changed=%s, deleted=%s]",
+                    changed,
+                    deleted,
+                )
+
+        if delete:
+            self._repo.git.branch("-D", branch.name)
+            _logger.debug("Deleted branch %s.", branch)
+
+        _logger.info("Exited %s.", branch)
+        return branch.name
 
     def history_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
@@ -225,72 +282,6 @@ class Drafter:
             return None
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
-
-    def _exit_draft(self, *, revert: bool, clean: bool, delete: bool) -> str:
-        branch = _Branch.active(self._repo)
-        if not branch:
-            raise RuntimeError("Not currently on a draft branch")
-
-        with self._store.cursor() as cursor:
-            rows = cursor.execute(
-                sql("get-branch-by-suffix"), {"suffix": branch.suffix}
-            )
-            if not rows:
-                raise RuntimeError("Unrecognized draft branch")
-            [(origin_branch, origin_sha, sync_sha)] = rows
-
-        if (
-            revert
-            and sync_sha
-            and self._repo.commit(origin_branch).hexsha != origin_sha
-        ):
-            raise RuntimeError("Parent branch has moved, please rebase first")
-
-        if clean:
-            # We delete files which have been deleted in the draft manually,
-            # otherwise they would still show up as untracked.
-            origin_delta = self._delta(f"{origin_branch}..{branch}")
-            deleted = self._untracked() & origin_delta.deleted
-            for path in deleted:
-                os.remove(osp.join(self._repo.working_dir, path))
-            _logger.info("Cleaned up files. [deleted=%s]", deleted)
-
-        # We do a small dance to move back to the original branch, keeping the
-        # draft branch untouched. See https://stackoverflow.com/a/15993574 for
-        # the inspiration.
-        self._repo.git.checkout(detach=True)
-        self._repo.git.reset("-N", origin_branch)
-        self._repo.git.checkout(origin_branch)
-
-        if revert:
-            # We revert the relevant files if needed. If a sync commit had been
-            # created, we simply revert to it. Otherwise we compute which files
-            # have changed due to draft commits and revert only those.
-            if sync_sha:
-                delta = self._delta(sync_sha)
-                if delta.changed:
-                    self._repo.git.checkout(sync_sha, "--", ".")
-                _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
-            else:
-                origin_delta = self._delta(f"{origin_branch}..{branch}")
-                head_delta = self._delta("HEAD")
-                changed = head_delta.touched & origin_delta.changed
-                if changed:
-                    self._repo.git.checkout("--", *changed)
-                deleted = head_delta.touched & origin_delta.deleted
-                if deleted:
-                    self._repo.git.rm("--", *deleted)
-                _logger.info(
-                    "Reverted touched files. [changed=%s, deleted=%s]",
-                    changed,
-                    deleted,
-                )
-
-        if delete:
-            self._repo.git.branch("-D", branch.name)
-            _logger.debug("Deleted branch %s.", branch)
-
-        return branch.name
 
     def _untracked(self) -> frozenset[str]:
         text = self._repo.git.ls_files(exclude_standard=True, others=True)
