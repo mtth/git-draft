@@ -73,6 +73,15 @@ def templates_table() -> Table:
     return table
 
 
+def template_source(name: str) -> str:
+    env = _jinja_environment()
+    try:
+        tpl = _Template.create(f"{name}.{_extension}", env)
+    except jinja2.TemplateNotFound:
+        raise ValueError(f"No template named {name!r}")
+    return tpl.source
+
+
 @dataclasses.dataclass(frozen=True)
 class _Template:
     rel_path: str

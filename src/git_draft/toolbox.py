@@ -66,35 +66,37 @@ class Toolbox:
         self._dispatch(lambda v: v.on_delete_file(path, reason))
         return self._delete(path)
 
-    def _list(self) -> Sequence[PurePosixPath]:
+    def _list(self) -> Sequence[PurePosixPath]:  # pragma: no cover
         raise NotImplementedError()
 
-    def _read(self, path: PurePosixPath) -> str:
+    def _read(self, path: PurePosixPath) -> str:  # pragma: no cover
         raise NotImplementedError()
 
-    def _write(self, path: PurePosixPath, contents: str) -> None:
+    def _write(
+        self, path: PurePosixPath, contents: str
+    ) -> None:  # pragma: no cover
         raise NotImplementedError()
 
-    def _delete(self, path: PurePosixPath) -> bool:
+    def _delete(self, path: PurePosixPath) -> bool:  # pragma: no cover
         raise NotImplementedError()
 
 
 class ToolVisitor(Protocol):
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
-    ) -> None: ...
+    ) -> None: ...  # pragma: no cover
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
-    ) -> None: ...
+    ) -> None: ...  # pragma: no cover
 
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
-    ) -> None: ...
+    ) -> None: ...  # pragma: no cover
 
     def on_delete_file(
         self, path: PurePosixPath, reason: str | None
-    ) -> None: ...
+    ) -> None: ...  # pragma: no cover
 
 
 class StagingToolbox(Toolbox):

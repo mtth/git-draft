@@ -39,3 +39,16 @@ class TestTemplate:
         variables = tpl.extract_variables(self._env)
         assert "symbol" in variables
         assert "repo" not in variables
+
+
+def test_templates_table() -> None:
+    assert sut.templates_table()
+
+
+class TestTemplateSource:
+    def test_ok(self) -> None:
+        assert "symbol" in sut.template_source("add-test")
+
+    def test_not_found(self) -> None:
+        with pytest.raises(ValueError):
+            assert "symbol" in sut.template_source("foo")

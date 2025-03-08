@@ -13,7 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import TemplatedPrompt, templates_table
+from .prompt import TemplatedPrompt, template_source, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -54,9 +54,9 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="start a new draft from a prompt")
+    add_command("history", help="show history drafts or prompts")
     add_command("revert", help="discard the current draft")
-    add_command("list", help="list drafts or prompts")
-    add_command("list-templates", short="T", help="list templates")
+    add_command("templates", help="show template information")
 
     parser.add_option(
         "-b",
@@ -171,13 +171,16 @@ def main() -> None:
     elif command == "revert":
         name = drafter.revert_draft(delete=opts.delete)
         print(f"Reverted {name}.")
-    elif command == "list":
+    elif command == "history":
         table = drafter.details_table(args[0] if args else None)
         if table:
             print(table.to_json() if opts.json else table)
-    elif command == "list-templates":
-        table = templates_table()
-        print(table.to_json() if opts.json else table)
+    elif command == "templates":
+        if args:
+            print(template_source(args[0]))
+        else:
+            table = templates_table()
+            print(table.to_json() if opts.json else table)
     else:
         raise UnreachableError()
 
