@@ -1,3 +1,3 @@
-insert into prompts (branch_suffix, bot_class, contents)
-  values (:branch_suffix, :bot_class, :contents)
+insert into prompts (branch_suffix, template, contents)
+  values (:branch_suffix, :template, :contents)
   returning id;

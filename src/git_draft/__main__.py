@@ -152,6 +152,7 @@ def main() -> None:
         name = drafter.generate_draft(
             prompt,
             bot,
+            bot_name=opts.bot,
             tool_visitors=[ToolPrinter()],
             reset=opts.reset,
         )
@@ -163,7 +164,9 @@ def main() -> None:
         name = drafter.revert_draft(delete=opts.delete)
         print(f"Reverted {name}.")
     elif command == "list":
-        print(drafter.drafts_table() or "")
+        table = drafter.details_table(args[0] if args else None)
+        if table and len(table.rows):
+            print(table)
     else:
         raise UnreachableError()
 

@@ -1,5 +1,5 @@
 select
-    b.suffix,
+    'draft/' || b.suffix as branch,
     min(b.created_at) as created,
     count(p.id) as prompts,
     round(sum(a.walltime), 1) as walltime,

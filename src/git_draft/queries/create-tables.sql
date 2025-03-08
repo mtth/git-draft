@@ -11,7 +11,7 @@ create table if not exists prompts (
   id integer primary key,
   created_at timestamp default current_timestamp,
   branch_suffix text not null,
-  bot_class text not null,
+  template text,
   contents text not null,
   foreign key (branch_suffix) references branches(suffix)
 );
@@ -20,6 +20,8 @@ create table if not exists actions (
   commit_sha text primary key,
   created_at timestamp default current_timestamp,
   prompt_id integer not null,
+  bot_name text,
+  bot_class text not null,
   walltime real not null,
   foreign key (prompt_id) references prompts(id) on delete cascade
 ) without rowid;
