@@ -25,6 +25,6 @@ pipx install git-draft[openai]
 * Add configuration option to auto sync and `--no-sync` flag. Similar to reset.
 * Add "amend" commit when finalizing. This could be useful training data,
   showing what the bot did not get right.
-* Convenience functionality for simple cases: checkout option which applies the
-  changes, and finalizes the draft if specified multiple times. For example `git
-  draft -cc add-test symbol=foo`
+* Convenience `--accept` functionality for simple cases: checkout option which
+  applies the changes, and finalizes the draft if specified multiple times. For
+  example `git draft -aa add-test symbol=foo`
