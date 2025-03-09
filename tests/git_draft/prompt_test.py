@@ -15,6 +15,11 @@ class TestPromptRenderer:
         rendered = self._renderer.render(prompt)
         assert "foo" in rendered
 
+    def test_missing_variable(self) -> None:
+        prompt = sut.TemplatedPrompt.parse("add-test")
+        with pytest.raises(ValueError):
+            self._renderer.render(prompt)
+
 
 class TestTemplate:
     @pytest.fixture(autouse=True)

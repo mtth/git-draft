@@ -6,7 +6,7 @@
 
 ## Highlights
 
-* Concurrent edits.
+* Concurrent edits. By default `git-draft` does not touch the working directory.
 * Customizable prompt templates.
 * Extensible bot API.
 
@@ -16,3 +16,15 @@
 ```sh
 pipx install git-draft[openai]
 ```
+
+
+## Next steps
+
+* Mechanism for reporting feedback from a bot, and possibly allowing user to
+  interactively respond.
+* Add configuration option to auto sync and `--no-sync` flag. Similar to reset.
+* Add "amend" commit when finalizing. This could be useful training data,
+  showing what the bot did not get right.
+* Convenience functionality for simple cases: checkout option which applies the
+  changes, and finalizes the draft if specified multiple times. For example `git
+  draft -cc add-test symbol=foo`

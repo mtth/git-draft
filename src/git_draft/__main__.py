@@ -142,15 +142,18 @@ class ToolPrinter(ToolVisitor):
         print(f"Deleted {path}.")
 
 
-def edit(text: str | None, path: Path | None) -> str | None:
+def edit(path: Path, text: str | None = None) -> str | None:
     if sys.stdin.isatty():
         return open_editor(text or "", path)
     else:
-        if path and text is not None:
+        if text is not None:
             with open(path, "w") as f:
                 f.write(text)
         print(path)
         return None
+
+
+_PROMPT_PLACEHOLDER = "Enter your prompt here..."
 
 
 def main() -> None:
@@ -177,23 +180,27 @@ def main() -> None:
         bot = load_bot(bot_config)
 
         prompt: str | TemplatedPrompt
+        editable = opts.edit
         if args:
             prompt = TemplatedPrompt.parse(args[0], *args[1:])
+        elif opts.edit:
+            editable = False
+            prompt = open_editor(
+                drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
+            )
         else:
-            if sys.stdin.isatty():
-                prompt = open_editor("Enter your prompt here...")
-            else:
-                prompt = sys.stdin.read()
+            prompt = sys.stdin.read()
 
         name = drafter.generate_draft(
             prompt,
             bot,
             bot_name=opts.bot,
+            prompt_transform=open_editor if editable else None,
             tool_visitors=[ToolPrinter()],
             reset=config.auto_reset if opts.reset is None else opts.reset,
             sync=opts.sync,
         )
-        print(f"Generated {name}.")
+        print(f"Refined {name}.")
     elif command == "finalize":
         name = drafter.exit_draft(
             revert=opts.revert, clean=opts.clean, delete=opts.delete
@@ -212,9 +219,9 @@ def main() -> None:
             tpl = Template.find(name)
             if opts.edit:
                 if tpl:
-                    edit(tpl.source, tpl.local_path())
+                    edit(tpl.local_path(), text=tpl.source)
                 else:
-                    edit("", Template.local_path_for(name))
+                    edit(Template.local_path_for(name))
             else:
                 if not tpl:
                     raise ValueError(f"No template named {name!r}")

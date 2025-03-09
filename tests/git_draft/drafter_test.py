@@ -243,3 +243,17 @@ class TestDrafter:
         self._drafter.generate_draft("hello", FakeBot())
         table = self._drafter.history_table()
         assert table
+
+    def test_latest_draft_prompt(self) -> None:
+        bot = FakeBot()
+
+        prompt1 = "First prompt"
+        self._drafter.generate_draft(prompt1, bot)
+        assert self._drafter.latest_draft_prompt() == prompt1
+
+        prompt2 = "Second prompt"
+        self._drafter.generate_draft(prompt2, bot)
+        assert self._drafter.latest_draft_prompt() == prompt2
+
+    def test_latest_draft_prompt_no_active_branch(self) -> None:
+        assert self._drafter.latest_draft_prompt() is None
