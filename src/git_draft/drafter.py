@@ -237,8 +237,8 @@ class Drafter:
     def history_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
         branch = _Branch.active(self._repo, branch_name)
-        if branch:
-            with self._store.cursor() as cursor:
+        with self._store.cursor() as cursor:
+            if branch:
                 results = cursor.execute(
                     sql("list-prompts"),
                     {
@@ -246,13 +246,26 @@ class Drafter:
                         "branch_suffix": branch.suffix,
                     },
                 )
-                return Table.from_cursor(results)
-        else:
-            with self._store.cursor() as cursor:
+            else:
                 results = cursor.execute(
                     sql("list-drafts"), {"repo_path": path}
                 )
-                return Table.from_cursor(results)
+            return Table.from_cursor(results)
+
+    def latest_draft_prompt(self) -> str | None:
+        """Returns the latest prompt for the current draft"""
+        branch = _Branch.active(self._repo)
+        if not branch:
+            return None
+        with self._store.cursor() as cursor:
+            result = cursor.execute(
+                sql("get-latest-prompt"),
+                {
+                    "repo_path": self._repo.working_dir,
+                    "branch_suffix": branch.suffix,
+                },
+            ).fetchone()
+            return result[0] if result else None
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
