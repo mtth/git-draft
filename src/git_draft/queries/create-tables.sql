@@ -23,6 +23,8 @@ create table if not exists actions (
   bot_name text,
   bot_class text not null,
   walltime real not null,
+  request_count int,
+  token_count int,
   foreign key (prompt_id) references prompts(id) on delete cascade
 ) without rowid;
 
