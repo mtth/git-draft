@@ -271,7 +271,8 @@ class _ThreadsBot(Bot):
             content=goal.prompt,
         )
 
-        # We do not count the two requests above.
+        # We intentionally do not count the two requests above, to focus on
+        # "data requests" only.
         action = Action(request_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,

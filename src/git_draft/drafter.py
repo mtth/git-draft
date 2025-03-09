@@ -151,6 +151,8 @@ class Drafter:
                     "bot_name": bot_name,
                     "bot_class": qualified_class_name(bot.__class__),
                     "walltime": walltime,
+                    "request_count": action.request_count,
+                    "token_count": action.token_count,
                 },
             )
             cursor.executemany(
