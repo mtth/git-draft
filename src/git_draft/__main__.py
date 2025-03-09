@@ -61,8 +61,7 @@ def new_parser() -> optparse.OptionParser:
     parser.add_option(
         "-a",
         "--accept",
-        dest="accept",
-        help="check out generated changes",
+        help="apply generated changes",
         action="count",
     )
     parser.add_option(
