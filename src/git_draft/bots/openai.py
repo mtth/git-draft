@@ -114,6 +114,16 @@ class _ToolsFactory:
                     },
                 },
             ),
+            self._param(
+                name="delete_file",
+                description="Delete a file",
+                inputs={
+                    "path": {
+                        "type": "string",
+                        "description": "Path of the file to be deleted",
+                    },
+                },
+            ),
         ]
 
 
@@ -125,12 +135,11 @@ _INSTRUCTIONS = """
     read the content of the relevant ones, and save the changes you suggest.
 
     You should stop when and ONLY WHEN all the files you need to change have
-    been updated.
-
-    If you stop for any reason before completing your task, explain why by
-    updating a REASON file before stopping. For example if you are missing some
-    information or noticed something inconsistent with the instructions, say so
-    there. DO NOT STOP without updating at least this file.
+    been updated. If you stop for any reason before completing your task,
+    explain why by updating a REASON file before stopping. For example if you
+    are missing some information or noticed something inconsistent with the
+    instructions, say so there. DO NOT STOP without updating at least this
+    file.
 """
 
 
@@ -142,6 +151,9 @@ class _ToolHandler[V]:
         raise NotImplementedError()
 
     def _on_write_file(self, path: PurePosixPath) -> V:
+        raise NotImplementedError()
+
+    def _on_deletefile(self, path: PurePosixPath) -> V:
         raise NotImplementedError()
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
@@ -159,6 +171,10 @@ class _ToolHandler[V]:
             contents = inputs["contents"]
             self._toolbox.write_file(path, contents)
             return self._on_write_file(path)
+        elif name == "delete_file":
+            path = PurePosixPath(inputs["path"])
+            self._toolbox.delete_file(path)
+            return self._on_delete_file(path)
         else:
             assert name == "list_files" and not inputs
             paths = self._toolbox.list_files()
@@ -208,6 +224,9 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
         return f"The contents of `{path}` are:\n\n```\n{contents}\n```\n"
 
     def _on_write_file(self, path: PurePosixPath) -> None:
+        return None
+
+    def _on_delete_file(self, path: PurePosixPath) -> None:
         return None
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> str:
@@ -315,6 +334,9 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
         return self._wrap(contents or "")
 
     def _on_write_file(self, path: PurePosixPath) -> _ToolOutput:
+        return self._wrap("OK")
+
+    def _on_delete_file(self, path: PurePosixPath) -> _ToolOutput:
         return self._wrap("OK")
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> _ToolOutput:
