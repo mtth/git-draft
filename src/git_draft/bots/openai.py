@@ -195,6 +195,7 @@ class _CompletionsBot(Bot):
             {"role": "user", "content": goal.prompt},
         ]
 
+        request_count = 0
         while True:
             response = self._client.chat.completions.create(
                 model=self._model,
@@ -203,6 +204,7 @@ class _CompletionsBot(Bot):
                 tool_choice="required",
             )
             assert len(response.choices) == 1
+            request_count += 1
 
             done = True
             calls = response.choices[0].message.tool_calls
@@ -214,7 +216,7 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return Action()
+        return Action(request_count=request_count)
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
@@ -262,41 +264,57 @@ class _ThreadsBot(Bot):
         return cls(client, assistant_id)
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
-        # TODO: Use timeout.
         thread = self._client.beta.threads.create()
-
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
             role="user",
             content=goal.prompt,
         )
 
+        # We do not count the two requests above.
+        action = Action(request_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
             assistant_id=self._assistant_id,
-            event_handler=_EventHandler(self._client, toolbox),
+            event_handler=_EventHandler(self._client, toolbox, action),
         ) as stream:
             stream.until_done()
-
-        return Action()
+        return action
 
 
 class _EventHandler(openai.AssistantEventHandler):
-    def __init__(self, client: openai.Client, toolbox: Toolbox) -> None:
+    def __init__(
+        self, client: openai.Client, toolbox: Toolbox, action: Action
+    ) -> None:
         super().__init__()
         self._client = client
         self._toolbox = toolbox
+        self._action = action
+        self._action.increment_request_count()
 
-    def clone(self) -> Self:
-        return self.__class__(self._client, self._toolbox)
+    def _clone(self) -> Self:
+        return self.__class__(self._client, self._toolbox, self._action)
 
     @override
-    def on_event(self, event: Any) -> None:
-        _logger.debug("Event: %s", event)
+    def on_event(self, event: openai.types.beta.AssistantStreamEvent) -> None:
         if event.event == "thread.run.requires_action":
             run_id = event.data.id  # Retrieve the run ID from the event data
             self._handle_action(run_id, event.data)
-        # TODO: Handle (log?) other events.
+        elif event.event == "thread.run.completed":
+            _logger.info("Threads run completed. [usage=%s]", event.data.usage)
+        else:
+            _logger.debug("Threads event: %s", event)
+
+    @override
+    def on_run_step_done(
+        self, run_step: openai.types.beta.threads.runs.RunStep
+    ) -> None:
+        usage = run_step.usage
+        if usage:
+            _logger.debug("Threads run step usage: %s", usage)
+            self._action.increment_token_count(usage.total_tokens)
+        else:
+            _logger.warning("Missing usage in threads run step")
 
     def _handle_action(self, run_id: str, data: Any) -> None:
         tool_outputs = list[Any]()
@@ -310,7 +328,7 @@ class _EventHandler(openai.AssistantEventHandler):
             thread_id=run.thread_id,
             run_id=run.id,
             tool_outputs=tool_outputs,
-            event_handler=self.clone(),
+            event_handler=self._clone(),
         ) as stream:
             stream.until_done()
 

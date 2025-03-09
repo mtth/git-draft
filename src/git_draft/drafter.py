@@ -82,6 +82,9 @@ class Drafter:
         sync: bool = False,
         timeout: float | None = None,
     ) -> str:
+        if timeout is not None:
+            raise NotImplementedError()  # TODO
+
         if self._repo.is_dirty(working_tree=False):
             if not reset:
                 raise ValueError("Please commit or reset any staged changes")
