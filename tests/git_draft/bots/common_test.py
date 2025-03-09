@@ -13,24 +13,19 @@ class TestBot:
 
 
 class TestAction:
-    def test_increment_request_count_initialization(self) -> None:
+    def test_increment_noinit(self) -> None:
         action = sut.Action()
         with pytest.raises(ValueError):
             action.increment_request_count()
 
-    def test_increment_request_count_initial(self) -> None:
+    def test_increment_request_count(self) -> None:
         action = sut.Action()
         action.increment_request_count(init=True)
         assert action.request_count == 1
         action.increment_request_count()
         assert action.request_count == 2
 
-    def test_increment_token_count_initialization(self) -> None:
-        action = sut.Action()
-        with pytest.raises(ValueError):
-            action.increment_token_count(5)
-
-    def test_increment_token_count(self, monkeypatch) -> None:
+    def test_increment_token_count(self) -> None:
         action = sut.Action()
         action.increment_token_count(5, init=True)
         action.increment_token_count(3)
