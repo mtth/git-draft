@@ -200,7 +200,7 @@ def main() -> None:
             reset=config.auto_reset if opts.reset is None else opts.reset,
             sync=opts.sync,
         )
-        print(f"Generated {name}.")
+        print(f"Refined {name}.")
     elif command == "finalize":
         name = drafter.exit_draft(
             revert=opts.revert, clean=opts.clean, delete=opts.delete

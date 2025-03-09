@@ -126,6 +126,11 @@ _INSTRUCTIONS = """
 
     You should stop when and ONLY WHEN all the files you need to change have
     been updated.
+
+    If you stop for any reason before completing your task, explain why by
+    updating a REASON file before stopping. For example if you are missing some
+    information or noticed something inconsistent with the instructions, say so
+    there. DO NOT STOP without updating at least this file.
 """
 
 

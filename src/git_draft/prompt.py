@@ -56,7 +56,10 @@ class PromptRenderer:
 
     def render(self, prompt: TemplatedPrompt) -> str:
         tpl = self._environment.get_template(f"{prompt.template}.{_extension}")
-        return tpl.render(prompt.context)
+        try:
+            return tpl.render(prompt.context)
+        except jinja2.UndefinedError as err:
+            raise ValueError(f"Unable to render template: {err}")
 
 
 def templates_table() -> Table:

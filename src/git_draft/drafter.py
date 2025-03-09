@@ -164,7 +164,7 @@ class Drafter:
                 ],
             )
 
-        _logger.info("Generated %s.", branch)
+        _logger.info("Completed generation for %s.", branch)
         return str(branch)
 
     def exit_draft(self, *, revert: bool, clean=False, delete=False) -> str:
