@@ -10,7 +10,7 @@ from pathlib import PurePosixPath
 import re
 import textwrap
 import time
-from typing import Match, Sequence
+from typing import Callable, Match, Sequence
 
 import git
 
@@ -77,17 +77,17 @@ class Drafter:
         bot: Bot,
         bot_name: str | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
+        prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
     ) -> str:
-        if isinstance(prompt, str) and not prompt.strip():
-            raise ValueError("Empty prompt")
         if self._repo.is_dirty(working_tree=False):
             if not reset:
                 raise ValueError("Please commit or reset any staged changes")
             self._repo.index.reset()
 
+        # Ensure that we are on a draft branch.
         branch = _Branch.active(self._repo)
         if branch:
             self._stage_changes(sync)
@@ -96,17 +96,18 @@ class Drafter:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
 
-        operation_recorder = _OperationRecorder()
-        tool_visitors = [operation_recorder] + list(tool_visitors or [])
-        toolbox = StagingToolbox(self._repo, tool_visitors)
+        # Handle prompt templating and editing.
         if isinstance(prompt, TemplatedPrompt):
             template: str | None = prompt.template
-            renderer = PromptRenderer.for_toolbox(toolbox)
+            renderer = PromptRenderer.for_toolbox(StagingToolbox(self._repo))
             prompt_contents = renderer.render(prompt)
         else:
             template = None
             prompt_contents = prompt
-
+        if prompt_transform:
+            prompt_contents = prompt_transform(prompt_contents)
+        if not prompt_contents.strip():
+            raise ValueError("Aborting: empty prompt")
         with self._store.cursor() as cursor:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
@@ -117,7 +118,11 @@ class Drafter:
                 },
             )
 
+        # Trigger code generation.
         _logger.debug("Running bot... [bot=%s]", bot)
+        operation_recorder = _OperationRecorder()
+        tool_visitors = [operation_recorder] + list(tool_visitors or [])
+        toolbox = StagingToolbox(self._repo, tool_visitors)
         start_time = time.perf_counter()
         goal = Goal(prompt_contents, timeout)
         action = bot.act(goal, toolbox)
@@ -125,6 +130,7 @@ class Drafter:
         walltime = end_time - start_time
         _logger.info("Completed bot action. [action=%s]", action)
 
+        # Generate an appropriate commit and update our database.
         toolbox.trim_index()
         title = action.title
         if not title:
@@ -133,7 +139,6 @@ class Drafter:
             f"draft! {title}\n\n{prompt_contents}",
             skip_hooks=True,
         )
-
         with self._store.cursor() as cursor:
             cursor.execute(
                 sql("add-action"),

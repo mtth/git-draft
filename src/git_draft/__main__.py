@@ -142,7 +142,7 @@ class ToolPrinter(ToolVisitor):
         print(f"Deleted {path}.")
 
 
-def edit(text: str | None, path: Path | None) -> str | None:
+def edit(*, text: str | None = None, path: Path | None = None) -> str | None:
     if sys.stdin.isatty():
         return open_editor(text or "", path)
     else:
@@ -180,15 +180,13 @@ def main() -> None:
         if args:
             prompt = TemplatedPrompt.parse(args[0], *args[1:])
         else:
-            if sys.stdin.isatty():
-                prompt = open_editor("Enter your prompt here...")
-            else:
-                prompt = sys.stdin.read()
+            prompt = ""  # TODO: drafter.find_last_prompt()
 
         name = drafter.generate_draft(
             prompt,
             bot,
             bot_name=opts.bot,
+            prompt_transform=open_editor if opts.edit else None,
             tool_visitors=[ToolPrinter()],
             reset=config.auto_reset if opts.reset is None else opts.reset,
             sync=opts.sync,
@@ -212,9 +210,9 @@ def main() -> None:
             tpl = Template.find(name)
             if opts.edit:
                 if tpl:
-                    edit(tpl.source, tpl.local_path())
+                    edit(text=tpl.source, path=tpl.local_path())
                 else:
-                    edit("", Template.local_path_for(name))
+                    edit(path=Template.local_path_for(name))
             else:
                 if not tpl:
                     raise ValueError(f"No template named {name!r}")
