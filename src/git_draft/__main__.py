@@ -149,6 +149,7 @@ def edit(*, path: Path | None = None, text: str | None = None) -> str:
         # We exit with a custom code to allow the caller to act accordingly.
         # For example we can handle this from Vim by opening the returned path
         # or text in a buffer, to then continue to another command on save.
+        # https://unix.stackexchange.com/q/604260
         if path is None:
             assert text, "Empty path and text"
             print(text)
