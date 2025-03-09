@@ -1,11 +1,12 @@
 import logging
 
-from .bots import Action, Bot, Toolbox
+from .bots import Action, Bot, Goal, Toolbox
 
 
 __all__ = [
     "Action",
     "Bot",
+    "Goal",
     "Toolbox",
 ]
 

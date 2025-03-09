@@ -131,26 +131,34 @@ class ToolPrinter(ToolVisitor):
     def on_read_file(
         self, path: PurePosixPath, _contents: str | None, _reason: str | None
     ) -> None:
-        print(f"Reading {path}...")
+        print(f"Reading {path!r}...")
 
     def on_write_file(
         self, path: PurePosixPath, _contents: str, _reason: str | None
     ) -> None:
-        print(f"Updated {path}.")
+        print(f"Updated {path!r}.")
 
     def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
-        print(f"Deleted {path}.")
+        print(f"Deleted {path!r}.")
 
 
-def edit(path: Path, text: str | None = None) -> str | None:
+def edit(*, path: Path | None = None, text: str | None = None) -> str:
     if sys.stdin.isatty():
         return open_editor(text or "", path)
     else:
-        if text is not None:
-            with open(path, "w") as f:
-                f.write(text)
-        print(path)
-        return None
+        # We exit with a custom code to allow the caller to act accordingly.
+        # For example we can handle this from Vim by opening the returned path
+        # or text in a buffer, to then continue to another command on save.
+        if path is None:
+            assert text, "Empty path and text"
+            print(text)
+            sys.exit(198)
+        else:
+            if text is not None:
+                with open(path, "w") as f:
+                    f.write(text)
+            print(path)
+            sys.exit(199)
 
 
 _PROMPT_PLACEHOLDER = "Enter your prompt here..."
@@ -185,8 +193,8 @@ def main() -> None:
             prompt = TemplatedPrompt.parse(args[0], *args[1:])
         elif opts.edit:
             editable = False
-            prompt = open_editor(
-                drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
+            prompt = edit(
+                text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
             )
         else:
             prompt = sys.stdin.read()
@@ -219,9 +227,9 @@ def main() -> None:
             tpl = Template.find(name)
             if opts.edit:
                 if tpl:
-                    edit(tpl.local_path(), text=tpl.source)
+                    edit(path=tpl.local_path(), text=tpl.source)
                 else:
-                    edit(Template.local_path_for(name))
+                    edit(path=Template.local_path_for(name))
             else:
                 if not tpl:
                     raise ValueError(f"No template named {name!r}")
