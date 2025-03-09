@@ -183,7 +183,7 @@ def main() -> None:
         editable = opts.edit
         if args:
             prompt = TemplatedPrompt.parse(args[0], *args[1:])
-        elif sys.stdin.isatty():
+        elif opts.edit:
             editable = False
             prompt = open_editor(
                 drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
