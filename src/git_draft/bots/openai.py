@@ -153,7 +153,7 @@ class _ToolHandler[V]:
     def _on_write_file(self, path: PurePosixPath) -> V:
         raise NotImplementedError()
 
-    def _on_deletefile(self, path: PurePosixPath) -> V:
+    def _on_delete_file(self, path: PurePosixPath) -> V:
         raise NotImplementedError()
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
