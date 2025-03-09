@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
+import enum
 import json
 import logging
 import os
@@ -55,6 +56,13 @@ class _Branch:
         return random_id(9)
 
 
+class Accept(enum.Enum):
+    MANUAL = enum.auto()
+    CHECKOUT = enum.auto()
+    FINALIZE = enum.auto()
+    CLEAN = enum.auto()
+
+
 class Drafter:
     """Draft state orchestrator"""
 
@@ -75,12 +83,13 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        accept: Accept = Accept.MANUAL,
         bot_name: str | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
+        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> str:
         if timeout is not None:
             raise NotImplementedError()  # TODO
