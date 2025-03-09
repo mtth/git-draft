@@ -18,7 +18,9 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--generate] [--accept...] [--bot BOT] [--edit] [--reset | --no-reset] [--sync] [TEMPLATE [VARIABLE...]]
+git draft [options] [--generate] [--accept...] [--bot BOT] [--edit]
+                                 [--reset | --no-reset] [--sync]
+                                 [TEMPLATE [VARIABLE...]]
 git draft [options] --finalize [--clean | --revert] [--delete]
 git draft [options] --show-drafts [--json]
 git draft [options] --show-prompts [--json] [PROMPT]
@@ -33,8 +35,10 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 == Options
 
 -a::
---accept\*::
-  Check out generated changes automatically. Can be repeated.
+--accept*::
+  Check out generated changes automatically.
+  Can be repeated.
+  This may fail if you manually edit files that the bot updates during generation.
 
 
 -b BOT::
@@ -42,7 +46,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
   Bot name.
 
 -c::
---clean\*::
+--clean*::
   Remove files deleted during a draft which otherwise would show up as untracked.
 
 -d::
@@ -81,7 +85,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
    Otherwise an error is raised.
 
 -r::
---revert\*::
+--revert*::
   Abandon any changes since draft creation.
 
 --root::
@@ -112,7 +116,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
   Show version and exit.
 
 
-Options suffixed with \* may modify the working directory's contents.
+Options suffixed with * may modify the working directory's contents.
 All other combinations of options never write to it, and are safe to do concurrently with other working directory operations.
 
 
