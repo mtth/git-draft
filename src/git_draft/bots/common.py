@@ -34,7 +34,7 @@ class Action:
         self._increment("token_count", n, init)
 
     def _increment(self, attr: str, count: int, init: bool) -> None:
-        if value := getattr(self, attr) is None:
+        if (value := getattr(self, attr)) is None:
             if not init:
                 raise ValueError(f"Uninitialized action {attr}")
             setattr(self, attr, count)
