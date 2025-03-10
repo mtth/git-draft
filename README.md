@@ -26,3 +26,5 @@ pipx install git-draft[openai]
 * Add optional "amend" commit when finalizing. This could be useful training
   data, showing what the bot did not get right.
 * Support file rename tool.
+  * https://stackoverflow.com/q/49853177/1062617
+  * https://stackoverflow.com/q/6658313/1062617
