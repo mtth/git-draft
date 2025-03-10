@@ -23,8 +23,8 @@ pipx install git-draft[openai]
 * Mechanism for reporting feedback from a bot, and possibly allowing user to
   interactively respond.
 * Add configuration option to auto sync and `--no-sync` flag. Similar to reset.
-* Add "amend" commit when finalizing. This could be useful training data,
-  showing what the bot did not get right.
-* Convenience `--accept` functionality for simple cases: checkout option which
-  applies the changes, and finalizes the draft if specified multiple times. For
-  example `git draft -aa add-test symbol=foo`
+* Add optional "amend" commit when finalizing. This could be useful training
+  data, showing what the bot did not get right.
+* Support file rename tool.
+  * https://stackoverflow.com/q/49853177/1062617
+  * https://stackoverflow.com/q/6658313/1062617
