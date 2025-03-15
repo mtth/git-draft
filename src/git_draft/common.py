@@ -35,6 +35,8 @@ def ensure_state_home() -> Path:
 
 @dataclasses.dataclass(frozen=True)
 class Config:
+    """Overall CLI configuration"""
+
     log_level: int = logging.INFO
     auto_reset: bool = True
     bots: Sequence[BotConfig] = dataclasses.field(default_factory=lambda: [])
@@ -61,6 +63,8 @@ class Config:
 
 @dataclasses.dataclass(frozen=True)
 class BotConfig:
+    """Individual bot configuration for CLI use"""
+
     factory: str
     name: str | None = None
     config: JSONObject | None = None

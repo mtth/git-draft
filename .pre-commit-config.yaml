@@ -12,4 +12,4 @@ repos:
         entry: poetry run poe fix
         language: system
         require_serial: true
-        types_or: [python, pyi, jupyter]
+        types: [python]

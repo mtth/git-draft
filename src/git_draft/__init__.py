@@ -1,3 +1,5 @@
+"""Git-friendly code assistant"""
+
 import logging
 
 from .bots import Action, Bot, Goal, Toolbox
