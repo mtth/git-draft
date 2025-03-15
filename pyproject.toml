@@ -75,10 +75,6 @@ sequence = [
 
 # Other tools
 
-[tool.black]
-line-length = 79
-include = '\.py$'
-
 [tool.coverage.run]
 branch = true
 command_line = "-m pytest"
@@ -98,8 +94,8 @@ log_level = "DEBUG"
 line-length = 79
 
 [tool.ruff.lint]
-select = ["D", "E", "F", "I"]
-ignore = ["D102", "D103", "D105", "D107", "D415"]
+select = ["D", "E", "F", "I", "N", "PL", "RUF", "SIM"]
+ignore = ["D102", "D103", "D105", "D107", "D415", "PLR2004"]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true

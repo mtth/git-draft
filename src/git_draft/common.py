@@ -11,7 +11,7 @@ import sqlite3
 import string
 import textwrap
 import tomllib
-from typing import Any, Mapping, Self, Sequence, Type
+from typing import Any, ClassVar, Mapping, Self, Sequence, Type
 
 import prettytable
 import xdg_base_dirs
@@ -104,7 +104,7 @@ def qualified_class_name(cls: Type) -> str:
 class Table:
     """Pretty-printable table"""
 
-    _kwargs = dict(border=False)  # Shared options
+    _kwargs: ClassVar[Mapping[str, Any]] = dict(border=False)  # Shared options
 
     def __init__(self, data: prettytable.PrettyTable) -> None:
         self.data = data
