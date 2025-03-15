@@ -1,3 +1,5 @@
+"""Functionality available to bots"""
+
 from __future__ import annotations
 
 import logging
@@ -82,6 +84,8 @@ class Toolbox:
 
 
 class ToolVisitor(Protocol):
+    """Tool usage hook"""
+
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None: ...  # pragma: no cover

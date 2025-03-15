@@ -16,6 +16,8 @@ sqlite3.register_converter(
 
 
 class Store:
+    """Lightweight sqlite wrapper"""
+
     _name = "v1.sqlite3"
 
     def __init__(self, conn: sqlite3.Connection) -> None:
@@ -48,6 +50,7 @@ _query_root = package_root / "queries"
 
 @functools.cache
 def sql(name: str) -> str:
+    """Loads a query from its name"""
     path = _query_root / f"{name}.sql"
     with open(path) as reader:
         return reader.read()

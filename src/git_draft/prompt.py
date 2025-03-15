@@ -21,6 +21,8 @@ _extension = "jinja"
 
 @dataclasses.dataclass(frozen=True)
 class TemplatedPrompt:
+    """A parametrized prompt"""
+
     template: str
     context: Mapping[str, str]
 
@@ -32,6 +34,7 @@ class TemplatedPrompt:
             name: The name of the template.
             *args: Additional arguments for context, expected in 'key=value'
                 format.
+
         """
         return cls(name, dict(e.split("=", 1) for e in args))
 
@@ -94,6 +97,8 @@ def _extract_preamble(source: str, env: jinja2.Environment) -> str | None:
 
 @dataclasses.dataclass(frozen=True)
 class Template:
+    """An available template"""
+
     rel_path: Path
     abs_path: Path
     source: str

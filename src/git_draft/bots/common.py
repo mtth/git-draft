@@ -1,3 +1,5 @@
+"""Shared bot utilities"""
+
 from __future__ import annotations
 
 import dataclasses
@@ -55,6 +57,7 @@ class Bot:
 
         Args:
             ensure_exists: Create the folder if it does not exist.
+
         """
         name = qualified_class_name(cls)
         path = ensure_state_home() / "bots" / name

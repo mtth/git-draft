@@ -1,3 +1,5 @@
+"""Git state management logic"""
+
 from __future__ import annotations
 
 import dataclasses

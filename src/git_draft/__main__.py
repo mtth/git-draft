@@ -123,6 +123,8 @@ def new_parser() -> optparse.OptionParser:
 
 
 class ToolPrinter(ToolVisitor):
+    """Visitor implementation which prints invocations to stdout"""
+
     def on_list_files(
         self, _paths: Sequence[PurePosixPath], _reason: str | None
     ) -> None:
