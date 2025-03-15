@@ -237,7 +237,6 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
 
 
 class _ThreadsBot(Bot):
-
     def __init__(self, client: openai.OpenAI, assistant_id: str) -> None:
         self._client = client
         self._assistant_id = assistant_id
