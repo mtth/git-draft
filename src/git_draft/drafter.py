@@ -73,7 +73,7 @@ class Drafter:
         except git.NoSuchPathError:
             raise ValueError(f"No git repository at {path}")
 
-    def generate_draft(
+    def generate_draft(  # noqa: PLR0913
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
@@ -126,7 +126,7 @@ class Drafter:
         # Trigger code generation.
         _logger.debug("Running bot... [bot=%s]", bot)
         operation_recorder = _OperationRecorder()
-        tool_visitors = [operation_recorder] + list(tool_visitors or [])
+        tool_visitors = [operation_recorder, *list(tool_visitors or [])]
         toolbox = StagingToolbox(self._repo, tool_visitors)
         start_time = time.perf_counter()
         goal = Goal(prompt_contents, timeout)

@@ -38,7 +38,7 @@ class Store:
         with contextlib.closing(self._connection.cursor()) as cursor:
             try:
                 yield cursor
-            except:  # noqa
+            except:
                 self._connection.rollback()
                 raise
             else:
