@@ -100,7 +100,7 @@ class TestDrafter:
         assert self._read("PROMPT") == "hi"
         assert len(self._commits()) == 3  # init, sync, prompt
 
-    def test_generate_clean_index_sync(self) -> None:
+    def test_generate_empty_index_sync(self) -> None:
         prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
         self._drafter.generate_draft(prompt, FakeBot(), sync=True)
         self._repo.git.checkout(".")
@@ -142,19 +142,44 @@ class TestDrafter:
 
     def test_sync_delete_revert(self) -> None:
         self._write("p1", "a")
+        self._write("p2", "b")
         self._repo.git.add(all=True)
         self._repo.index.commit("advance")
         self._delete("p1")
+        self._delete("p2")
+        self._write("p3", "c")
 
         class CustomBot(Bot):
             def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
                 toolbox.write_file(PurePosixPath("p2"), "b")
+                toolbox.write_file(PurePosixPath("p4"), "d")
                 return Action()
 
-        self._drafter.generate_draft("hello", CustomBot(), sync=True)
+        self._drafter.generate_draft(
+            "hello", CustomBot(), accept=sut.Accept.CHECKOUT, sync=True
+        )
         assert self._read("p1") is None
+        assert self._read("p2") == "b"
+        assert self._read("p3") == "c"
+        assert self._read("p4") == "d"
 
         self._drafter.exit_draft(revert=True)
+        assert self._read("p1") is None
+        assert self._read("p2") is None
+        assert self._read("p3") == "c"
+        assert self._read("p4") is None
+
+    def test_generate_accept_deletion(self) -> None:
+        self._write("p1", "a")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.delete_file(PurePosixPath("p1"))
+                return Action()
+
+        self._drafter.generate_draft(
+            "hello", CustomBot(), accept=sut.Accept.CHECKOUT
+        )
         assert self._read("p1") is None
 
     def test_generate_delete_finalize_clean(self) -> None:
@@ -167,10 +192,12 @@ class TestDrafter:
                 toolbox.delete_file(PurePosixPath("p1"))
                 return Action()
 
-        self._drafter.generate_draft("hello", CustomBot())
-        assert self._read("p1") == "a"
+        self._drafter.generate_draft(
+            "hello", CustomBot(), accept=sut.Accept.CHECKOUT
+        )
+        assert self._read("p1") is None
 
-        self._drafter.exit_draft(revert=False, clean=True)
+        self._drafter.exit_draft(revert=False)
         assert self._read("p1") is None
 
     def test_revert_outside_draft(self) -> None:
