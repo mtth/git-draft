@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import dataclasses
 from datetime import datetime
+import enum
 import json
 import logging
 import os
@@ -57,6 +58,14 @@ class _Branch:
         return random_id(9)
 
 
+class Accept(enum.Enum):
+    """Valid accept modes"""
+
+    MANUAL = enum.auto()
+    CHECKOUT = enum.auto()
+    FINALIZE = enum.auto()
+
+
 class Drafter:
     """Draft state orchestrator"""
 
@@ -77,12 +86,13 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        accept: Accept = Accept.MANUAL,
         bot_name: str | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
+        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> str:
         if timeout is not None:
             raise NotImplementedError()  # TODO
@@ -172,7 +182,17 @@ class Drafter:
             )
 
         _logger.info("Completed generation for %s.", branch)
-        return str(branch)
+        if accept == Accept.MANUAL:
+            return str(branch)
+
+        # Check out files from the index. Since we assume that users do not
+        # manually update the index in draft branches, this is equivalent to
+        # checking out the files from the latest (generated, here) commit.
+        # delta = self._delta(
+        self._repo.git.checkout(".", theirs=True)
+        if accept == Accept.CHECKOUT:
+            return str(branch)
+        return self.exit_draft(revert=False, clean=accept == Accept.CLEAN)
 
     def exit_draft(self, *, revert: bool, clean=False, delete=False) -> str:
         branch = _Branch.active(self._repo)
@@ -195,9 +215,10 @@ class Drafter:
             raise RuntimeError("Parent branch has moved, please rebase first")
 
         if clean and not revert:
-            # We delete files which have been deleted in the draft manually,
+            _logger.debug("Cleaning up files.")
+            # We manually delete files which have been deleted in the draft,
             # otherwise they would still show up as untracked.
-            origin_delta = self._delta(f"{origin_branch}..{branch}")
+            origin_delta = self._delta(start=origin_branch, end=str(branch))
             deleted = self._untracked() & origin_delta.deleted
             for path in deleted:
                 os.remove(osp.join(self._repo.working_dir, path))
@@ -211,17 +232,18 @@ class Drafter:
         self._repo.git.checkout(origin_branch)
 
         if revert:
+            _logger.debug("Reverting changes... [sync_sha=%s]", sync_sha)
             # We revert the relevant files if needed. If a sync commit had been
             # created, we simply revert to it. Otherwise we compute which files
             # have changed due to draft commits and revert only those.
             if sync_sha:
-                delta = self._delta(sync_sha)
-                if delta.changed:
-                    self._repo.git.checkout(sync_sha, "--", ".")
+                self._repo.git.checkout("-f", sync_sha)
                 _logger.info("Reverted to sync commit. [sha=%s]", sync_sha)
             else:
-                origin_delta = self._delta(f"{origin_branch}..{branch}")
-                head_delta = self._delta("HEAD")
+                origin_delta = self._delta(
+                    start=origin_branch, end=str(branch)
+                )
+                head_delta = self._delta(end="HEAD")
                 changed = head_delta.touched & origin_delta.changed
                 if changed:
                     self._repo.git.checkout("--", *changed)
@@ -304,15 +326,18 @@ class Drafter:
     def _stage_changes(self, sync: bool) -> str | None:
         self._repo.git.add(all=True)
         if not sync or not self._repo.is_dirty(untracked_files=True):
+            _logger.debug("Skipped sync commit creation. [sync=%s]", sync)
             return None
         ref = self._repo.index.commit("draft! sync")
+        _logger.debug("Created sync commit. [sha=%s]", ref.hexsha)
         return ref.hexsha
 
     def _untracked(self) -> frozenset[str]:
         text = self._repo.git.ls_files(exclude_standard=True, others=True)
         return frozenset(text.splitlines())
 
-    def _delta(self, spec) -> _Delta:
+    def _delta(self, *, start: str | None = None, end: str) -> _Delta:
+        spec = f"{start}..{end}" if start else end
         changed = list[str]()
         deleted = list[str]()
         for line in self._repo.git.diff(spec, name_status=True).splitlines():
@@ -321,7 +346,9 @@ class Drafter:
                 deleted.append(name)
             else:
                 changed.append(name)
-        return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+        delta = _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+        _logger.debug("Computed delta for %s: %s", spec, delta)
+        return delta
 
 
 @dataclasses.dataclass(frozen=True)
