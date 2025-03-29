@@ -104,6 +104,14 @@ def _load_template(rel_path: str, env: jinja2.Environment) -> Template:
     return Template(Path(rel_path), Path(abs_path), source, preamble)
 
 
+def find_template(name: str) -> Template | None:
+    env = _jinja_environment()
+    try:
+        return _load_template(f"{name}.{_extension}", env)
+    except jinja2.TemplateNotFound:
+        return None
+
+
 @dataclasses.dataclass(frozen=True)
 class Template:
     """An available template"""
@@ -134,14 +142,6 @@ class Template:
         # https://stackoverflow.com/a/48685520
         ast = env.parse(self.source)
         return frozenset(jinja2.meta.find_undeclared_variables(ast))
-
-    @classmethod
-    def find(cls, name: str) -> Self | None:
-        env = _jinja_environment()
-        try:
-            return cls._load(f"{name}.{_extension}", env)
-        except jinja2.TemplateNotFound:
-            return None
 
     @staticmethod
     def local_path_for(name: str) -> Path:

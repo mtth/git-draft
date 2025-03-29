@@ -47,12 +47,12 @@ class TestTemplate:
         assert "repo" not in variables
 
     def test_find_ok(self) -> None:
-        tpl = sut.Template.find("add-test")
+        tpl = sut.find_template("add-test")
         assert tpl
         assert "symbol" in tpl.source
 
     def test_find_missing(self) -> None:
-        assert sut.Template.find("foo") is None
+        assert sut.find_template("foo") is None
 
 
 def test_templates_table() -> None:

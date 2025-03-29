@@ -130,4 +130,5 @@ lines-after-imports = 2
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
+"__main__.py" = ["T20"]
 "tests/**" = ["ANN", "D", "SLF"]
