@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 import dataclasses
 from datetime import datetime
 import json
@@ -10,9 +11,9 @@ import os
 import os.path as osp
 from pathlib import PurePosixPath
 import re
+from re import Match
 import textwrap
 import time
-from typing import Callable, Match, Sequence
 
 import git
 
@@ -53,7 +54,7 @@ class _Branch:
         return _Branch(match[1])
 
     @staticmethod
-    def new_suffix():
+    def new_suffix() -> str:
         return random_id(9)
 
 
@@ -85,7 +86,7 @@ class Drafter:
         timeout: float | None = None,
     ) -> str:
         if timeout is not None:
-            raise NotImplementedError()  # TODO
+            raise NotImplementedError()  # TODO: Implement
 
         if self._repo.is_dirty(working_tree=False):
             if not reset:
@@ -174,7 +175,9 @@ class Drafter:
         _logger.info("Completed generation for %s.", branch)
         return str(branch)
 
-    def exit_draft(self, *, revert: bool, clean=False, delete=False) -> str:
+    def exit_draft(
+        self, *, revert: bool, clean: bool = False, delete: bool = False
+    ) -> str:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -312,7 +315,7 @@ class Drafter:
         text = self._repo.git.ls_files(exclude_standard=True, others=True)
         return frozenset(text.splitlines())
 
-    def _delta(self, spec) -> _Delta:
+    def _delta(self, spec: str) -> _Delta:
         changed = list[str]()
         deleted = list[str]()
         for line in self._repo.git.diff(spec, name_status=True).splitlines():

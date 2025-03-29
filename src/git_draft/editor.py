@@ -22,11 +22,16 @@ def _guess_editor_binpath() -> str:
     return ""
 
 
-def _get_tty_filename():
+def _get_tty_filename() -> str:
     return "CON:" if sys.platform == "win32" else "/dev/tty"
 
 
-def open_editor(text="", path: Path | None = None, *, _open_tty=open) -> str:
+def open_editor(
+    text: str = "",
+    path: Path | None = None,
+    *,
+    _open_tty=open,  # noqa
+) -> str:
     """Open an editor to edit a file and return its contents
 
     The method returns once the editor is closed. It respects the `$EDITOR`
@@ -46,7 +51,7 @@ def open_editor(text="", path: Path | None = None, *, _open_tty=open) -> str:
         proc = subprocess.Popen([binpath, path], close_fds=True, stdout=stdout)
         proc.communicate()
 
-        with open(path, mode="r") as reader:
+        with open(path) as reader:
             return reader.read()
 
     if path:

@@ -2,18 +2,18 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import importlib.metadata
 import logging
 import optparse
 from pathlib import Path, PurePosixPath
 import sys
-from typing import Sequence
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter
 from .editor import open_editor
-from .prompt import Template, TemplatedPrompt, templates_table
+from .prompt import Template, TemplatedPrompt, find_template, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
 
@@ -41,7 +41,13 @@ def new_parser() -> optparse.OptionParser:
     )
 
     def add_command(name: str, short: str | None = None, **kwargs) -> None:
-        def callback(_option, _opt, _value, parser) -> None:
+        def callback(
+            _option: object,
+            _opt: object,
+            _value: object,
+            parser: optparse.OptionParser,
+        ) -> None:
+            assert parser.values
             parser.values.command = name
 
         parser.add_option(
@@ -222,11 +228,11 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         if table:
             print(table.to_json() if opts.json else table)
     elif command == "show-prompts":
-        raise NotImplementedError()  # TODO
+        raise NotImplementedError()  # TODO: Implement
     elif command == "show-templates":
         if args:
             name = args[0]
-            tpl = Template.find(name)
+            tpl = find_template(name)
             if opts.edit:
                 if tpl:
                     edit(path=tpl.local_path(), text=tpl.source)

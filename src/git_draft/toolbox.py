@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Sequence
 import logging
 from pathlib import PurePosixPath
 import tempfile
-from typing import Callable, Protocol, Sequence, override
+from typing import Protocol, override
 
 import git
 

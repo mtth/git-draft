@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 import dataclasses
 import enum
 import itertools
 import os
 from pathlib import Path
-from typing import Mapping, Self
+from typing import Self
 
 import jinja2
 import jinja2.meta
@@ -72,7 +73,7 @@ def templates_table() -> Table:
     for rel_path in env.list_templates(extensions=[_extension]):
         if any(p.startswith(".") for p in rel_path.split(os.sep)):
             continue
-        tpl = Template._load(rel_path, env)
+        tpl = _load_template(rel_path, env)
         local = "y" if tpl.is_local() else "n"
         table.data.add_row([tpl.name, local, tpl.preamble or "-"])
     return table
@@ -93,6 +94,22 @@ def _extract_preamble(source: str, env: jinja2.Environment) -> str | None:
     if len(tokens) == 3 and tokens[1][1] == "comment":
         return tokens[1][2].strip()
     return None
+
+
+def _load_template(rel_path: str, env: jinja2.Environment) -> Template:
+    assert env.loader, "No loader in environment"
+    source, abs_path, _uptodate = env.loader.get_source(env, rel_path)
+    assert abs_path, "Missing template path"
+    preamble = _extract_preamble(source, env)
+    return Template(Path(rel_path), Path(abs_path), source, preamble)
+
+
+def find_template(name: str) -> Template | None:
+    env = _jinja_environment()
+    try:
+        return _load_template(f"{name}.{_extension}", env)
+    except jinja2.TemplateNotFound:
+        return None
 
 
 @dataclasses.dataclass(frozen=True)
@@ -125,22 +142,6 @@ class Template:
         # https://stackoverflow.com/a/48685520
         ast = env.parse(self.source)
         return frozenset(jinja2.meta.find_undeclared_variables(ast))
-
-    @classmethod
-    def _load(cls, rel_path: str, env: jinja2.Environment) -> Self:
-        assert env.loader, "No loader in environment"
-        source, abs_path, _uptodate = env.loader.get_source(env, rel_path)
-        assert abs_path, "Missing template path"
-        preamble = _extract_preamble(source, env)
-        return cls(Path(rel_path), Path(abs_path), source, preamble)
-
-    @classmethod
-    def find(cls, name: str) -> Self | None:
-        env = _jinja_environment()
-        try:
-            return cls._load(f"{name}.{_extension}", env)
-        except jinja2.TemplateNotFound:
-            return None
 
     @staticmethod
     def local_path_for(name: str) -> Path:

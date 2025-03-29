@@ -1,10 +1,11 @@
 """Persistent state storage"""
 
+from collections.abc import Iterator
 import contextlib
 from datetime import datetime
 import functools
 import sqlite3
-from typing import Iterator, Self
+from typing import Self
 
 from .common import ensure_state_home, package_root
 

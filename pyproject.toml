@@ -94,8 +94,33 @@ log_level = "DEBUG"
 line-length = 79
 
 [tool.ruff.lint]
-select = ["D", "E", "F", "I", "N", "PL", "RUF", "SIM"]
-ignore = ["D102", "D103", "D105", "D107", "D415", "PLR2004"]
+select = [
+  "A",
+  "ANN",
+  "ARG",
+  "D",
+  "E",
+  "ERA",
+  "F",
+  "I",
+  "INP",
+  "LOG",
+  "N",
+  "PL",
+  "RUF",
+  "SIM",
+  "SLF",
+  "T20",
+  "TD",
+  "UP",
+  "W"
+]
+ignore = [
+  "ANN003", "ANN401",
+  "D102", "D103", "D105", "D107", "D415",
+  "PLR2004",
+  "TD002", "TD003",
+]
 
 [tool.ruff.lint.isort]
 force-sort-within-sections = true
@@ -105,4 +130,5 @@ lines-after-imports = 2
 convention = "google"
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["D"]
+"__main__.py" = ["T20"]
+"tests/**" = ["ANN", "D", "SLF"]
