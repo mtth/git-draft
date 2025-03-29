@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 import importlib.metadata
 import logging
 import optparse
 from pathlib import Path, PurePosixPath
 import sys
-from typing import Sequence
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
@@ -41,7 +41,12 @@ def new_parser() -> optparse.OptionParser:
     )
 
     def add_command(name: str, short: str | None = None, **kwargs) -> None:
-        def callback(_option, _opt, _value, parser) -> None:
+        def callback(
+            _option: object,
+            _opt: object,
+            _value: object,
+            parser: optparse.OptionParser,
+        ) -> None:
             parser.values.command = name
 
         parser.add_option(
@@ -128,20 +133,20 @@ class ToolPrinter(ToolVisitor):
     def on_list_files(
         self, _paths: Sequence[PurePosixPath], _reason: str | None
     ) -> None:
-        print("Listing available files...")
+        pass
 
     def on_read_file(
         self, path: PurePosixPath, _contents: str | None, _reason: str | None
     ) -> None:
-        print(f"Reading {path!r}...")
+        pass
 
     def on_write_file(
         self, path: PurePosixPath, _contents: str, _reason: str | None
     ) -> None:
-        print(f"Updated {path!r}.")
+        pass
 
     def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
-        print(f"Deleted {path!r}.")
+        pass
 
 
 def edit(*, path: Path | None = None, text: str | None = None) -> str:
@@ -153,26 +158,23 @@ def edit(*, path: Path | None = None, text: str | None = None) -> str:
     # https://unix.stackexchange.com/q/604260
     elif path is None:
         assert text, "Empty path and text"
-        print(text)
         sys.exit(198)
     else:
         if text is not None:
             with open(path, "w") as f:
                 f.write(text)
-        print(path)
         sys.exit(199)
 
 
 _PROMPT_PLACEHOLDER = "Enter your prompt here..."
 
 
-def main() -> None:  # noqa: PLR0912 PLR0915
+def main() -> None:  # noqa: PLR0912
     config = Config.load()
     (opts, args) = new_parser().parse_args()
 
     log_path = ensure_state_home() / "log"
     if opts.log:
-        print(log_path)
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
@@ -210,19 +212,16 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             reset=config.auto_reset if opts.reset is None else opts.reset,
             sync=opts.sync,
         )
-        print(f"Refined {name}.")
     elif command == "finalize":
         name = drafter.exit_draft(
             revert=opts.revert, clean=opts.clean, delete=opts.delete
         )
-        verb = "Reverted" if opts.revert else "Finalized"
-        print(f"{verb} {name}.")
     elif command == "show-drafts":
         table = drafter.history_table(args[0] if args else None)
         if table:
-            print(table.to_json() if opts.json else table)
+            pass
     elif command == "show-prompts":
-        raise NotImplementedError()  # TODO
+        raise NotImplementedError()  # TODO: Implement
     elif command == "show-templates":
         if args:
             name = args[0]
@@ -232,13 +231,10 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                     edit(path=tpl.local_path(), text=tpl.source)
                 else:
                     edit(path=Template.local_path_for(name))
-            else:
-                if not tpl:
-                    raise ValueError(f"No template named {name!r}")
-                print(tpl.source)
+            elif not tpl:
+                raise ValueError(f"No template named {name!r}")
         else:
             table = templates_table()
-            print(table.to_json() if opts.json else table)
     else:
         raise UnreachableError()
 
@@ -246,7 +242,6 @@ def main() -> None:  # noqa: PLR0912 PLR0915
 if __name__ == "__main__":
     try:
         main()
-    except Exception as err:
+    except Exception:
         _logger.exception("Program failed.")
-        print(f"Error: {err}", file=sys.stderr)
         sys.exit(1)

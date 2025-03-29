@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping, Sequence
 import dataclasses
 import itertools
 import logging
@@ -11,7 +12,7 @@ import sqlite3
 import string
 import textwrap
 import tomllib
-from typing import Any, ClassVar, Mapping, Self, Sequence, Type
+from typing import Any, ClassVar, Self
 
 import prettytable
 import xdg_base_dirs
@@ -84,7 +85,7 @@ class UnreachableError(RuntimeError):
     """Indicates unreachable code was unexpectedly executed"""
 
 
-def reindent(s: str, width=0) -> str:
+def reindent(s: str, width: int = 0) -> str:
     """Reindents text by dedenting and optionally wrapping paragraphs"""
     paragraphs = (
         " ".join(textwrap.dedent("\n".join(g)).splitlines())
@@ -96,7 +97,7 @@ def reindent(s: str, width=0) -> str:
     )
 
 
-def qualified_class_name(cls: Type) -> str:
+def qualified_class_name(cls: type) -> str:
     name = cls.__qualname__
     return f"{cls.__module__}.{name}" if cls.__module__ else name
 

@@ -12,11 +12,12 @@ See the following links for more resources:
 * https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
 """
 
+from collections.abc import Mapping, Sequence
 import json
 import logging
 import os
 from pathlib import PurePosixPath
-from typing import Any, Mapping, Self, Sequence, TypedDict, override
+from typing import Any, Self, TypedDict, override
 
 import openai
 
@@ -61,7 +62,7 @@ class _ToolsFactory:
         name: str,
         description: str,
         inputs: Mapping[str, Any] | None = None,
-        required_inputs: Sequence[str] | None = None,
+        _required_inputs: Sequence[str] | None = None,
     ) -> openai.types.beta.FunctionToolParam:
         param: openai.types.beta.FunctionToolParam = {
             "type": "function",
@@ -225,10 +226,10 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
             return f"`{path}` does not exist."
         return f"The contents of `{path}` are:\n\n```\n{contents}\n```\n"
 
-    def _on_write_file(self, path: PurePosixPath) -> None:
+    def _on_write_file(self, _path: PurePosixPath) -> None:
         return None
 
-    def _on_delete_file(self, path: PurePosixPath) -> None:
+    def _on_delete_file(self, _path: PurePosixPath) -> None:
         return None
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> str:
@@ -316,7 +317,7 @@ class _EventHandler(openai.AssistantEventHandler):
         else:
             _logger.warning("Missing usage in threads run step")
 
-    def _handle_action(self, run_id: str, data: Any) -> None:
+    def _handle_action(self, _run_id: str, data: Any) -> None:
         tool_outputs = list[Any]()
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             handler = _ThreadToolHandler(self._toolbox, tool.id)
@@ -347,15 +348,15 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
         return _ToolOutput(tool_call_id=self._call_id, output=output)
 
     def _on_read_file(
-        self, path: PurePosixPath, contents: str | None
+        self, _path: PurePosixPath, contents: str | None
     ) -> _ToolOutput:
         return self._wrap(contents or "")
 
-    def _on_write_file(self, path: PurePosixPath) -> _ToolOutput:
+    def _on_write_file(self, _path: PurePosixPath) -> _ToolOutput:
         return self._wrap("OK")
 
-    def _on_delete_file(self, path: PurePosixPath) -> _ToolOutput:
+    def _on_delete_file(self, _path: PurePosixPath) -> _ToolOutput:
         return self._wrap("OK")
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> _ToolOutput:
-        return self._wrap("\n".join((str(p) for p in paths)))
+        return self._wrap("\n".join(str(p) for p in paths))

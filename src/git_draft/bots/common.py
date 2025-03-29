@@ -29,10 +29,10 @@ class Action:
     request_count: int | None = None
     token_count: int | None = None
 
-    def increment_request_count(self, n=1, init=False) -> None:
+    def increment_request_count(self, n: int = 1, init: bool = False) -> None:
         self._increment("request_count", n, init)
 
-    def increment_token_count(self, n, init=False) -> None:
+    def increment_token_count(self, n: int, init: bool = False) -> None:
         self._increment("token_count", n, init)
 
     def _increment(self, attr: str, count: int, init: bool) -> None:
@@ -48,7 +48,7 @@ class Bot:
     """Code assistant bot"""
 
     @classmethod
-    def state_folder_path(cls, ensure_exists=False) -> Path:
+    def state_folder_path(cls, ensure_exists: bool = False) -> Path:
         """Returns a path unique to this bot class
 
         The path can be used to store data specific to this bot implementation.
