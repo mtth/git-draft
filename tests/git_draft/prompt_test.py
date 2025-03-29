@@ -27,21 +27,21 @@ class TestTemplate:
         self._env = sut._jinja_environment()
 
     def test_fields(self):
-        tpl = sut.Template._load("includes/.file-list.jinja", self._env)
+        tpl = sut._load_template("includes/.file-list.jinja", self._env)
         assert not tpl.is_local()
         assert tpl.name == "includes/.file-list"
         assert tpl.local_path() != tpl.abs_path
 
     def test_preamble_ok(self):
-        tpl = sut.Template._load("add-test.jinja", self._env)
+        tpl = sut._load_template("add-test.jinja", self._env)
         assert "symbol" in tpl.preamble
 
     def test_preamble_missing(self):
-        tpl = sut.Template._load("includes/.file-list.jinja", self._env)
+        tpl = sut._load_template("includes/.file-list.jinja", self._env)
         assert tpl.preamble is None
 
     def test_extract_variables(self):
-        tpl = sut.Template._load("add-test.jinja", self._env)
+        tpl = sut._load_template("add-test.jinja", self._env)
         variables = tpl.extract_variables(self._env)
         assert "symbol" in variables
         assert "repo" not in variables
