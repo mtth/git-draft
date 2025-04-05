@@ -167,31 +167,20 @@ class TestDrafter:
 
     def test_generate_accept_checkout_conflict(self) -> None:
         self._write("p1", "A")
-
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.write_file(PurePosixPath("p1"), "B")
-                toolbox.write_file(PurePosixPath("p2"), "C")
-                return Action()
-
         with pytest.raises(sut.ConflictError):
             self._drafter.generate_draft(
-                "hello", CustomBot(), accept=sut.Accept.CHECKOUT
+                "hello",
+                _SimpleBot({"p1": "B", "p2": "C"}),
+                accept=sut.Accept.CHECKOUT
             )
         assert """<<<<<<< ours\nA""" in (self._read("p1") or "")
         assert self._read("p2") == "C"
 
     def test_generate_accept_finalize(self) -> None:
         self._write("p1", "A")
-
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.write_file(PurePosixPath("p2"), "B")
-                return Action()
-
         self._drafter.generate_draft(
             "hello",
-            CustomBot(),
+            _SimpleBot({"p2": "B"}),
             accept=sut.Accept.FINALIZE,
         )
         assert self._read("p1") == "A"
@@ -199,12 +188,7 @@ class TestDrafter:
         assert self._repo.active_branch.name == "main"
 
     def test_delete_unknown_file(self) -> None:
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.delete_file(PurePosixPath("p1"))
-                return Action()
-
-        self._drafter.generate_draft("hello", CustomBot())
+        self._drafter.generate_draft("hello", _SimpleBot({"p1": None}))
 
     def test_finalize_keeps_changes(self) -> None:
         self._write("p1.txt", "a1")
