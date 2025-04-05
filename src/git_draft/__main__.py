@@ -59,7 +59,7 @@ def new_parser() -> optparse.OptionParser:
         )
 
     add_command("finalize", help="apply current draft to original branch")
-    add_command("generate", help="start a new draft from a prompt")
+    add_command("generate", help="create or update draft from a prompt")
     add_command("show-drafts", short="D", help="show draft history")
     add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
@@ -79,7 +79,7 @@ def new_parser() -> optparse.OptionParser:
     parser.add_option(
         "-d",
         "--delete",
-        help="delete draft after finalizing or discarding",
+        help="delete draft after finalizing",
         action="store_true",
     )
     parser.add_option(
@@ -109,7 +109,7 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "--no-sync",
-        help="do not create record intermediate worktree changes",
+        help="do not commit intermediate worktree changes",
         dest="sync",
         action="store_false",
     )

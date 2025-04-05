@@ -22,11 +22,11 @@ class _SimpleBot(Bot):
 
     @classmethod
     def noop(cls) -> Self:
-        return _SimpleBot({})
+        return cls({})
 
     @classmethod
     def prompt(cls) -> Self:
-        return _SimpleBot({"PROMPT": lambda goal: goal.prompt})
+        return cls({"PROMPT": lambda goal: goal.prompt})
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         for key, value in self._contents.items():
