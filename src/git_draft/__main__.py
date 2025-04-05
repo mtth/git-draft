@@ -201,10 +201,11 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         else:
             prompt = sys.stdin.read()
 
+        accept = Accept(opts.accept or 0)
         name = drafter.generate_draft(
             prompt,
             bot,
-            accept=Accept(opts.accept or 0),
+            accept=accept,
             bot_name=opts.bot,
             prompt_transform=open_editor if editable else None,
             tool_visitors=[ToolPrinter()],

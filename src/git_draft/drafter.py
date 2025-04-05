@@ -11,12 +11,13 @@ import logging
 from pathlib import PurePosixPath
 import re
 from re import Match
+import tempfile
 import textwrap
 import time
 
 import git
 
-from .bots import Bot, Goal
+from .bots import Action, Bot, Goal
 from .common import JSONObject, Table, qualified_class_name, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -112,66 +113,43 @@ class Drafter:
             _logger.debug("Created branch %s.", branch)
 
         # Handle prompt templating and editing.
-        if isinstance(prompt, TemplatedPrompt):
-            template: str | None = prompt.template
-            renderer = PromptRenderer.for_toolbox(StagingToolbox(self._repo))
-            prompt_contents = renderer.render(prompt)
-        else:
-            template = None
-            prompt_contents = prompt
-        if prompt_transform:
-            prompt_contents = prompt_transform(prompt_contents)
-        if not prompt_contents.strip():
-            raise ValueError("Aborting: empty prompt")
+        prompt_contents = self._prepare_prompt(prompt, prompt_transform)
         with self._store.cursor() as cursor:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
                 {
                     "branch_suffix": branch.suffix,
-                    "template": template,
+                    "template": prompt.template
+                    if isinstance(prompt, TemplatedPrompt)
+                    else None,
                     "contents": prompt_contents,
                 },
             )
 
-        # Trigger code generation.
-        _logger.debug("Running bot... [bot=%s]", bot)
         operation_recorder = _OperationRecorder()
-        tool_visitors = [operation_recorder, *list(tool_visitors or [])]
-        toolbox = StagingToolbox(self._repo, tool_visitors)
-        start_time = time.perf_counter()
-        goal = Goal(prompt_contents, timeout)
-        action = bot.act(goal, toolbox)
-        end_time = time.perf_counter()
-        walltime = end_time - start_time
-        _logger.info("Completed bot action. [action=%s]", action)
-
-        # Generate an appropriate commit and update our database.
-        toolbox.trim_index()
-        title = action.title
-        if not title:
-            title = _default_title(prompt_contents)
-        commit = self._repo.index.commit(
-            f"draft! {title}\n\n{prompt_contents}",
-            skip_hooks=True,
+        change = self._generate_change(
+            bot,
+            Goal(prompt_contents, timeout),
+            [operation_recorder, *list(tool_visitors or [])],
         )
         with self._store.cursor() as cursor:
             cursor.execute(
                 sql("add-action"),
                 {
-                    "commit_sha": commit.hexsha,
+                    "commit_sha": change.commit,
                     "prompt_id": prompt_id,
                     "bot_name": bot_name,
                     "bot_class": qualified_class_name(bot.__class__),
-                    "walltime": walltime,
-                    "request_count": action.request_count,
-                    "token_count": action.token_count,
+                    "walltime": change.walltime,
+                    "request_count": change.action.request_count,
+                    "token_count": change.action.token_count,
                 },
             )
             cursor.executemany(
                 sql("add-operation"),
                 [
                     {
-                        "commit_sha": commit.hexsha,
+                        "commit_sha": change.commit,
                         "tool": o.tool,
                         "reason": o.reason,
                         "details": json.dumps(o.details),
@@ -180,15 +158,57 @@ class Drafter:
                     for o in operation_recorder.operations
                 ],
             )
+        _logger.info("Created new change on %s.", branch)
 
-        _logger.info("Completed generation for %s.", branch)
-        # TODO: Handle the case of no change.
-
-        if accept >= Accept.CHECKOUT:
-            raise NotImplementedError()  # TODO: Implement
-        if accept >= Accept.FINALIZE:
-            self.finalize_draft(delete=accept==Accept.DELETE)
+        delta = change.delta()
+        if delta and accept.value >= Accept.CHECKOUT.value:
+            delta.apply()
+        if accept.value >= Accept.FINALIZE.value:
+            self.finalize_draft(delete=accept == Accept.DELETE)
         return str(branch)
+
+    def _prepare_prompt(
+        self,
+        prompt: str | TemplatedPrompt,
+        prompt_transform: Callable[[str], str] | None,
+    ) -> str:
+        if isinstance(prompt, TemplatedPrompt):
+            renderer = PromptRenderer.for_toolbox(StagingToolbox(self._repo))
+            contents = renderer.render(prompt)
+        else:
+            contents = prompt
+        if prompt_transform:
+            contents = prompt_transform(contents)
+        if not contents.strip():
+            raise ValueError("Empty prompt")
+        return contents
+
+    def _generate_change(
+        self,
+        bot: Bot,
+        goal: Goal,
+        tool_visitors: Sequence[ToolVisitor],
+    ) -> _Change:
+        # Trigger code generation.
+        _logger.debug("Running bot... [bot=%s]", bot)
+        toolbox = StagingToolbox(self._repo, tool_visitors)
+        start_time = time.perf_counter()
+        action = bot.act(goal, toolbox)
+        end_time = time.perf_counter()
+        walltime = end_time - start_time
+        _logger.info("Completed bot action. [action=%s]", action)
+
+        # Generate an appropriate commit.
+        toolbox.trim_index()
+        title = action.title
+        if not title:
+            title = _default_title(goal.prompt)
+        commit = self._repo.index.commit(
+            f"draft! {title}\n\n{goal.prompt}",
+            skip_hooks=True,
+        )
+
+        return _Change(commit, walltime, action, self._repo)
 
     def finalize_draft(self, *, delete: bool = False) -> str:
         branch = _Branch.active(self._repo)
@@ -216,39 +236,6 @@ class Drafter:
 
         _logger.info("Exited %s.", branch)
         return branch.name
-
-    def history_table(self, branch_name: str | None = None) -> Table:
-        path = self._repo.working_dir
-        branch = _Branch.active(self._repo, branch_name)
-        with self._store.cursor() as cursor:
-            if branch:
-                results = cursor.execute(
-                    sql("list-prompts"),
-                    {
-                        "repo_path": path,
-                        "branch_suffix": branch.suffix,
-                    },
-                )
-            else:
-                results = cursor.execute(
-                    sql("list-drafts"), {"repo_path": path}
-                )
-            return Table.from_cursor(results)
-
-    def latest_draft_prompt(self) -> str | None:
-        """Returns the latest prompt for the current draft"""
-        branch = _Branch.active(self._repo)
-        if not branch:
-            return None
-        with self._store.cursor() as cursor:
-            result = cursor.execute(
-                sql("get-latest-prompt"),
-                {
-                    "repo_path": self._repo.working_dir,
-                    "branch_suffix": branch.suffix,
-                },
-            ).fetchone()
-            return result[0] if result else None
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:
@@ -284,30 +271,77 @@ class Drafter:
         ref = self._repo.index.commit("draft! sync")
         return ref.hexsha
 
-    def _untracked(self) -> frozenset[str]:
-        text = self._repo.git.ls_files(exclude_standard=True, others=True)
-        return frozenset(text.splitlines())
-
-    def _delta(self, spec: str) -> _Delta:
-        changed = list[str]()
-        deleted = list[str]()
-        for line in self._repo.git.diff(spec, name_status=True).splitlines():
-            state, name = line.split(None, 1)
-            if state == "D":
-                deleted.append(name)
+    def history_table(self, branch_name: str | None = None) -> Table:
+        path = self._repo.working_dir
+        branch = _Branch.active(self._repo, branch_name)
+        with self._store.cursor() as cursor:
+            if branch:
+                results = cursor.execute(
+                    sql("list-prompts"),
+                    {
+                        "repo_path": path,
+                        "branch_suffix": branch.suffix,
+                    },
+                )
             else:
-                changed.append(name)
-        return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+                results = cursor.execute(
+                    sql("list-drafts"), {"repo_path": path}
+                )
+            return Table.from_cursor(results)
+
+    def latest_draft_prompt(self) -> str | None:
+        """Returns the latest prompt for the current draft"""
+        branch = _Branch.active(self._repo)
+        if not branch:
+            return None
+        with self._store.cursor() as cursor:
+            result = cursor.execute(
+                sql("get-latest-prompt"),
+                {
+                    "repo_path": self._repo.working_dir,
+                    "branch_suffix": branch.suffix,
+                },
+            ).fetchone()
+            return result[0] if result else None
+
+
+type _CommitSHA = str
+
+
+@dataclasses.dataclass(frozen=True)
+class _Change:
+    commit: _CommitSHA
+    walltime: float
+    action: Action
+    repo: git.Repo = dataclasses.field(repr=False)
+
+    def delta(self) -> _Delta | None:
+        diff = self.repo.git.diff_tree(self.commit, patch=True)
+        return _Delta(diff, self.repo) if diff else None
 
 
 @dataclasses.dataclass(frozen=True)
 class _Delta:
-    changed: frozenset[str]
-    deleted: frozenset[str]
+    diff: str
+    repo: git.Repo = dataclasses.field(repr=False)
 
-    @property
-    def touched(self) -> frozenset[str]:
-        return self.changed | self.deleted
+    def apply(self) -> None:
+        # For apply to work as expected (add conflict markers as needed), files
+        # in the patch must exist in the index.
+        self.repo.git.add(all=True)  # TODO: Only add touched files.
+        with tempfile.TemporaryFile() as temp:
+            temp.write(self.diff.encode("utf8"))
+            temp.seek(0)
+            try:
+                self.repo.git.apply("--3way", "-", istream=temp)
+            except git.CommandError as exc:
+                if "with conflicts" in exc.stderr:
+                    raise ConflictError()
+                raise exc
+
+
+class ConflictError(Exception):
+    """A change could not be applied cleanly"""
 
 
 class _OperationRecorder(ToolVisitor):

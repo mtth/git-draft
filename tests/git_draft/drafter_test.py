@@ -1,6 +1,7 @@
 from collections.abc import Sequence
 import os
 from pathlib import Path, PurePosixPath
+import textwrap
 
 import git
 import pytest
@@ -126,6 +127,48 @@ class TestDrafter:
         self._drafter.generate_draft("prompt", CustomBot())
         assert len(self._commits()) == 2  # init, prompt
         assert not self._commit_files("HEAD")
+
+    def test_generate_accept_checkout(self) -> None:
+        self._write("p1", "A")
+        self._write("p2", "B")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.write_file(PurePosixPath("p1"), "C")
+                toolbox.write_file(PurePosixPath("p3"), "D")
+                return Action()
+
+        self._drafter.generate_draft(
+            "hello", CustomBot(), accept=sut.Accept.CHECKOUT, sync=True
+        )
+        assert self._read("p1") == "C"
+        assert self._read("p2") == "B"
+        assert self._read("p3") == "D"
+
+    def test_generate_accept_checkout_conflict(self) -> None:
+        self._write("p1", "A")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.write_file(PurePosixPath("p1"), "B")
+                toolbox.write_file(PurePosixPath("p2"), "C")
+                return Action()
+
+        with pytest.raises(sut.ConflictError):
+            self._drafter.generate_draft(
+                "hello", CustomBot(), accept=sut.Accept.CHECKOUT
+            )
+        assert self._read("p1") == textwrap.dedent(
+            """\
+                <<<<<<< ours
+                A
+                ||||||| base
+                =======
+                B
+                >>>>>>> theirs
+            """
+        )
+        assert self._read("p2") == "C"
 
     def test_delete_unknown_file(self) -> None:
         class CustomBot(Bot):
