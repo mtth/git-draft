@@ -332,9 +332,9 @@ class _Delta:
     repo: git.Repo = dataclasses.field(repr=False)
 
     def apply(self) -> None:
-        # For apply to work as expected (add conflict markers as needed), files
-        # in the patch must exist in the index.
-        self.repo.git.add(all=True)  # TODO: Only add touched files.
+        # For patch applcation to work as expected (adding conflict markers as
+        # needed), files in the patch must exist in the index.
+        self.repo.git.add(all=True)
         with tempfile.TemporaryFile() as temp:
             temp.write(self.diff.encode("utf8"))
             temp.seek(0)
@@ -344,6 +344,8 @@ class _Delta:
                 if "with conflicts" in exc.stderr:
                     raise ConflictError()
                 raise exc
+            finally:
+                self.repo.git.reset()
 
 
 class ConflictError(Exception):
