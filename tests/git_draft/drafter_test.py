@@ -1,7 +1,6 @@
 from collections.abc import Sequence
 import os
 from pathlib import Path, PurePosixPath
-import textwrap
 
 import git
 import pytest
