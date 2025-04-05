@@ -59,7 +59,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 -G::
 --generate::
   Add an AI-generated commit.
-  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is shared with the bot.
+  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is forwarded to the bot.
 
 -h::
 --help::

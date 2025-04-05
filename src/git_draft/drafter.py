@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import dataclasses
-from datetime import datetime
+from datetime import datetime, timedelta
 import enum
 import json
 import logging
@@ -33,7 +33,7 @@ class Accept(enum.Enum):
     MANUAL = enum.auto()
     CHECKOUT = enum.auto()
     FINALIZE = enum.auto()
-    DELETE = enum.auto()
+    NO_REGRETS = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -106,7 +106,7 @@ class Drafter:
         # Ensure that we are on a draft branch.
         branch = _Branch.active(self._repo)
         if branch:
-            self._stage_changes(sync)
+            self._stage_repo(sync)
             _logger.debug("Reusing active branch %s.", branch)
         else:
             branch = self._create_branch(sync)
@@ -140,7 +140,7 @@ class Drafter:
                     "prompt_id": prompt_id,
                     "bot_name": bot_name,
                     "bot_class": qualified_class_name(bot.__class__),
-                    "walltime": change.walltime,
+                    "walltime_seconds": change.walltime.total_seconds(),
                     "request_count": change.action.request_count,
                     "token_count": change.action.token_count,
                 },
@@ -164,7 +164,7 @@ class Drafter:
         if delta and accept.value >= Accept.CHECKOUT.value:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
-            self.finalize_draft(delete=accept == Accept.DELETE)
+            self.finalize_draft(delete=accept == Accept.NO_REGRETS)
         return str(branch)
 
     def _prepare_prompt(
@@ -208,7 +208,12 @@ class Drafter:
             skip_hooks=True,
         )
 
-        return _Change(commit, walltime, action, self._repo)
+        return _Change(
+            commit.hexsha,
+            timedelta(seconds=walltime),
+            action,
+            self._repo
+        )
 
     def finalize_draft(self, *, delete: bool = False) -> str:
         branch = _Branch.active(self._repo)
@@ -244,7 +249,7 @@ class Drafter:
         origin_sha = self._repo.commit().hexsha
 
         self._repo.git.checkout(detach=True)
-        sync_sha = self._stage_changes(sync)
+        sync_sha = self._stage_repo(sync)
         suffix = _Branch.new_suffix()
 
         with self._store.cursor() as cursor:
@@ -264,7 +269,7 @@ class Drafter:
         self._repo.git.checkout(branch_ref)
         return branch
 
-    def _stage_changes(self, sync: bool) -> str | None:
+    def _stage_repo(self, sync: bool) -> str | None:
         self._repo.git.add(all=True)
         if not sync or not self._repo.is_dirty(untracked_files=True):
             return None
@@ -310,8 +315,10 @@ type _CommitSHA = str
 
 @dataclasses.dataclass(frozen=True)
 class _Change:
+    """A bot-generated draft, may be a no-op"""
+
     commit: _CommitSHA
-    walltime: float
+    walltime: timedelta
     action: Action
     repo: git.Repo = dataclasses.field(repr=False)
 
@@ -322,6 +329,8 @@ class _Change:
 
 @dataclasses.dataclass(frozen=True)
 class _Delta:
+    """A change's effects, guaranteed non-empty"""
+
     diff: str
     repo: git.Repo = dataclasses.field(repr=False)
 

@@ -9,6 +9,7 @@
 * Concurrent edits. By default `git-draft` does not touch the working directory.
 * Customizable prompt templates.
 * Extensible bot API.
+* Local data collection for privacy-friendly analytics.
 
 
 ## Installation

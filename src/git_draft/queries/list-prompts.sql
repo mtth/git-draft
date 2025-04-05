@@ -2,7 +2,7 @@ select
     datetime(min(p.created_at), 'localtime') as created,
     coalesce(min(template), '-') as template,
     coalesce(min(a.bot_name), '-') as bot,
-    coalesce(round(sum(a.walltime), 1), 0) as walltime,
+    coalesce(round(sum(a.walltime_seconds), 1), 0) as walltime,
     count(o.id) as ops
   from prompts as p
   join branches as b on p.branch_suffix = b.suffix

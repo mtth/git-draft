@@ -3,7 +3,7 @@ insert into actions (
     prompt_id,
     bot_name,
     bot_class,
-    walltime,
+    walltime_seconds,
     request_count,
     token_count)
   values (
@@ -11,6 +11,6 @@ insert into actions (
     :prompt_id,
     :bot_name,
     :bot_class,
-    :walltime,
+    :walltime_seconds,
     :request_count,
     :token_count);
