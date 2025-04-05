@@ -157,7 +157,7 @@ class TestDrafter:
             self._drafter.generate_draft(
                 "hello", CustomBot(), accept=sut.Accept.CHECKOUT
             )
-        assert """<<<<<<< ours\nA""" in self._read("p1")
+        assert """<<<<<<< ours\nA""" in (self._read("p1") or "")
         assert self._read("p2") == "C"
 
     def test_generate_accept_finalize(self) -> None:
@@ -169,7 +169,9 @@ class TestDrafter:
                 return Action()
 
         self._drafter.generate_draft(
-            "hello", CustomBot(), accept=sut.Accept.FINALIZE,
+            "hello",
+            CustomBot(),
+            accept=sut.Accept.FINALIZE,
         )
         assert self._read("p1") == "A"
         assert self._read("p2") == "B"

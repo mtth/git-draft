@@ -209,10 +209,7 @@ class Drafter:
         )
 
         return _Change(
-            commit.hexsha,
-            timedelta(seconds=walltime),
-            action,
-            self._repo
+            commit.hexsha, timedelta(seconds=walltime), action, self._repo
         )
 
     def finalize_draft(self, *, delete: bool = False) -> str:
