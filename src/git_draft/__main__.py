@@ -11,7 +11,7 @@ import sys
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
-from .drafter import Drafter
+from .drafter import Accept, Drafter
 from .editor import open_editor
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
 from .store import Store
@@ -64,6 +64,12 @@ def new_parser() -> optparse.OptionParser:
     add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
 
+    parser.add_option(
+        "-a",
+        "--accept",
+        help="apply generated changes",
+        action="count",
+    )
     parser.add_option(
         "-b",
         "--bot",
@@ -171,67 +177,69 @@ def main() -> None:  # noqa: PLR0912 PLR0915
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
     drafter = Drafter.create(store=Store.persistent(), path=opts.root)
-    command = getattr(opts, "command", "generate")
-    if command == "generate":
-        bot_config = None
-        if opts.bot:
-            bot_configs = [c for c in config.bots if c.name == opts.bot]
-            if len(bot_configs) != 1:
-                raise ValueError(f"Found {len(bot_configs)} matching bots")
-            bot_config = bot_configs[0]
-        elif config.bots:
-            bot_config = config.bots[0]
-        bot = load_bot(bot_config)
+    match getattr(opts, "command", "generate"):
+        case "generate":
+            bot_config = None
+            if opts.bot:
+                bot_configs = [c for c in config.bots if c.name == opts.bot]
+                if len(bot_configs) != 1:
+                    raise ValueError(f"Found {len(bot_configs)} matching bots")
+                bot_config = bot_configs[0]
+            elif config.bots:
+                bot_config = config.bots[0]
+            bot = load_bot(bot_config)
 
-        prompt: str | TemplatedPrompt
-        editable = opts.edit
-        if args:
-            prompt = TemplatedPrompt.parse(args[0], *args[1:])
-        elif opts.edit:
-            editable = False
-            prompt = edit(
-                text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
-            )
-        else:
-            prompt = sys.stdin.read()
-
-        name = drafter.generate_draft(
-            prompt,
-            bot,
-            bot_name=opts.bot,
-            prompt_transform=open_editor if editable else None,
-            tool_visitors=[ToolPrinter()],
-            reset=config.auto_reset if opts.reset is None else opts.reset,
-            sync=opts.sync,
-        )
-        print(f"Refined {name}.")
-    elif command == "finalize":
-        name = drafter.finalize_draft(delete=opts.delete)
-        print(f"Finalized {name}.")
-    elif command == "show-drafts":
-        table = drafter.history_table(args[0] if args else None)
-        if table:
-            print(table.to_json() if opts.json else table)
-    elif command == "show-prompts":
-        raise NotImplementedError()  # TODO: Implement
-    elif command == "show-templates":
-        if args:
-            name = args[0]
-            tpl = find_template(name)
-            if opts.edit:
-                if tpl:
-                    edit(path=tpl.local_path(), text=tpl.source)
-                else:
-                    edit(path=Template.local_path_for(name))
+            prompt: str | TemplatedPrompt
+            editable = opts.edit
+            if args:
+                prompt = TemplatedPrompt.parse(args[0], *args[1:])
+            elif opts.edit:
+                editable = False
+                prompt = edit(
+                    text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
+                )
             else:
-                if not tpl:
-                    raise ValueError(f"No template named {name!r}")
-                print(tpl.source)
-        else:
-            table = templates_table()
-            print(table.to_json() if opts.json else table)
-    else:
-        raise UnreachableError()
+                prompt = sys.stdin.read()
+
+            accept = Accept(opts.accept or 0)
+            name = drafter.generate_draft(
+                prompt,
+                bot,
+                accept=accept,
+                bot_name=opts.bot,
+                prompt_transform=open_editor if editable else None,
+                tool_visitors=[ToolPrinter()],
+                reset=config.auto_reset if opts.reset is None else opts.reset,
+                sync=opts.sync,
+            )
+            print(f"Generated change in {name}.")
+        case "finalize":
+            name = drafter.finalize_draft(delete=opts.delete)
+            print(f"Finalized {name}.")
+        case "show-drafts":
+            table = drafter.history_table(args[0] if args else None)
+            if table:
+                print(table.to_json() if opts.json else table)
+        case "show-prompts":
+            raise NotImplementedError()  # TODO: Implement
+        case "show-templates":
+            if args:
+                name = args[0]
+                tpl = find_template(name)
+                if opts.edit:
+                    if tpl:
+                        edit(path=tpl.local_path(), text=tpl.source)
+                    else:
+                        edit(path=Template.local_path_for(name))
+                else:
+                    if not tpl:
+                        raise ValueError(f"No template named {name!r}")
+                    print(tpl.source)
+            else:
+                table = templates_table()
+                print(table.to_json() if opts.json else table)
+        case _:
+            raise UnreachableError()
 
 
 if __name__ == "__main__":

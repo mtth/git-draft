@@ -22,7 +22,7 @@ create table if not exists actions (
   prompt_id integer not null,
   bot_name text,
   bot_class text not null,
-  walltime real not null,
+  walltime_seconds real not null,
   request_count int,
   token_count int,
   foreign key (prompt_id) references prompts(id) on delete cascade

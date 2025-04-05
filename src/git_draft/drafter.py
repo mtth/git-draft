@@ -4,18 +4,20 @@ from __future__ import annotations
 
 from collections.abc import Callable, Sequence
 import dataclasses
-from datetime import datetime
+from datetime import datetime, timedelta
+import enum
 import json
 import logging
 from pathlib import PurePosixPath
 import re
 from re import Match
+import tempfile
 import textwrap
 import time
 
 import git
 
-from .bots import Bot, Goal
+from .bots import Action, Bot, Goal
 from .common import JSONObject, Table, qualified_class_name, random_id
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -23,6 +25,15 @@ from .toolbox import StagingToolbox, ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
+
+
+class Accept(enum.Enum):
+    """Valid change accept mode"""
+
+    MANUAL = enum.auto()
+    CHECKOUT = enum.auto()
+    FINALIZE = enum.auto()
+    NO_REGRETS = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,12 +87,13 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        accept: Accept = Accept.MANUAL,
         bot_name: str | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
+        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> str:
         if timeout is not None:
             raise NotImplementedError()  # TODO: Implement
@@ -94,73 +106,50 @@ class Drafter:
         # Ensure that we are on a draft branch.
         branch = _Branch.active(self._repo)
         if branch:
-            self._stage_changes(sync)
+            self._stage_repo(sync)
             _logger.debug("Reusing active branch %s.", branch)
         else:
             branch = self._create_branch(sync)
             _logger.debug("Created branch %s.", branch)
 
         # Handle prompt templating and editing.
-        if isinstance(prompt, TemplatedPrompt):
-            template: str | None = prompt.template
-            renderer = PromptRenderer.for_toolbox(StagingToolbox(self._repo))
-            prompt_contents = renderer.render(prompt)
-        else:
-            template = None
-            prompt_contents = prompt
-        if prompt_transform:
-            prompt_contents = prompt_transform(prompt_contents)
-        if not prompt_contents.strip():
-            raise ValueError("Aborting: empty prompt")
+        prompt_contents = self._prepare_prompt(prompt, prompt_transform)
         with self._store.cursor() as cursor:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
                 {
                     "branch_suffix": branch.suffix,
-                    "template": template,
+                    "template": prompt.template
+                    if isinstance(prompt, TemplatedPrompt)
+                    else None,
                     "contents": prompt_contents,
                 },
             )
 
-        # Trigger code generation.
-        _logger.debug("Running bot... [bot=%s]", bot)
         operation_recorder = _OperationRecorder()
-        tool_visitors = [operation_recorder, *list(tool_visitors or [])]
-        toolbox = StagingToolbox(self._repo, tool_visitors)
-        start_time = time.perf_counter()
-        goal = Goal(prompt_contents, timeout)
-        action = bot.act(goal, toolbox)
-        end_time = time.perf_counter()
-        walltime = end_time - start_time
-        _logger.info("Completed bot action. [action=%s]", action)
-
-        # Generate an appropriate commit and update our database.
-        toolbox.trim_index()
-        title = action.title
-        if not title:
-            title = _default_title(prompt_contents)
-        commit = self._repo.index.commit(
-            f"draft! {title}\n\n{prompt_contents}",
-            skip_hooks=True,
+        change = self._generate_change(
+            bot,
+            Goal(prompt_contents, timeout),
+            [operation_recorder, *list(tool_visitors or [])],
         )
         with self._store.cursor() as cursor:
             cursor.execute(
                 sql("add-action"),
                 {
-                    "commit_sha": commit.hexsha,
+                    "commit_sha": change.commit,
                     "prompt_id": prompt_id,
                     "bot_name": bot_name,
                     "bot_class": qualified_class_name(bot.__class__),
-                    "walltime": walltime,
-                    "request_count": action.request_count,
-                    "token_count": action.token_count,
+                    "walltime_seconds": change.walltime.total_seconds(),
+                    "request_count": change.action.request_count,
+                    "token_count": change.action.token_count,
                 },
             )
             cursor.executemany(
                 sql("add-operation"),
                 [
                     {
-                        "commit_sha": commit.hexsha,
+                        "commit_sha": change.commit,
                         "tool": o.tool,
                         "reason": o.reason,
                         "details": json.dumps(o.details),
@@ -169,9 +158,59 @@ class Drafter:
                     for o in operation_recorder.operations
                 ],
             )
+        _logger.info("Created new change on %s.", branch)
 
-        _logger.info("Completed generation for %s.", branch)
+        delta = change.delta()
+        if delta and accept.value >= Accept.CHECKOUT.value:
+            delta.apply()
+        if accept.value >= Accept.FINALIZE.value:
+            self.finalize_draft(delete=accept == Accept.NO_REGRETS)
         return str(branch)
+
+    def _prepare_prompt(
+        self,
+        prompt: str | TemplatedPrompt,
+        prompt_transform: Callable[[str], str] | None,
+    ) -> str:
+        if isinstance(prompt, TemplatedPrompt):
+            renderer = PromptRenderer.for_toolbox(StagingToolbox(self._repo))
+            contents = renderer.render(prompt)
+        else:
+            contents = prompt
+        if prompt_transform:
+            contents = prompt_transform(contents)
+        if not contents.strip():
+            raise ValueError("Empty prompt")
+        return contents
+
+    def _generate_change(
+        self,
+        bot: Bot,
+        goal: Goal,
+        tool_visitors: Sequence[ToolVisitor],
+    ) -> _Change:
+        # Trigger code generation.
+        _logger.debug("Running bot... [bot=%s]", bot)
+        toolbox = StagingToolbox(self._repo, tool_visitors)
+        start_time = time.perf_counter()
+        action = bot.act(goal, toolbox)
+        end_time = time.perf_counter()
+        walltime = end_time - start_time
+        _logger.info("Completed bot action. [action=%s]", action)
+
+        # Generate an appropriate commit.
+        toolbox.trim_index()
+        title = action.title
+        if not title:
+            title = _default_title(goal.prompt)
+        commit = self._repo.index.commit(
+            f"draft! {title}\n\n{goal.prompt}",
+            skip_hooks=True,
+        )
+
+        return _Change(
+            commit.hexsha, timedelta(seconds=walltime), action, self._repo
+        )
 
     def finalize_draft(self, *, delete: bool = False) -> str:
         branch = _Branch.active(self._repo)
@@ -199,6 +238,40 @@ class Drafter:
 
         _logger.info("Exited %s.", branch)
         return branch.name
+
+    def _create_branch(self, sync: bool) -> _Branch:
+        if self._repo.head.is_detached:
+            raise RuntimeError("No currently active branch")
+        origin_branch = self._repo.active_branch.name
+        origin_sha = self._repo.commit().hexsha
+
+        self._repo.git.checkout(detach=True)
+        sync_sha = self._stage_repo(sync)
+        suffix = _Branch.new_suffix()
+
+        with self._store.cursor() as cursor:
+            cursor.execute(
+                sql("add-branch"),
+                {
+                    "suffix": suffix,
+                    "repo_path": self._repo.working_dir,
+                    "origin_branch": origin_branch,
+                    "origin_sha": origin_sha,
+                    "sync_sha": sync_sha,
+                },
+            )
+
+        branch = _Branch(suffix)
+        branch_ref = self._repo.create_head(branch.name)
+        self._repo.git.checkout(branch_ref)
+        return branch
+
+    def _stage_repo(self, sync: bool) -> str | None:
+        self._repo.git.add(all=True)
+        if not sync or not self._repo.is_dirty(untracked_files=True):
+            return None
+        ref = self._repo.index.commit("draft! sync")
+        return ref.hexsha
 
     def history_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
@@ -233,64 +306,50 @@ class Drafter:
             ).fetchone()
             return result[0] if result else None
 
-    def _create_branch(self, sync: bool) -> _Branch:
-        if self._repo.head.is_detached:
-            raise RuntimeError("No currently active branch")
-        origin_branch = self._repo.active_branch.name
-        origin_sha = self._repo.commit().hexsha
 
-        self._repo.git.checkout(detach=True)
-        sync_sha = self._stage_changes(sync)
-        suffix = _Branch.new_suffix()
+type _CommitSHA = str
 
-        with self._store.cursor() as cursor:
-            cursor.execute(
-                sql("add-branch"),
-                {
-                    "suffix": suffix,
-                    "repo_path": self._repo.working_dir,
-                    "origin_branch": origin_branch,
-                    "origin_sha": origin_sha,
-                    "sync_sha": sync_sha,
-                },
-            )
 
-        branch = _Branch(suffix)
-        branch_ref = self._repo.create_head(branch.name)
-        self._repo.git.checkout(branch_ref)
-        return branch
+@dataclasses.dataclass(frozen=True)
+class _Change:
+    """A bot-generated draft, may be a no-op"""
 
-    def _stage_changes(self, sync: bool) -> str | None:
-        self._repo.git.add(all=True)
-        if not sync or not self._repo.is_dirty(untracked_files=True):
-            return None
-        ref = self._repo.index.commit("draft! sync")
-        return ref.hexsha
+    commit: _CommitSHA
+    walltime: timedelta
+    action: Action
+    repo: git.Repo = dataclasses.field(repr=False)
 
-    def _untracked(self) -> frozenset[str]:
-        text = self._repo.git.ls_files(exclude_standard=True, others=True)
-        return frozenset(text.splitlines())
-
-    def _delta(self, spec: str) -> _Delta:
-        changed = list[str]()
-        deleted = list[str]()
-        for line in self._repo.git.diff(spec, name_status=True).splitlines():
-            state, name = line.split(None, 1)
-            if state == "D":
-                deleted.append(name)
-            else:
-                changed.append(name)
-        return _Delta(changed=frozenset(changed), deleted=frozenset(deleted))
+    def delta(self) -> _Delta | None:
+        diff = self.repo.git.diff_tree(self.commit, patch=True)
+        return _Delta(diff, self.repo) if diff else None
 
 
 @dataclasses.dataclass(frozen=True)
 class _Delta:
-    changed: frozenset[str]
-    deleted: frozenset[str]
+    """A change's effects, guaranteed non-empty"""
 
-    @property
-    def touched(self) -> frozenset[str]:
-        return self.changed | self.deleted
+    diff: str
+    repo: git.Repo = dataclasses.field(repr=False)
+
+    def apply(self) -> None:
+        # For patch applcation to work as expected (adding conflict markers as
+        # needed), files in the patch must exist in the index.
+        self.repo.git.add(all=True)
+        with tempfile.TemporaryFile() as temp:
+            temp.write(self.diff.encode("utf8"))
+            temp.seek(0)
+            try:
+                self.repo.git.apply("--3way", "-", istream=temp)
+            except git.CommandError as exc:
+                if "with conflicts" in exc.stderr:
+                    raise ConflictError()
+                raise exc
+            finally:
+                self.repo.git.reset()
+
+
+class ConflictError(Exception):
+    """A change could not be applied cleanly"""
 
 
 class _OperationRecorder(ToolVisitor):
