@@ -11,7 +11,7 @@ import sys
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
-from .drafter import Drafter
+from .drafter import Accept, Drafter
 from .editor import open_editor
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
 from .store import Store
@@ -64,6 +64,12 @@ def new_parser() -> optparse.OptionParser:
     add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
 
+    parser.add_option(
+        "-a",
+        "--accept",
+        help="apply generated changes",
+        action="count",
+    )
     parser.add_option(
         "-b",
         "--bot",
@@ -198,13 +204,14 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         name = drafter.generate_draft(
             prompt,
             bot,
+            accept=Accept(opts.accept or 0),
             bot_name=opts.bot,
             prompt_transform=open_editor if editable else None,
             tool_visitors=[ToolPrinter()],
             reset=config.auto_reset if opts.reset is None else opts.reset,
             sync=opts.sync,
         )
-        print(f"Refined {name}.")
+        print(f"Generated change in {name}.")
     elif command == "finalize":
         name = drafter.finalize_draft(delete=opts.delete)
         print(f"Finalized {name}.")

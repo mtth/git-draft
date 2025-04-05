@@ -18,8 +18,8 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--generate] [--bot BOT] [--edit] [--reset | --no-reset] [--sync] [TEMPLATE [VARIABLE...]]
-git draft [options] --finalize [--delete]
+git draft [options] [--generate] [--accept... | no-accept] [--bot BOT] [--edit] [--reset | --no-reset] [--sync | --no-sync] [TEMPLATE [VARIABLE...]]
+git draft [options] --finalize [--delete] [--sync | --no-sync]
 git draft [options] --show-drafts [--json]
 git draft [options] --show-prompts [--json] [PROMPT]
 git draft [options] --show-templates [--json | [--edit] TEMPLATE]
@@ -27,10 +27,17 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 == Description
 
-`git-draft` is a git-centric way to edit code using AI.
+`git-draft` is a git-centric way to develop using AI.
 
 
 == Options
+
+-a::
+--accept::
+--no-accept::
+  Check out generated changes automatically.
+  Can be repeated.
+  This may fail if you manually edit files that the bot updates during generation.
 
 -b BOT::
 --bot=BOT::
@@ -42,15 +49,17 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 -e::
 --edit::
-  Edit.
+  Enable interactive editing of prompts and templates.
+  See `--generate` and `--show-templates` for details.
 
 -F::
 --finalize::
-  TODO
+  Go back to the draft's origin branch with the current working directory.
 
 -G::
 --generate::
-  TODO
+  Add an AI-generated commit.
+  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is shared with the bot.
 
 -h::
 --help::
@@ -65,22 +74,25 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 --reset::
 --no-reset::
-  TODO
+  Controls behavior when staged changes are present at the start of a generate command.
+  If enabled, these changes are automatically reset and combined with other working directory changes.
+  Otherwise an error is raised.
 
 --root::
   Repository search root.
 
 -D::
 --show-drafts::
-  TODO
+  List recently created drafts.
 
 -P::
 --show-prompts::
-  TODO
+  Lists recently used prompts.
 
 -T::
 --show-templates::
-  TODO
+  Lists available templates.
+  With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
 
 -s::
 --sync::

@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 import dataclasses
 from datetime import datetime
+import enum
 import json
 import logging
 from pathlib import PurePosixPath
@@ -23,6 +24,15 @@ from .toolbox import StagingToolbox, ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
+
+
+class Accept(enum.Enum):
+    """Valid change accept mode"""
+
+    MANUAL = enum.auto()
+    CHECKOUT = enum.auto()
+    FINALIZE = enum.auto()
+    DELETE = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -76,12 +86,13 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
+        accept: Accept = Accept.MANUAL,
         bot_name: str | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
         sync: bool = False,
         timeout: float | None = None,
+        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> str:
         if timeout is not None:
             raise NotImplementedError()  # TODO: Implement
@@ -171,6 +182,12 @@ class Drafter:
             )
 
         _logger.info("Completed generation for %s.", branch)
+        # TODO: Handle the case of no change.
+
+        if accept >= Accept.CHECKOUT:
+            raise NotImplementedError()  # TODO: Implement
+        if accept >= Accept.FINALIZE:
+            self.finalize_draft(delete=accept==Accept.DELETE)
         return str(branch)
 
     def finalize_draft(self, *, delete: bool = False) -> str:
