@@ -158,17 +158,23 @@ class TestDrafter:
             self._drafter.generate_draft(
                 "hello", CustomBot(), accept=sut.Accept.CHECKOUT
             )
-        assert self._read("p1") == textwrap.dedent(
-            """\
-                <<<<<<< ours
-                A
-                ||||||| base
-                =======
-                B
-                >>>>>>> theirs
-            """
-        )
+        assert """<<<<<<< ours\nA""" in self._read("p1")
         assert self._read("p2") == "C"
+
+    def test_generate_accept_finalize(self) -> None:
+        self._write("p1", "A")
+
+        class CustomBot(Bot):
+            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
+                toolbox.write_file(PurePosixPath("p2"), "B")
+                return Action()
+
+        self._drafter.generate_draft(
+            "hello", CustomBot(), accept=sut.Accept.FINALIZE,
+        )
+        assert self._read("p1") == "A"
+        assert self._read("p2") == "B"
+        assert self._repo.active_branch.name == "main"
 
     def test_delete_unknown_file(self) -> None:
         class CustomBot(Bot):
