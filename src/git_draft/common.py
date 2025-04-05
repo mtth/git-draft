@@ -38,9 +38,10 @@ def ensure_state_home() -> Path:
 class Config:
     """Overall CLI configuration"""
 
-    log_level: int = logging.INFO
-    auto_reset: bool = True
     bots: Sequence[BotConfig] = dataclasses.field(default_factory=lambda: [])
+    log_level: int = logging.INFO
+    reset: bool = True
+    sync: bool = False
 
     @staticmethod
     def folder_path() -> Path:

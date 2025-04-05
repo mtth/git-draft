@@ -108,6 +108,12 @@ def new_parser() -> optparse.OptionParser:
         action="store_false",
     )
     parser.add_option(
+        "--no-sync",
+        help="do not create record intermediate worktree changes",
+        dest="sync",
+        action="store_false",
+    )
+    parser.add_option(
         "--reset",
         help="reset index before generating a new draft",
         dest="reset",
@@ -209,12 +215,15 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 bot_name=opts.bot,
                 prompt_transform=open_editor if editable else None,
                 tool_visitors=[ToolPrinter()],
-                reset=config.auto_reset if opts.reset is None else opts.reset,
-                sync=opts.sync,
+                reset=config.reset if opts.reset is None else opts.reset,
+                sync=config.sync if opts.sync is None else opts.sync,
             )
             print(f"Generated change in {name}.")
         case "finalize":
-            name = drafter.finalize_draft(delete=opts.delete)
+            name = drafter.finalize_draft(
+                delete=opts.delete,
+                sync=config.sync if opts.sync is None else opts.sync,
+            )
             print(f"Finalized {name}.")
         case "show-drafts":
             table = drafter.history_table(args[0] if args else None)

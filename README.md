@@ -23,15 +23,6 @@ pipx install git-draft[openai]
 
 * Mechanism for reporting feedback from a bot, and possibly allowing user to
   interactively respond.
-* Add configuration option to auto sync and `--no-sync` flag. Similar to reset.
-  Also rename both options to `sync` and `reset`, this will make it more natural
-  to support a similar config option for `accept`.
-* Add `--sync` `finalize` option which creates a additional commit when
-  finalizing if any changes were added to the bot's output. This could be useful
-  training data, showing what the bot did not get right.
-* Convenience `--accept` functionality for simple cases: checkout option which
-  applies the changes, and finalizes the draft if specified multiple times. For
-  example `git draft -aa add-test symbol=foo`
 * Support file rename tool.
   * https://stackoverflow.com/q/49853177/1062617
   * https://stackoverflow.com/q/6658313/1062617

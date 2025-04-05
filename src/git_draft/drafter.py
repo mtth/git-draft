@@ -164,7 +164,7 @@ class Drafter:
         if delta and accept.value >= Accept.CHECKOUT.value:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
-            self.finalize_draft(delete=accept == Accept.NO_REGRETS)
+            self.finalize_draft(delete=accept == Accept.NO_REGRETS, sync=sync)
         return str(branch)
 
     def _prepare_prompt(
@@ -212,10 +212,13 @@ class Drafter:
             commit.hexsha, timedelta(seconds=walltime), action, self._repo
         )
 
-    def finalize_draft(self, *, delete: bool = False) -> str:
+    def finalize_draft(
+        self, *, delete: bool = False, sync: bool = False
+    ) -> str:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
+        self._stage_repo(sync)
 
         with self._store.cursor() as cursor:
             rows = cursor.execute(
@@ -223,7 +226,7 @@ class Drafter:
             )
             if not rows:
                 raise RuntimeError("Unrecognized draft branch")
-            [(origin_branch, origin_sha, sync_sha)] = rows
+            [(origin_branch, origin_sha)] = rows
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
@@ -246,7 +249,7 @@ class Drafter:
         origin_sha = self._repo.commit().hexsha
 
         self._repo.git.checkout(detach=True)
-        sync_sha = self._stage_repo(sync)
+        self._stage_repo(sync)
         suffix = _Branch.new_suffix()
 
         with self._store.cursor() as cursor:
@@ -257,7 +260,6 @@ class Drafter:
                     "repo_path": self._repo.working_dir,
                     "origin_branch": origin_branch,
                     "origin_sha": origin_sha,
-                    "sync_sha": sync_sha,
                 },
             )
 
