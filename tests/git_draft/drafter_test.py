@@ -62,8 +62,8 @@ class TestDrafter:
     def _delete(self, name: str) -> None:
         os.remove(self._path(name))
 
-    def _commits(self) -> Sequence[git.Commit]:
-        return list(self._repo.iter_commits())
+    def _commits(self, ref: str | None = None) -> Sequence[git.Commit]:
+        return list(self._repo.iter_commits(rev=ref))
 
     def _commit_files(self, ref: str) -> frozenset[str]:
         text = self._repo.git.diff_tree(
@@ -200,13 +200,17 @@ class TestDrafter:
         assert self._read("PROMPT") == "hello"
 
     def test_finalize_and_sync(self) -> None:
-        self._write("p1.txt", "a1")
-        self._drafter.generate_draft("hello", _SimpleBot.prompt())
-        self._checkout()
-        self._write("p1.txt", "a2")
-        self._drafter.finalize_draft()
-        assert self._read("p1.txt") == "a2"
-        assert self._read("PROMPT") == "hello"
+        branch = self._drafter.generate_draft(
+            "hello",
+            _SimpleBot.prompt(),
+            accept=sut.Accept.CHECKOUT,
+        )
+        self._write("PROMPT", "a2")
+        self._drafter.finalize_draft(sync=True)
+        assert self._read("PROMPT") == "a2"
+        commits = self._commits(branch)
+        assert len(commits) == 3  # init, prompt, sync
+        assert "sync" in commits[0].message
 
     def test_history_table_empty(self) -> None:
         table = self._drafter.history_table()
