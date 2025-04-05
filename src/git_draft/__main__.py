@@ -71,12 +71,6 @@ def new_parser() -> optparse.OptionParser:
         help="bot name",
     )
     parser.add_option(
-        "-c",
-        "--clean",
-        help="remove deleted files from work directory",
-        action="store_true",
-    )
-    parser.add_option(
         "-d",
         "--delete",
         help="delete draft after finalizing or discarding",
@@ -92,12 +86,6 @@ def new_parser() -> optparse.OptionParser:
         "-j",
         "--json",
         help="use JSON for table output",
-        action="store_true",
-    )
-    parser.add_option(
-        "-r",
-        "--revert",
-        help="abandon any changes since draft creation",
         action="store_true",
     )
     parser.add_option(
@@ -218,11 +206,8 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         )
         print(f"Refined {name}.")
     elif command == "finalize":
-        name = drafter.exit_draft(
-            revert=opts.revert, clean=opts.clean, delete=opts.delete
-        )
-        verb = "Reverted" if opts.revert else "Finalized"
-        print(f"{verb} {name}.")
+        name = drafter.finalize_draft(delete=opts.delete)
+        print(f"Finalized {name}.")
     elif command == "show-drafts":
         table = drafter.history_table(args[0] if args else None)
         if table:
