@@ -70,11 +70,6 @@ class TestDrafter:
         self._drafter.generate_draft("hello", CustomBot())
         assert self._commit_files("HEAD") == set(["p2", "p3"])
 
-    def test_generate_then_revert_draft(self) -> None:
-        self._drafter.generate_draft("hello", FakeBot())
-        self._drafter.exit_draft(revert=True)
-        assert len(self._commits()) == 1
-
     def test_generate_outside_branch(self) -> None:
         self._repo.git.checkout("--detach")
         with pytest.raises(RuntimeError):
@@ -140,98 +135,12 @@ class TestDrafter:
 
         self._drafter.generate_draft("hello", CustomBot())
 
-    def test_sync_delete_revert(self) -> None:
-        self._write("p1", "a")
-        self._repo.git.add(all=True)
-        self._repo.index.commit("advance")
-        self._delete("p1")
-
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.write_file(PurePosixPath("p2"), "b")
-                return Action()
-
-        self._drafter.generate_draft("hello", CustomBot(), sync=True)
-        assert self._read("p1") is None
-
-        self._drafter.exit_draft(revert=True)
-        assert self._read("p1") is None
-
-    def test_generate_delete_finalize_clean(self) -> None:
-        self._write("p1", "a")
-        self._repo.git.add(all=True)
-        self._repo.index.commit("advance")
-
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.delete_file(PurePosixPath("p1"))
-                return Action()
-
-        self._drafter.generate_draft("hello", CustomBot())
-        assert self._read("p1") == "a"
-
-        self._drafter.exit_draft(revert=False, clean=True)
-        assert self._read("p1") is None
-
-    def test_revert_outside_draft(self) -> None:
-        with pytest.raises(RuntimeError):
-            self._drafter.exit_draft(revert=True)
-
-    def test_revert_after_branch_move(self) -> None:
-        self._write("log", "11")
-        self._drafter.generate_draft("hi", FakeBot(), sync=True)
-        branch = self._repo.active_branch
-        self._repo.git.checkout("main")
-        self._repo.index.commit("advance")
-        self._repo.git.checkout(branch)
-        with pytest.raises(RuntimeError):
-            self._drafter.exit_draft(revert=True)
-
-    def test_revert_restores_worktree(self) -> None:
-        self._write("p1.txt", "a1")
-        self._write("p2.txt", "b1")
-        self._drafter.generate_draft("hello", FakeBot(), sync=True)
-        self._write("p1.txt", "a2")
-        self._drafter.exit_draft(revert=True, delete=True)
-        assert self._read("p1.txt") == "a1"
-        assert self._read("p2.txt") == "b1"
-
-    def test_revert_discards_unused_files(self) -> None:
-        self._drafter.generate_draft("hello", FakeBot())
-        assert self._read("PROMPT") is None
-        self._drafter.exit_draft(revert=True)
-        assert self._read("PROMPT") is None
-
-    def test_revert_keeps_untouched_files(self) -> None:
-        class CustomBot(Bot):
-            def act(self, _goal: Goal, toolbox: Toolbox) -> Action:
-                toolbox.write_file(PurePosixPath("p2.txt"), "t2")
-                toolbox.write_file(PurePosixPath("p4.txt"), "t2")
-                return Action()
-
-        self._write("p1.txt", "t0")
-        self._write("p2.txt", "t0")
-        self._repo.git.add(all=True)
-        self._repo.index.commit("update")
-        self._write("p1.txt", "t1")
-        self._write("p2.txt", "t1")
-        self._write("p3.txt", "t1")
-        self._drafter.generate_draft("hello", CustomBot())
-        self._write("p1.txt", "t3")
-        self._write("p2.txt", "t3")
-        self._drafter.exit_draft(revert=True)
-
-        assert self._read("p1.txt") == "t3"
-        assert self._read("p2.txt") == "t0"
-        assert self._read("p3.txt") == "t1"
-        assert self._read("p4.txt") is None
-
     def test_finalize_keeps_changes(self) -> None:
         self._write("p1.txt", "a1")
         self._drafter.generate_draft("hello", FakeBot())
         self._checkout()
         self._write("p1.txt", "a2")
-        self._drafter.exit_draft(revert=False)
+        self._drafter.finalize_draft()
         assert self._read("p1.txt") == "a2"
         assert self._read("PROMPT") == "hello"
 
