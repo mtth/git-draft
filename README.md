@@ -23,5 +23,4 @@ pipx install git-draft[openai]
 
 * Mechanism for reporting feedback from a bot, and possibly allowing user to
   interactively respond.
-* Support file rename tool.
 * Add MCP bot.
