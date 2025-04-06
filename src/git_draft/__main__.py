@@ -67,7 +67,7 @@ def new_parser() -> optparse.OptionParser:
     parser.add_option(
         "-a",
         "--accept",
-        help="apply generated changes",
+        help="accept draft, may be repeated",
         action="count",
     )
     parser.add_option(
@@ -101,6 +101,13 @@ def new_parser() -> optparse.OptionParser:
         action="store_true",
     )
 
+    parser.add_option(
+        "--no-accept",
+        help="do not update worktree from draft",
+        dest="accept",
+        action="store_const",
+        const=0,
+    )
     parser.add_option(
         "--no-reset",
         help="abort if there are any staged changes",
