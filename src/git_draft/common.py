@@ -6,6 +6,7 @@ from collections.abc import Mapping, Sequence
 import dataclasses
 import itertools
 import logging
+import os
 from pathlib import Path
 import random
 import sqlite3
@@ -71,6 +72,11 @@ class BotConfig:
     name: str | None = None
     config: JSONObject | None = None
     pythonpath: str | None = None
+
+
+def config_string(arg: str) -> str:
+    """Dereferences environment value if the input starts with `$`"""
+    return os.environ[arg[1:]] if arg and arg.startswith("$") else arg
 
 
 _random = random.Random()

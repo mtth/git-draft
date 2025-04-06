@@ -1,6 +1,6 @@
 """OpenAI API-backed bots
 
-They can be used with services other than OpenAPI as long as them implement a
+They can be used with services other than OpenAI as long as them implement a
 sufficient subset of the API. For example the `completions_bot` only requires
 tools support.
 
@@ -15,13 +15,12 @@ See the following links for more resources:
 from collections.abc import Mapping, Sequence
 import json
 import logging
-import os
 from pathlib import PurePosixPath
 from typing import Any, Self, TypedDict, override
 
 import openai
 
-from ..common import JSONObject, reindent
+from ..common import JSONObject, config_string, reindent
 from .common import Action, Bot, Goal, Toolbox
 
 
@@ -37,10 +36,7 @@ def completions_bot(
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
     """Compatibility-mode bot, uses completions with function calling"""
-    if api_key and api_key.startswith("$"):
-        api_key = os.environ[api_key[1:]]
-    client = openai.OpenAI(api_key=api_key, base_url=base_url)
-    return _CompletionsBot(client, model)
+    return _CompletionsBot(_new_client(api_key, base_url), model)
 
 
 def threads_bot(
@@ -49,8 +45,14 @@ def threads_bot(
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
     """Beta bot, uses assistant threads with function calling"""
-    client = openai.OpenAI(api_key=api_key, base_url=base_url)
-    return _ThreadsBot.create(client, model)
+    return _ThreadsBot.create(_new_client(api_key, base_url), model)
+
+
+def _new_client(api_key: str | None, base_url: str | None) -> openai.OpenAI:
+    return openai.OpenAI(
+        api_key=config_string(api_key) if api_key else None,
+        base_url=base_url,
+    )
 
 
 class _ToolsFactory:
