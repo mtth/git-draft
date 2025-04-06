@@ -62,6 +62,16 @@ class TestConfig:
         assert config.log_level == logging.INFO
 
 
+class TestConfigString:
+    def test_literal(self) -> None:
+        assert sut.config_string("") == ""
+        assert sut.config_string("abc") == "abc"
+
+    def test_evar(self, monkeypatch) -> None:
+        monkeypatch.setenv("FOO", "111")
+        assert sut.config_string("$FOO") == "111"
+
+
 @pytest.mark.parametrize(
     "text,width,want",
     [
