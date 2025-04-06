@@ -37,6 +37,13 @@ class Accept(enum.Enum):
 
 
 @dataclasses.dataclass(frozen=True)
+class Draft:
+    """Collection of generated changes"""
+
+    branch_name: str
+
+
+@dataclasses.dataclass(frozen=True)
 class _Branch:
     """Draft branch"""
 
@@ -94,7 +101,7 @@ class Drafter:
         sync: bool = False,
         timeout: float | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
-    ) -> str:
+    ) -> Draft:
         if timeout is not None:
             raise NotImplementedError()  # TODO: Implement
 
@@ -165,7 +172,7 @@ class Drafter:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
             self.finalize_draft(delete=accept == Accept.NO_REGRETS, sync=sync)
-        return str(branch)
+        return Draft(str(branch))
 
     def _prepare_prompt(
         self,
@@ -214,7 +221,7 @@ class Drafter:
 
     def finalize_draft(
         self, *, delete: bool = False, sync: bool = False
-    ) -> str:
+    ) -> Draft:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -240,7 +247,7 @@ class Drafter:
             _logger.debug("Deleted branch %s.", branch)
 
         _logger.info("Exited %s.", branch)
-        return branch.name
+        return Draft(branch.name)
 
     def _create_branch(self, sync: bool) -> _Branch:
         if self._repo.head.is_detached:

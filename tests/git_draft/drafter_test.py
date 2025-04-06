@@ -200,7 +200,7 @@ class TestDrafter:
         assert self._read("PROMPT") == "hello"
 
     def test_finalize_and_sync(self) -> None:
-        branch = self._drafter.generate_draft(
+        draft = self._drafter.generate_draft(
             "hello",
             _SimpleBot.prompt(),
             accept=sut.Accept.CHECKOUT,
@@ -208,7 +208,7 @@ class TestDrafter:
         self._write("PROMPT", "a2")
         self._drafter.finalize_draft(sync=True)
         assert self._read("PROMPT") == "a2"
-        commits = self._commits(branch)
+        commits = self._commits(draft.branch_name)
         assert len(commits) == 3  # init, prompt, sync
         assert "sync" in commits[0].message
 

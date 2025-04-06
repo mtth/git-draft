@@ -215,7 +215,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = sys.stdin.read()
 
             accept = Accept(opts.accept or 0)
-            name = drafter.generate_draft(
+            draft = drafter.generate_draft(
                 prompt,
                 bot,
                 accept=accept,
@@ -225,13 +225,13 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 reset=config.reset if opts.reset is None else opts.reset,
                 sync=config.sync if opts.sync is None else opts.sync,
             )
-            print(f"Generated change in {name}.")
+            print(f"Generated change in {draft.branch_name}.")
         case "finalize":
-            name = drafter.finalize_draft(
+            draft = drafter.finalize_draft(
                 delete=opts.delete,
                 sync=config.sync if opts.sync is None else opts.sync,
             )
-            print(f"Finalized {name}.")
+            print(f"Finalized {draft.branch_name}.")
         case "show-drafts":
             table = drafter.history_table(args[0] if args else None)
             if table:
