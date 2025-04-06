@@ -3,8 +3,7 @@ create table if not exists branches (
   repo_path text not null,
   created_at timestamp default current_timestamp,
   origin_branch text not null,
-  origin_sha text not null,
-  sync_sha text
+  origin_sha text not null
 ) without rowid;
 
 create table if not exists prompts (

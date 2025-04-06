@@ -59,7 +59,7 @@ def new_parser() -> optparse.OptionParser:
         )
 
     add_command("finalize", help="apply current draft to original branch")
-    add_command("generate", help="start a new draft from a prompt")
+    add_command("generate", help="create or update draft from a prompt")
     add_command("show-drafts", short="D", help="show draft history")
     add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
@@ -67,7 +67,7 @@ def new_parser() -> optparse.OptionParser:
     parser.add_option(
         "-a",
         "--accept",
-        help="apply generated changes",
+        help="accept draft, may be repeated",
         action="count",
     )
     parser.add_option(
@@ -79,7 +79,7 @@ def new_parser() -> optparse.OptionParser:
     parser.add_option(
         "-d",
         "--delete",
-        help="delete draft after finalizing or discarding",
+        help="delete draft after finalizing",
         action="store_true",
     )
     parser.add_option(
@@ -102,9 +102,22 @@ def new_parser() -> optparse.OptionParser:
     )
 
     parser.add_option(
+        "--no-accept",
+        help="do not update worktree from draft",
+        dest="accept",
+        action="store_const",
+        const=0,
+    )
+    parser.add_option(
         "--no-reset",
         help="abort if there are any staged changes",
         dest="reset",
+        action="store_false",
+    )
+    parser.add_option(
+        "--no-sync",
+        help="do not commit intermediate worktree changes",
+        dest="sync",
         action="store_false",
     )
     parser.add_option(
@@ -209,12 +222,15 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 bot_name=opts.bot,
                 prompt_transform=open_editor if editable else None,
                 tool_visitors=[ToolPrinter()],
-                reset=config.auto_reset if opts.reset is None else opts.reset,
-                sync=opts.sync,
+                reset=config.reset if opts.reset is None else opts.reset,
+                sync=config.sync if opts.sync is None else opts.sync,
             )
             print(f"Generated change in {name}.")
         case "finalize":
-            name = drafter.finalize_draft(delete=opts.delete)
+            name = drafter.finalize_draft(
+                delete=opts.delete,
+                sync=config.sync if opts.sync is None else opts.sync,
+            )
             print(f"Finalized {name}.")
         case "show-drafts":
             table = drafter.history_table(args[0] if args else None)
