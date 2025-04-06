@@ -30,7 +30,7 @@ _logger = logging.getLogger(__name__)
 class Accept(enum.Enum):
     """Valid change accept mode"""
 
-    MANUAL = enum.auto()
+    MANUAL = 0
     CHECKOUT = enum.auto()
     FINALIZE = enum.auto()
     NO_REGRETS = enum.auto()
