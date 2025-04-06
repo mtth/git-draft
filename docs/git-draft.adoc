@@ -18,8 +18,8 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--generate] [--accept... | no-accept] [--bot BOT] [--edit]
-                    [--reset | --no-reset] [--sync | --no-sync]
+git draft [options] [--generate] [--accept... | --no-accept] [--bot BOT]
+                    [--edit] [--reset | --no-reset] [--sync | --no-sync]
                     [TEMPLATE [VARIABLE...]]
 git draft [options] --finalize [--delete] [--sync | --no-sync]
 git draft [options] --show-drafts [--json]
