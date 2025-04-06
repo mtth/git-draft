@@ -225,7 +225,15 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 reset=config.reset if opts.reset is None else opts.reset,
                 sync=config.sync if opts.sync is None else opts.sync,
             )
-            print(f"Generated change in {draft.branch_name}.")
+            match accept:
+                case Accept.MANUAL:
+                    print(f"Generated change in {draft.branch_name}.")
+                case Accept.CHECKOUT:
+                    print(f"Applied change in {draft.branch_name}.")
+                case Accept.FINALIZE | Accept.NO_REGRETS:
+                    print(f"Finalized change via {draft.branch_name}.")
+                case _:
+                    raise UnreachableError()
         case "finalize":
             draft = drafter.finalize_draft(
                 delete=opts.delete,
