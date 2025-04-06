@@ -156,6 +156,14 @@ class ToolPrinter(ToolVisitor):
     def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
         print(f"Deleted {path!r}.")
 
+    def on_rename_file(
+        self,
+        src_path: PurePosixPath,
+        dst_path: PurePosixPath,
+        _reason: str | None
+    ) -> None:
+        print(f"Renamed {src_path!r} to {dst_path!r}.")
+
 
 def edit(*, path: Path | None = None, text: str | None = None) -> str:
     if sys.stdin.isatty():

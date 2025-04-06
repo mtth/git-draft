@@ -388,6 +388,19 @@ class _OperationRecorder(ToolVisitor):
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
         self._record(reason, "delete_file", path=str(path))
 
+    def on_rename_file(
+        self,
+        src_path: PurePosixPath,
+        dst_path: PurePosixPath,
+        reason: str | None,
+    ) -> None:
+        self._record(
+            reason,
+            "rename_file",
+            src_path=str(src_path),
+            dst_path=str(dst_path),
+        )
+
     def _record(self, reason: str | None, tool: str, **kwargs) -> None:
         op = _Operation(
             tool=tool, details=kwargs, reason=reason, start=datetime.now()

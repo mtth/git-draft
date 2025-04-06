@@ -127,6 +127,20 @@ class _ToolsFactory:
                     },
                 },
             ),
+            self._param(
+                name="rename_file",
+                description="Rename a file",
+                inputs={
+                    "src_path": {
+                        "type": "string",
+                        "description": "Old file path",
+                    },
+                    "dst_path": {
+                        "type": "string",
+                        "description": "New file path",
+                    },
+                },
+            ),
         ]
 
 
@@ -159,29 +173,39 @@ class _ToolHandler[V]:
     def _on_delete_file(self, path: PurePosixPath) -> V:
         raise NotImplementedError()
 
+    def _on_rename_file(
+        self, src_path: PurePosixPath, dst_path: PurePosixPath
+    ) -> V:
+        raise NotImplementedError()
+
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
         raise NotImplementedError()
 
     def handle_function(self, function: Any) -> V:
-        name = function.name
         inputs = json.loads(function.arguments)
         _logger.info("Requested function: %s", function)
-        if name == "read_file":
-            path = PurePosixPath(inputs["path"])
-            return self._on_read_file(path, self._toolbox.read_file(path))
-        elif name == "write_file":
-            path = PurePosixPath(inputs["path"])
-            contents = inputs["contents"]
-            self._toolbox.write_file(path, contents)
-            return self._on_write_file(path)
-        elif name == "delete_file":
-            path = PurePosixPath(inputs["path"])
-            self._toolbox.delete_file(path)
-            return self._on_delete_file(path)
-        else:
-            assert name == "list_files" and not inputs
-            paths = self._toolbox.list_files()
-            return self._on_list_files(paths)
+        match function.name:
+            case "read_file":
+                path = PurePosixPath(inputs["path"])
+                return self._on_read_file(path, self._toolbox.read_file(path))
+            case "write_file":
+                path = PurePosixPath(inputs["path"])
+                contents = inputs["contents"]
+                self._toolbox.write_file(path, contents)
+                return self._on_write_file(path)
+            case "delete_file":
+                path = PurePosixPath(inputs["path"])
+                self._toolbox.delete_file(path)
+                return self._on_delete_file(path)
+            case "rename_file":
+                src_path = PurePosixPath(inputs["src_path"])
+                dst_path = PurePosixPath(inputs["dst_path"])
+                self._toolbox.rename_file(src_path, dst_path)
+                return self._on_rename_file(src_path, dst_path)
+            case _ as name:
+                assert name == "list_files" and not inputs
+                paths = self._toolbox.list_files()
+                return self._on_list_files(paths)
 
 
 class _CompletionsBot(Bot):
@@ -232,6 +256,11 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
         return None
 
     def _on_delete_file(self, _path: PurePosixPath) -> None:
+        return None
+
+    def _on_rename_file(
+        self, _src_path: PurePosixPath, _dst_path: PurePosixPath
+    ) -> None:
         return None
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> str:
@@ -358,6 +387,11 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
         return self._wrap("OK")
 
     def _on_delete_file(self, _path: PurePosixPath) -> _ToolOutput:
+        return self._wrap("OK")
+
+    def _on_rename_file(
+        self, _src_path: PurePosixPath, _dst_path: PurePosixPath
+    ) -> _ToolOutput:
         return self._wrap("OK")
 
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> _ToolOutput:

@@ -15,13 +15,13 @@ class TestStagingToolbox:
         assert self._toolbox.list_files() == []
         names = set(["one.txt", "two.txt"])
         for name in names:
-            with open(Path(repo.working_dir, name), "w") as f:
+            with Path(repo.working_dir, name).open("w") as f:
                 f.write("ok")
         repo.git.add(all=True)
         assert set(self._toolbox.list_files()) == names
 
     def test_read_file(self, repo: git.Repo) -> None:
-        with open(Path(repo.working_dir, "one"), "w") as f:
+        with Path(repo.working_dir, "one").open("w") as f:
             f.write("ok")
 
         path = PurePosixPath("one")
@@ -38,5 +38,14 @@ class TestStagingToolbox:
         assert not path.exists()
 
         repo.git.checkout_index(all=True)
-        with open(path) as f:
+        with path.open() as f:
+            assert f.read() == "hi"
+
+    def test_rename_file(self, repo: git.Repo) -> None:
+        self._toolbox.write_file(PurePosixPath("one"), "hi")
+        self._toolbox.rename_file(PurePosixPath("one"), PurePosixPath("two"))
+
+        repo.git.checkout_index(all=True)
+        assert not Path(repo.working_dir, "one").exists()
+        with Path(repo.working_dir, "two").open() as f:
             assert f.read() == "hi"

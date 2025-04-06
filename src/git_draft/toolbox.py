@@ -69,6 +69,15 @@ class Toolbox:
         self._dispatch(lambda v: v.on_delete_file(path, reason))
         return self._delete(path)
 
+    def rename_file(
+        self,
+        src_path: PurePosixPath,
+        dst_path: PurePosixPath,
+        reason: str | None = None,
+    ) -> None:
+        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path, reason))
+        self._rename(src_path, dst_path)
+
     def _list(self) -> Sequence[PurePosixPath]:  # pragma: no cover
         raise NotImplementedError()
 
@@ -82,6 +91,14 @@ class Toolbox:
 
     def _delete(self, path: PurePosixPath) -> bool:  # pragma: no cover
         raise NotImplementedError()
+
+    def _rename(
+        self, src_path: PurePosixPath, dst_path: PurePosixPath
+    ) -> None:
+        # We can provide a default implementation here.
+        contents = self._read(src_path)
+        self._write(dst_path, contents)
+        self._delete(src_path)
 
 
 class ToolVisitor(Protocol):
@@ -101,6 +118,13 @@ class ToolVisitor(Protocol):
 
     def on_delete_file(
         self, path: PurePosixPath, reason: str | None
+    ) -> None: ...  # pragma: no cover
+
+    def on_rename_file(
+        self,
+        src_path: PurePosixPath,
+        dst_path: PurePosixPath,
+        reason: str | None,
     ) -> None: ...  # pragma: no cover
 
 
