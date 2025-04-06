@@ -18,7 +18,9 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--generate] [--accept... | no-accept] [--bot BOT] [--edit] [--reset | --no-reset] [--sync | --no-sync] [TEMPLATE [VARIABLE...]]
+git draft [options] [--generate] [--accept... | no-accept] [--bot BOT] [--edit]
+                    [--reset | --no-reset] [--sync | --no-sync]
+                    [TEMPLATE [VARIABLE...]]
 git draft [options] --finalize [--delete] [--sync | --no-sync]
 git draft [options] --show-drafts [--json]
 git draft [options] --show-prompts [--json] [PROMPT]
@@ -96,6 +98,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 -s::
 --sync::
+--no-sync::
   Create a sync commit with any changes.
 
 -t TIMEOUT::
