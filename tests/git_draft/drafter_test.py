@@ -155,15 +155,17 @@ class TestDrafter:
     def test_generate_accept_checkout(self) -> None:
         self._write("p1", "A")
         self._write("p2", "B")
+        self._write("p4", "E")
         self._drafter.generate_draft(
             "hello",
-            _SimpleBot({"p1": "C", "p3": "D"}),
+            _SimpleBot({"p1": "C", "p3": "D", "p4": None}),
             accept=sut.Accept.CHECKOUT,
             sync=True,
         )
         assert self._read("p1") == "C"
         assert self._read("p2") == "B"
         assert self._read("p3") == "D"
+        assert self._read("p4") is None
 
     def test_generate_accept_checkout_conflict(self) -> None:
         self._write("p1", "A")
