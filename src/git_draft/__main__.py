@@ -146,15 +146,15 @@ class ToolPrinter(ToolVisitor):
     def on_read_file(
         self, path: PurePosixPath, _contents: str | None, _reason: str | None
     ) -> None:
-        print(f"Reading {path!r}...")
+        print(f"Reading {path}...")
 
     def on_write_file(
         self, path: PurePosixPath, _contents: str, _reason: str | None
     ) -> None:
-        print(f"Updated {path!r}.")
+        print(f"Wrote {path}.")
 
     def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
-        print(f"Deleted {path!r}.")
+        print(f"Deleted {path}.")
 
     def on_rename_file(
         self,
@@ -162,7 +162,7 @@ class ToolPrinter(ToolVisitor):
         dst_path: PurePosixPath,
         _reason: str | None
     ) -> None:
-        print(f"Renamed {src_path!r} to {dst_path!r}.")
+        print(f"Renamed {src_path} to {dst_path}.")
 
 
 def edit(*, path: Path | None = None, text: str | None = None) -> str:
@@ -219,6 +219,8 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
                 )
+                if not prompt or prompt == _PROMPT_PLACEHOLDER:
+                    raise ValueError("Aborting: empty or placeholder prompt")
             else:
                 prompt = sys.stdin.read()
 
