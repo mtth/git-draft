@@ -7,7 +7,7 @@ import pytest
 
 from git_draft.bots import Action, Bot, Goal, Toolbox
 import git_draft.drafter as sut
-from git_draft.git import Repo
+from git_draft.git import Commit, Repo
 from git_draft.prompt import TemplatedPrompt
 from git_draft.store import Store
 
@@ -62,17 +62,18 @@ class TestDrafter:
     def _delete(self, name: str) -> None:
         os.remove(self._path(name))
 
-    def _commits(self, ref: str | None = None) -> Sequence[git.Commit]:
-        return list(self._repo.iter_commits(rev=ref))
+    def _commits(self, ref: str | None = None) -> Sequence[Commit]:
+        git = self._repo.git("log", "--pretty=format:'%H'", ref or "HEAD")
+        return [Commit(i) for i in git.stdout.splitlines()]
 
     def _commit_files(self, ref: str) -> frozenset[str]:
-        text = self._repo.git.diff_tree(
-            ref, no_commit_id=True, name_only=True, relative=True
+        git = self._repo.git(
+            "diff-tree", ref, "--no-commit-id", "--name-only", "--relative"
         )
-        return frozenset(text.splitlines())
+        return frozenset(git.stdout.splitlines())
 
     def _checkout(self) -> None:
-        self._repo.git.checkout("--", ".")
+        self._repo.git("checkout", "--", ".")
 
     def test_generate_draft(self) -> None:
         self._drafter.generate_draft("hello", _SimpleBot({"p1": "A"}))
@@ -97,7 +98,7 @@ class TestDrafter:
         assert self._commit_files("HEAD") == set(["p2", "p3"])
 
     def test_generate_outside_branch(self) -> None:
-        self._repo.git.checkout("--detach")
+        self._repo.git("checkout", "--detach")
         with pytest.raises(RuntimeError):
             self._drafter.generate_draft("ok", _SimpleBot.noop())
 
@@ -107,24 +108,24 @@ class TestDrafter:
 
     def test_generate_dirty_index_no_reset(self) -> None:
         self._write("log")
-        self._repo.git.add(all=True)
+        self._repo.git("add", "--all")
         with pytest.raises(ValueError):
             self._drafter.generate_draft("hi", _SimpleBot.noop())
 
     def test_generate_dirty_index_reset_sync(self) -> None:
         self._write("log", "11")
-        self._repo.git.add(all=True)
+        self._repo.git("add", "--all")
         self._drafter.generate_draft("hi", _SimpleBot.prompt(), reset=True)
         assert self._read("log") == "11"
         assert not self._path("PROMPT").exists()
-        self._repo.git.checkout(".")
+        self._repo.git("checkout", ".")
         assert self._read("PROMPT") == "hi"
         assert len(self._commits()) == 3  # init, sync, prompt
 
     def test_generate_clean_index_sync(self) -> None:
         prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
         self._drafter.generate_draft(prompt, _SimpleBot({"p1": "abc"}))
-        self._repo.git.checkout(".")
+        self._repo.git("checkout", ".")
         assert "abc" in (self._read("p1") or "")
         assert len(self._commits()) == 2  # sync, prompt
 
@@ -132,7 +133,7 @@ class TestDrafter:
         bot = _SimpleBot({"prompt": lambda goal: goal.prompt})
         self._drafter.generate_draft("prompt1", bot)
         self._drafter.generate_draft("prompt2", bot)
-        self._repo.git.checkout(".")
+        self._repo.git("checkout", ".")
         assert self._read("prompt") == "prompt2"
         assert len(self._commits()) == 3  # init, prompt, prompt
 
@@ -182,7 +183,7 @@ class TestDrafter:
         )
         assert self._read("p1") == "A"
         assert self._read("p2") == "B"
-        assert self._repo.active_branch.name == "main"
+        assert self._repo.active_branch() == "main"
 
     def test_delete_unknown_file(self) -> None:
         self._drafter.generate_draft("hello", _SimpleBot({"p1": None}))
@@ -207,7 +208,12 @@ class TestDrafter:
         assert self._read("PROMPT") == "a2"
         commits = self._commits(draft.branch_name)
         assert len(commits) == 3  # init, prompt, sync
-        assert "sync" in commits[0].message
+        assert (
+            "sync"
+            in self._repo.git(
+                "log", "--format", "%B", "-n", "1", commits[-1].sha
+            ).stdout
+        )
 
     def test_history_table_empty(self) -> None:
         table = self._drafter.history_table()

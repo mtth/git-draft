@@ -9,9 +9,10 @@ from git_draft.git import Git, Repo
 @pytest.fixture
 def repo(tmp_path: Path) -> Iterator[Repo]:
     path = tmp_path / "repo"
-    Git.run("init", "-C", str(path), "-b", "main")
+    path.mkdir()
+    Git.run("-C", str(path), "init", "-b", "main")
     repo = Repo.enclosing(path)
-    repo.git("commit", "init")
+    repo.git("commit", "-m", "init", "--allow-empty")
     yield repo
 
 

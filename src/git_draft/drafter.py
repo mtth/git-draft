@@ -257,7 +257,7 @@ class Drafter:
                 sql("add-branch"),
                 {
                     "suffix": suffix,
-                    "repo_path": self._repo.working_dir,
+                    "repo_path": str(self._repo.working_dir),
                     "origin_branch": origin_branch,
                     "origin_sha": origin_sha,
                 },
@@ -300,7 +300,7 @@ class Drafter:
             result = cursor.execute(
                 sql("get-latest-prompt"),
                 {
-                    "repo_path": self._repo.working_dir,
+                    "repo_path": str(self._repo.working_dir),
                     "branch_suffix": branch.folio_id,
                 },
             ).fetchone()

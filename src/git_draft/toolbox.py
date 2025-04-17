@@ -165,7 +165,7 @@ class StagingToolbox(Toolbox):
             temp.close()
             sha = self._repo.git(
                 "hash-object", "-w", temp.name, "--path", str(path)
-            )
+            ).stdout
             mode = 644  # TODO: Read from original file if it exists.
             self._repo.git(
                 "update-index", f"{mode},{sha},{path}", "--add", "--cacheinfo"

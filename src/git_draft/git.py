@@ -27,7 +27,7 @@ class Repo:
 
     @classmethod
     def enclosing(cls, path: Path) -> Self:
-        git = Git.run("rev-parse", "-C", str(path), "--show-toplevel")
+        git = Git.run("-C", str(path), "rev-parse", "--show-toplevel")
         return cls(Path(git.stdout))
 
     def git(
@@ -38,9 +38,9 @@ class Repo:
         expect_codes: Sequence[int] = (0,),
     ) -> Git:
         return Git.run(
-            cmd,
             "-C",
             str(self.working_dir),
+            cmd,
             *args,
             stdin=stdin,
             expect_codes=expect_codes,
@@ -60,10 +60,10 @@ class Repo:
         sha = self.git("rev-parse", "HEAD").stdout
         return Commit(sha)
 
-    def create_commit(self, title: str, skip_hooks: bool = False) -> Commit:
-        args = ["commit", "-m", title]
+    def create_commit(self, message: str, skip_hooks: bool = False) -> Commit:
+        args = ["commit", "--allow-empty", "-m", message]
         if skip_hooks:
-            args.append("--skip-hooks")
+            args.append("--no-verify")
         self.git(*args)
         return self.head_commit()
 
@@ -95,7 +95,7 @@ class Git:
         code = popen.returncode
         if expect_codes and code not in expect_codes:
             raise GitError(f"Git command failed with code {code}: {stderr}")
-        return cls(code, stdout, stderr)
+        return cls(code, stdout.rstrip(), stderr.rstrip())
 
 
 class GitError(Exception):
