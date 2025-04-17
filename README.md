@@ -24,3 +24,6 @@ pipx install git-draft[openai]
 * Mechanism for reporting feedback from a bot, and possibly allowing user to
   interactively respond.
 * Add MCP bot.
+* Store configuration in `gitconfig` as `draft.*` entries. This can be used for
+  example to set a unique repo ID, and default bot to use per repo (or more
+  widely via shared `gitconfig` files).

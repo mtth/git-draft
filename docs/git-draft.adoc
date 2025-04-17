@@ -19,9 +19,8 @@ IMPORTANT: `git-draft` is WIP.
 
 [verse]
 git draft [options] [--generate] [--accept... | --no-accept] [--bot BOT]
-                    [--edit] [--reset | --no-reset] [--sync | --no-sync]
-                    [TEMPLATE [VARIABLE...]]
-git draft [options] --finalize [--delete] [--sync | --no-sync]
+                    [--edit] [--reset | --no-reset] [TEMPLATE [VARIABLE...]]
+git draft [options] --finalize [--delete]
 git draft [options] --show-drafts [--json]
 git draft [options] --show-prompts [--json] [PROMPT]
 git draft [options] --show-templates [--json | [--edit] TEMPLATE]
@@ -95,11 +94,6 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 --show-templates::
   Lists available templates.
   With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
-
--s::
---sync::
---no-sync::
-  Create a sync commit with any changes.
 
 -t TIMEOUT::
 --timeout=TIMEOUT::

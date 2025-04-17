@@ -8,17 +8,15 @@ from datetime import datetime, timedelta
 import enum
 import json
 import logging
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import re
 from re import Match
-import tempfile
 import textwrap
 import time
 
-import git
-
 from .bots import Action, Bot, Goal
 from .common import JSONObject, Table, qualified_class_name, random_id
+from .git import Commit, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
 from .toolbox import StagingToolbox, ToolVisitor
@@ -47,22 +45,23 @@ class Draft:
 class _Branch:
     """Draft branch"""
 
-    _pattern = re.compile(r"draft/(.+)")
+    _pattern = re.compile(r"drafts/(.+)")
 
-    suffix: str
+    folio_id: str
 
     @property
     def name(self) -> str:
-        return f"draft/{self.suffix}"
+        return f"drafts/{self.folio_id}"
 
     def __str__(self) -> str:
         return self.name
 
     @classmethod
-    def active(cls, repo: git.Repo, name: str | None = None) -> _Branch | None:
+    def active(cls, repo: Repo, name: str | None = None) -> _Branch | None:
         match: Match | None = None
-        if name or not repo.head.is_detached:
-            match = cls._pattern.fullmatch(name or repo.active_branch.name)
+        active_branch = name or repo.active_branch()
+        if active_branch:
+            match = cls._pattern.fullmatch(active_branch)
         if not match:
             if name:
                 raise ValueError(f"Not a valid draft branch name: {name!r}")
@@ -77,7 +76,7 @@ class _Branch:
 class Drafter:
     """Draft state orchestrator"""
 
-    def __init__(self, store: Store, repo: git.Repo) -> None:
+    def __init__(self, store: Store, repo: Repo) -> None:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
         self._store = store
@@ -85,10 +84,7 @@ class Drafter:
 
     @classmethod
     def create(cls, store: Store, path: str | None = None) -> Drafter:
-        try:
-            return cls(store, git.Repo(path, search_parent_directories=True))
-        except git.NoSuchPathError:
-            raise ValueError(f"No git repository at {path}")
+        return cls(store, Repo.enclosing(Path(path) if path else Path.cwd()))
 
     def generate_draft(  # noqa: PLR0913
         self,
@@ -98,25 +94,24 @@ class Drafter:
         bot_name: str | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         reset: bool = False,
-        sync: bool = False,
         timeout: float | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
         if timeout is not None:
             raise NotImplementedError()  # TODO: Implement
 
-        if self._repo.is_dirty(working_tree=False):
+        if self._repo.has_staged_changes():
             if not reset:
                 raise ValueError("Please commit or reset any staged changes")
-            self._repo.index.reset()
+            self._repo.git("reset")
 
         # Ensure that we are on a draft branch.
         branch = _Branch.active(self._repo)
         if branch:
-            self._stage_repo(sync)
+            self._stage_repo()
             _logger.debug("Reusing active branch %s.", branch)
         else:
-            branch = self._create_branch(sync)
+            branch = self._create_branch()
             _logger.debug("Created branch %s.", branch)
 
         # Handle prompt templating and editing.
@@ -125,7 +120,7 @@ class Drafter:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
                 {
-                    "branch_suffix": branch.suffix,
+                    "branch_suffix": branch.folio_id,
                     "template": prompt.template
                     if isinstance(prompt, TemplatedPrompt)
                     else None,
@@ -171,7 +166,7 @@ class Drafter:
         if delta and accept.value >= Accept.CHECKOUT.value:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
-            self.finalize_draft(delete=accept == Accept.NO_REGRETS, sync=sync)
+            self.finalize_draft(delete=accept == Accept.NO_REGRETS)
         return Draft(str(branch))
 
     def _prepare_prompt(
@@ -210,26 +205,24 @@ class Drafter:
         title = action.title
         if not title:
             title = _default_title(goal.prompt)
-        commit = self._repo.index.commit(
+        commit = self._repo.create_commit(
             f"draft! {title}\n\n{goal.prompt}",
             skip_hooks=True,
         )
 
         return _Change(
-            commit.hexsha, timedelta(seconds=walltime), action, self._repo
+            commit.sha, timedelta(seconds=walltime), action, self._repo
         )
 
-    def finalize_draft(
-        self, *, delete: bool = False, sync: bool = False
-    ) -> Draft:
+    def finalize_draft(self, *, delete: bool = False) -> Draft:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
-        self._stage_repo(sync)
+        self._stage_repo()
 
         with self._store.cursor() as cursor:
             rows = cursor.execute(
-                sql("get-branch-by-suffix"), {"suffix": branch.suffix}
+                sql("get-branch-by-suffix"), {"suffix": branch.folio_id}
             )
             if not rows:
                 raise RuntimeError("Unrecognized draft branch")
@@ -238,25 +231,25 @@ class Drafter:
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
         # the inspiration.
-        self._repo.git.checkout(detach=True)
-        self._repo.git.reset("-N", origin_branch)
-        self._repo.git.checkout(origin_branch)
+        self._repo.git("checkout", "--detach")
+        self._repo.git("reset", "-N", origin_branch)
+        self._repo.git("checkout", origin_branch)
 
         if delete:
-            self._repo.git.branch("-D", branch.name)
+            self._repo.git("branch", "-D", branch.name)
             _logger.debug("Deleted branch %s.", branch)
 
         _logger.info("Exited %s.", branch)
         return Draft(branch.name)
 
-    def _create_branch(self, sync: bool) -> _Branch:
-        if self._repo.head.is_detached:
+    def _create_branch(self) -> _Branch:
+        if self._repo.active_branch() is None:
             raise RuntimeError("No currently active branch")
-        origin_branch = self._repo.active_branch.name
-        origin_sha = self._repo.commit().hexsha
+        origin_branch = self._repo.active_branch()
+        origin_sha = self._repo.head_commit().sha
 
-        self._repo.git.checkout(detach=True)
-        self._stage_repo(sync)
+        self._repo.git("checkout", "--detach")
+        self._stage_repo()
         suffix = _Branch.new_suffix()
 
         with self._store.cursor() as cursor:
@@ -264,23 +257,21 @@ class Drafter:
                 sql("add-branch"),
                 {
                     "suffix": suffix,
-                    "repo_path": self._repo.working_dir,
+                    "repo_path": str(self._repo.working_dir),
                     "origin_branch": origin_branch,
                     "origin_sha": origin_sha,
                 },
             )
 
         branch = _Branch(suffix)
-        branch_ref = self._repo.create_head(branch.name)
-        self._repo.git.checkout(branch_ref)
+        self._repo.checkout_new_branch(branch.name)
         return branch
 
-    def _stage_repo(self, sync: bool) -> str | None:
-        self._repo.git.add(all=True)
-        if not sync or not self._repo.is_dirty(untracked_files=True):
+    def _stage_repo(self) -> Commit | None:
+        self._repo.git("add", "--all")
+        if not self._repo.has_staged_changes():
             return None
-        ref = self._repo.index.commit("draft! sync")
-        return ref.hexsha
+        return self._repo.create_commit("draft! sync")
 
     def history_table(self, branch_name: str | None = None) -> Table:
         path = self._repo.working_dir
@@ -290,13 +281,13 @@ class Drafter:
                 results = cursor.execute(
                     sql("list-prompts"),
                     {
-                        "repo_path": path,
-                        "branch_suffix": branch.suffix,
+                        "repo_path": str(path),
+                        "branch_suffix": branch.folio_id,
                     },
                 )
             else:
                 results = cursor.execute(
-                    sql("list-drafts"), {"repo_path": path}
+                    sql("list-drafts"), {"repo_path": str(path)}
                 )
             return Table.from_cursor(results)
 
@@ -309,8 +300,8 @@ class Drafter:
             result = cursor.execute(
                 sql("get-latest-prompt"),
                 {
-                    "repo_path": self._repo.working_dir,
-                    "branch_suffix": branch.suffix,
+                    "repo_path": str(self._repo.working_dir),
+                    "branch_suffix": branch.folio_id,
                 },
             ).fetchone()
             return result[0] if result else None
@@ -326,10 +317,10 @@ class _Change:
     commit: _CommitSHA
     walltime: timedelta
     action: Action
-    repo: git.Repo = dataclasses.field(repr=False)
+    repo: Repo = dataclasses.field(repr=False)
 
     def delta(self) -> _Delta | None:
-        diff = self.repo.git.diff_tree(self.commit, patch=True)
+        diff = self.repo.git("diff-tree", "--patch", self.commit).stdout
         return _Delta(diff, self.repo) if diff else None
 
 
@@ -338,23 +329,20 @@ class _Delta:
     """A change's effects, guaranteed non-empty"""
 
     diff: str
-    repo: git.Repo = dataclasses.field(repr=False)
+    repo: Repo = dataclasses.field(repr=False)
 
     def apply(self) -> None:
         # For patch applcation to work as expected (adding conflict markers as
         # needed), files in the patch must exist in the index.
-        self.repo.git.add(all=True)
-        with tempfile.TemporaryFile() as temp:
-            temp.write(self.diff.encode("utf8"))
-            temp.seek(0)
-            try:
-                self.repo.git.apply("--3way", "-", istream=temp)
-            except git.CommandError as exc:
-                if "with conflicts" in exc.stderr:
-                    raise ConflictError()
-                raise exc
-            finally:
-                self.repo.git.reset()
+        self.repo.git("add", "--all")
+        git = self.repo.git(
+            "apply", "--3way", "-", stdin=self.diff, expect_codes=()
+        )
+        if "with conflicts" in git.stderr:
+            raise ConflictError()
+        if git.code != 0:
+            raise NotImplementedError()  # TODO: Raise better error
+        self.repo.git("reset")
 
 
 class ConflictError(Exception):

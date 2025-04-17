@@ -1,14 +1,18 @@
 from collections.abc import Iterator
 from pathlib import Path
 
-import git
 import pytest
+
+from git_draft.git import Git, Repo
 
 
 @pytest.fixture
-def repo(tmp_path: Path) -> Iterator[git.Repo]:
-    repo = git.Repo.init(str(tmp_path / "repo"), initial_branch="main")
-    repo.index.commit("init")
+def repo(tmp_path: Path) -> Iterator[Repo]:
+    path = tmp_path / "repo"
+    path.mkdir()
+    Git.run("-C", str(path), "init", "-b", "main")
+    repo = Repo.enclosing(path)
+    repo.git("commit", "-m", "init", "--allow-empty")
     yield repo
 
 
