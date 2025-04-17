@@ -194,7 +194,7 @@ class TestDrafter:
         self._drafter.generate_draft("hello", _SimpleBot.prompt())
         self._checkout()
         self._write("p1.txt", "a2")
-        self._drafter.finalize_draft()
+        self._drafter.finalize_folio()
         assert self._read("p1.txt") == "a2"
         assert self._read("PROMPT") == "hello"
 
@@ -205,9 +205,9 @@ class TestDrafter:
             accept=sut.Accept.CHECKOUT,
         )
         self._write("PROMPT", "a2")
-        self._drafter.finalize_draft()
+        self._drafter.finalize_folio()
         assert self._read("PROMPT") == "a2"
-        commits = self._commits(draft.branch_name)
+        commits = self._commits(draft.ref)
         assert len(commits) == 3  # init, prompt, sync
         assert (
             "sync"

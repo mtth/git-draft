@@ -77,12 +77,6 @@ def new_parser() -> optparse.OptionParser:
         help="bot name",
     )
     parser.add_option(
-        "-d",
-        "--delete",
-        help="delete draft after finalizing",
-        action="store_true",
-    )
-    parser.add_option(
         "-e",
         "--edit",
         help="edit prompt or template",
@@ -232,7 +226,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 case _:
                     raise UnreachableError()
         case "finalize":
-            draft = drafter.finalize_draft(delete=opts.delete)
+            draft = drafter.finalize_folio()
             print(f"Finalized {draft.branch_name}.")
         case "show-drafts":
             table = drafter.history_table(args[0] if args else None)

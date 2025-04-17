@@ -31,25 +31,40 @@ class Accept(enum.Enum):
     MANUAL = 0
     CHECKOUT = enum.auto()
     FINALIZE = enum.auto()
-    NO_REGRETS = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
 class Draft:
-    """Collection of generated changes"""
+    """Generated changes"""
 
     folio_id: int
+    seqno: int
 
     @property
-    def branch_name(self) -> str:
+    def branch(self) -> str:
         return _Branch(self.folio_id).name
+
+    @property
+    def ref(self) -> str:
+        return _draft_ref(self.folio_id, self.seqno)
+
+
+def _draft_ref(folio_id: int, seqno: int) -> str:
+    return f"refs/drafts/{folio_id}/{seqno}"
+
+
+@dataclasses.dataclass(frozen=True)
+class Folio:
+    """Collection of drafts"""
+
+    id: int
 
 
 @dataclasses.dataclass(frozen=True)
 class _Branch:
     """Draft branch"""
 
-    _PREFIX = "drafts"
+    _PREFIX = "drafts/"
     _pattern = re.compile(_PREFIX + r"(\d+)")
 
     folio_id: int
@@ -119,7 +134,7 @@ class Drafter:
         # Handle prompt templating and editing.
         prompt_contents = self._prepare_prompt(prompt, prompt_transform)
         with self._store.cursor() as cursor:
-            [(prompt_id,)] = cursor.execute(
+            [(prompt_id, seqno)] = cursor.execute(
                 sql("add-prompt"),
                 {
                     "folio_id": branch.folio_id,
@@ -136,6 +151,8 @@ class Drafter:
             Goal(prompt_contents, timeout),
             [operation_recorder, *list(tool_visitors or [])],
         )
+        change.add_ref(branch.folio_id, seqno)
+
         with self._store.cursor() as cursor:
             cursor.execute(
                 sql("add-action"),
@@ -168,8 +185,8 @@ class Drafter:
         if delta and accept.value >= Accept.CHECKOUT.value:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
-            self.finalize_draft(delete=accept == Accept.NO_REGRETS)
-        return Draft(branch.folio_id)
+            self.finalize_folio()
+        return Draft(branch.folio_id, seqno)
 
     def _prepare_prompt(
         self,
@@ -216,7 +233,7 @@ class Drafter:
             commit.sha, timedelta(seconds=walltime), action, self._repo
         )
 
-    def finalize_draft(self, *, delete: bool = False) -> Draft:
+    def finalize_folio(self) -> Folio:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
@@ -228,10 +245,7 @@ class Drafter:
             )
             if not rows:
                 raise RuntimeError("Unrecognized draft branch")
-            [(repo_uuid, origin_branch, origin_sha)] = rows
-
-        if repo_uuid != str(self._repo.uuid):
-            raise RuntimeError("Inconsistent repository")
+            [(origin_branch, origin_sha)] = rows
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
@@ -239,13 +253,10 @@ class Drafter:
         self._repo.git("checkout", "--detach")
         self._repo.git("reset", "-N", origin_branch)
         self._repo.git("checkout", origin_branch)
-
-        if delete:
-            self._repo.git("branch", "-D", branch.name)
-            _logger.debug("Deleted branch %s.", branch)
+        self._repo.git("branch", "-D", branch.name)
 
         _logger.info("Exited %s.", branch)
-        return Draft(branch.folio_id)
+        return Folio(branch.folio_id)
 
     def _create_branch(self) -> _Branch:
         if self._repo.active_branch() is None:
@@ -321,6 +332,13 @@ class _Change:
     action: Action
     repo: Repo = dataclasses.field(repr=False)
 
+    def add_ref(self, folio_id: int, seqno: int) -> None:
+        self.repo.git(
+            "update-ref",
+            _draft_ref(folio_id, seqno),
+            self.commit,
+        )
+
     def delta(self) -> _Delta | None:
         diff = self.repo.git("diff-tree", "--patch", self.commit).stdout
         return _Delta(diff, self.repo) if diff else None
@@ -337,12 +355,12 @@ class _Delta:
         # For patch applcation to work as expected (adding conflict markers as
         # needed), files in the patch must exist in the index.
         self.repo.git("add", "--all")
-        git = self.repo.git(
+        call = self.repo.git(
             "apply", "--3way", "-", stdin=self.diff, expect_codes=()
         )
-        if "with conflicts" in git.stderr:
+        if "with conflicts" in call.stderr:
             raise ConflictError()
-        if git.code != 0:
+        if call.code != 0:
             raise NotImplementedError()  # TODO: Raise better error
         self.repo.git("reset")
 

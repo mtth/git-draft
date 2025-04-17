@@ -69,8 +69,8 @@ class Repo:
         self.git("checkout", "-b", name)
 
     def has_staged_changes(self) -> bool:
-        git = self.git("diff", "--quiet", "--staged", expect_codes=())
-        return git.code != 0
+        call = self.git("diff", "--quiet", "--staged", expect_codes=())
+        return call.code != 0
 
     def head_commit(self) -> Commit:
         sha = self.git("rev-parse", "HEAD").stdout

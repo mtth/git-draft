@@ -10,12 +10,15 @@ create index if not exists folios_by_repo on folios (repo_uuid);
 
 create table if not exists prompts (
   id integer primary key,
-  created_at timestamp default current_timestamp,
   folio_id integer not null,
+  seqno integer not null,
+  created_at timestamp default current_timestamp,
   template text,
   contents text not null,
   foreign key (folio_id) references folios(id)
 );
+
+create unique index if not exists prompts_by_folio_seqno on prompts (folio_id, seqno);
 
 create table if not exists actions (
   commit_sha text primary key,

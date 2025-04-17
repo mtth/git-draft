@@ -20,7 +20,7 @@ IMPORTANT: `git-draft` is WIP.
 [verse]
 git draft [options] [--generate] [--accept... | --no-accept] [--bot BOT]
                     [--edit] [--reset | --no-reset] [TEMPLATE [VARIABLE...]]
-git draft [options] --finalize [--delete]
+git draft [options] --finalize
 git draft [options] --show-drafts [--json]
 git draft [options] --show-prompts [--json] [PROMPT]
 git draft [options] --show-templates [--json | [--edit] TEMPLATE]
@@ -43,10 +43,6 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 -b BOT::
 --bot=BOT::
   Bot name.
-
--d::
---delete::
-  Delete finalized branch.
 
 -e::
 --edit::
