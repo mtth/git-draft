@@ -4,10 +4,12 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import dataclasses
+import enum
 import logging
 from pathlib import Path
 import subprocess
 from typing import Self
+import uuid
 
 
 _logger = logging.getLogger(__name__)
@@ -23,16 +25,27 @@ class Commit:
         return self.sha
 
 
+class _ConfigKey(enum.StrEnum):
+    REPO_UUID = "repouuid"
+
+    @property
+    def fullname(self) -> str:
+        return f"draft.{self.value}"
+
+
 class Repo:
     """Git repository"""
 
-    def __init__(self, working_dir: Path) -> None:
+    def __init__(self, working_dir: Path, uuid: uuid.UUID) -> None:
         self.working_dir = working_dir
+        self.uuid = uuid
 
     @classmethod
     def enclosing(cls, path: Path) -> Self:
-        git = Git.run("-C", str(path), "rev-parse", "--show-toplevel")
-        return cls(Path(git.stdout))
+        call = GitCall.sync("rev-parse", "--show-toplevel", working_dir=path)
+        working_dir = Path(call.stdout)
+        uuid = _ensure_repo_uuid(working_dir)
+        return cls(working_dir, uuid)
 
     def git(
         self,
@@ -40,14 +53,13 @@ class Repo:
         *args: str,
         stdin: str | None = None,
         expect_codes: Sequence[int] = (0,),
-    ) -> Git:
-        return Git.run(
-            "-C",
-            str(self.working_dir),
+    ) -> GitCall:
+        return GitCall.sync(
             cmd,
             *args,
             stdin=stdin,
             expect_codes=expect_codes,
+            working_dir=self.working_dir,
         )
 
     def active_branch(self) -> str | None:
@@ -72,8 +84,29 @@ class Repo:
         return self.head_commit()
 
 
+def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
+    call = GitCall.sync(
+        "config",
+        "get",
+        _ConfigKey.REPO_UUID.fullname,
+        working_dir=working_dir,
+        expect_codes=(),
+    )
+    if call.code == 0:
+        return uuid.UUID(call.stdout)
+    repo_uuid = uuid.uuid4()
+    GitCall.sync(
+        "config",
+        "set",
+        _ConfigKey.REPO_UUID.fullname,
+        str(repo_uuid),
+        working_dir=working_dir,
+    )
+    return repo_uuid
+
+
 @dataclasses.dataclass(frozen=True)
-class Git:
+class GitCall:
     """Git command execution result"""
 
     code: int
@@ -81,20 +114,25 @@ class Git:
     stderr: str
 
     @classmethod
-    def run(
+    def sync(
         cls,
         *args: str,
         stdin: str | None = None,
         executable: str = "git",
         expect_codes: Sequence[int] = (0,),
+        working_dir: Path | None = None,
     ) -> Self:
-        _logger.debug("Running git command. [args=%r]", args)
+        """Run a git command synchronously"""
+        _logger.debug(
+            "Running git command. [args=%r, cwd=%r]", args, working_dir
+        )
         popen = subprocess.Popen(
             [executable, *args],
             encoding="utf8",
             stdin=None if stdin is None else subprocess.PIPE,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
+            cwd=working_dir,
         )
         stdout, stderr = popen.communicate(input=stdin)
         code = popen.returncode

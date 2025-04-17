@@ -15,7 +15,7 @@ import textwrap
 import time
 
 from .bots import Action, Bot, Goal
-from .common import JSONObject, Table, qualified_class_name, random_id
+from .common import JSONObject, Table, qualified_class_name
 from .git import Commit, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -38,20 +38,25 @@ class Accept(enum.Enum):
 class Draft:
     """Collection of generated changes"""
 
-    branch_name: str
+    folio_id: int
+
+    @property
+    def branch_name(self) -> str:
+        return _Branch(self.folio_id).name
 
 
 @dataclasses.dataclass(frozen=True)
 class _Branch:
     """Draft branch"""
 
-    _pattern = re.compile(r"drafts/(.+)")
+    _PREFIX = "drafts"
+    _pattern = re.compile(_PREFIX + r"(\d+)")
 
-    folio_id: str
+    folio_id: int
 
     @property
     def name(self) -> str:
-        return f"drafts/{self.folio_id}"
+        return f"{self._PREFIX}{self.folio_id}"
 
     def __str__(self) -> str:
         return self.name
@@ -64,13 +69,9 @@ class _Branch:
             match = cls._pattern.fullmatch(active_branch)
         if not match:
             if name:
-                raise ValueError(f"Not a valid draft branch name: {name!r}")
+                raise ValueError(f"Not a valid draft branch: {name!r}")
             return None
-        return _Branch(match[1])
-
-    @staticmethod
-    def new_suffix() -> str:
-        return random_id(9)
+        return _Branch(int(match[1]))
 
 
 class Drafter:
@@ -84,7 +85,8 @@ class Drafter:
 
     @classmethod
     def create(cls, store: Store, path: str | None = None) -> Drafter:
-        return cls(store, Repo.enclosing(Path(path) if path else Path.cwd()))
+        repo = Repo.enclosing(Path(path) if path else Path.cwd())
+        return cls(store, repo)
 
     def generate_draft(  # noqa: PLR0913
         self,
@@ -120,7 +122,7 @@ class Drafter:
             [(prompt_id,)] = cursor.execute(
                 sql("add-prompt"),
                 {
-                    "branch_suffix": branch.folio_id,
+                    "folio_id": branch.folio_id,
                     "template": prompt.template
                     if isinstance(prompt, TemplatedPrompt)
                     else None,
@@ -167,7 +169,7 @@ class Drafter:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
             self.finalize_draft(delete=accept == Accept.NO_REGRETS)
-        return Draft(str(branch))
+        return Draft(branch.folio_id)
 
     def _prepare_prompt(
         self,
@@ -222,11 +224,14 @@ class Drafter:
 
         with self._store.cursor() as cursor:
             rows = cursor.execute(
-                sql("get-branch-by-suffix"), {"suffix": branch.folio_id}
+                sql("get-folio-by-id"), {"id": branch.folio_id}
             )
             if not rows:
                 raise RuntimeError("Unrecognized draft branch")
-            [(origin_branch, origin_sha)] = rows
+            [(repo_uuid, origin_branch, origin_sha)] = rows
+
+        if repo_uuid != str(self._repo.uuid):
+            raise RuntimeError("Inconsistent repository")
 
         # We do a small dance to move back to the original branch, keeping the
         # draft branch untouched. See https://stackoverflow.com/a/15993574 for
@@ -240,7 +245,7 @@ class Drafter:
             _logger.debug("Deleted branch %s.", branch)
 
         _logger.info("Exited %s.", branch)
-        return Draft(branch.name)
+        return Draft(branch.folio_id)
 
     def _create_branch(self) -> _Branch:
         if self._repo.active_branch() is None:
@@ -248,22 +253,19 @@ class Drafter:
         origin_branch = self._repo.active_branch()
         origin_sha = self._repo.head_commit().sha
 
-        self._repo.git("checkout", "--detach")
-        self._stage_repo()
-        suffix = _Branch.new_suffix()
-
         with self._store.cursor() as cursor:
-            cursor.execute(
-                sql("add-branch"),
+            [(folio_id,)] = cursor.execute(
+                sql("add-folio"),
                 {
-                    "suffix": suffix,
-                    "repo_path": str(self._repo.working_dir),
+                    "repo_uuid": str(self._repo.uuid),
                     "origin_branch": origin_branch,
                     "origin_sha": origin_sha,
                 },
             )
 
-        branch = _Branch(suffix)
+        self._repo.git("checkout", "--detach")
+        self._stage_repo()
+        branch = _Branch(folio_id)
         self._repo.checkout_new_branch(branch.name)
         return branch
 
@@ -274,20 +276,20 @@ class Drafter:
         return self._repo.create_commit("draft! sync")
 
     def history_table(self, branch_name: str | None = None) -> Table:
-        path = self._repo.working_dir
+        repo_uuid = self._repo.uuid
         branch = _Branch.active(self._repo, branch_name)
         with self._store.cursor() as cursor:
             if branch:
                 results = cursor.execute(
-                    sql("list-prompts"),
+                    sql("list-folio-prompts"),
                     {
-                        "repo_path": str(path),
-                        "branch_suffix": branch.folio_id,
+                        "repo_uuid": str(repo_uuid),
+                        "folio_id": branch.folio_id,
                     },
                 )
             else:
                 results = cursor.execute(
-                    sql("list-drafts"), {"repo_path": str(path)}
+                    sql("list-folios"), {"repo_uuid": str(repo_uuid)}
                 )
             return Table.from_cursor(results)
 
@@ -298,10 +300,10 @@ class Drafter:
             return None
         with self._store.cursor() as cursor:
             result = cursor.execute(
-                sql("get-latest-prompt"),
+                sql("get-latest-folio-prompt"),
                 {
-                    "repo_path": str(self._repo.working_dir),
-                    "branch_suffix": branch.folio_id,
+                    "repo_uuid": str(self._repo.uuid),
+                    "folio_id": branch.folio_id,
                 },
             ).fetchone()
             return result[0] if result else None

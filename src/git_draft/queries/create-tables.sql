@@ -1,18 +1,20 @@
-create table if not exists branches (
-  suffix text primary key,
-  repo_path text not null,
+create table if not exists folios (
+  id integer primary key,
+  repo_uuid text not null,
   created_at timestamp default current_timestamp,
   origin_branch text not null,
   origin_sha text not null
-) without rowid;
+);
+
+create index if not exists folios_by_repo on folios (repo_uuid);
 
 create table if not exists prompts (
   id integer primary key,
   created_at timestamp default current_timestamp,
-  branch_suffix text not null,
+  folio_id integer not null,
   template text,
   contents text not null,
-  foreign key (branch_suffix) references branches(suffix)
+  foreign key (folio_id) references folios(id)
 );
 
 create table if not exists actions (
@@ -24,7 +26,7 @@ create table if not exists actions (
   walltime_seconds real not null,
   request_count int,
   token_count int,
-  foreign key (prompt_id) references prompts(id) on delete cascade
+  foreign key (prompt_id) references prompts (id) on delete cascade
 ) without rowid;
 
 create table if not exists operations (
@@ -34,5 +36,5 @@ create table if not exists operations (
   reason text,
   details text not null,
   started_at timestamp not null,
-  foreign key (action_commit_sha) references actions(commit_sha) on delete cascade
+  foreign key (action_commit_sha) references actions (commit_sha) on delete cascade
 );

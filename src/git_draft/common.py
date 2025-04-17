@@ -8,9 +8,7 @@ import itertools
 import logging
 import os
 from pathlib import Path
-import random
 import sqlite3
-import string
 import textwrap
 import tomllib
 from typing import Any, ClassVar, Self
@@ -87,15 +85,6 @@ class RepoConfig:  # TODO: Use
 def config_string(arg: str) -> str:
     """Dereferences environment value if the input starts with `$`"""
     return os.environ[arg[1:]] if arg and arg.startswith("$") else arg
-
-
-_random = random.Random()
-_alphabet = string.ascii_lowercase + string.digits
-
-
-def random_id(n: int) -> str:
-    """Generates a random length n string of lowercase letters and digits"""
-    return "".join(_random.choices(_alphabet, k=n))
 
 
 class UnreachableError(RuntimeError):
