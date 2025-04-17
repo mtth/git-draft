@@ -42,7 +42,6 @@ class Config:
     bots: Sequence[BotConfig] = dataclasses.field(default_factory=lambda: [])
     log_level: int = logging.INFO
     reset: bool = True
-    sync: bool = False
 
     @staticmethod
     def folder_path() -> Path:
@@ -72,6 +71,17 @@ class BotConfig:
     name: str | None = None
     config: JSONObject | None = None
     pythonpath: str | None = None
+
+
+type RepoID = str
+
+
+@dataclasses.dataclass(frozen=True)
+class RepoConfig:  # TODO: Use
+    """Repository-specific config"""
+
+    repo_id: str
+    bot_name: str | None = None
 
 
 def config_string(arg: str) -> str:

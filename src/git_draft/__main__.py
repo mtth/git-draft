@@ -94,12 +94,6 @@ def new_parser() -> optparse.OptionParser:
         help="use JSON for table output",
         action="store_true",
     )
-    parser.add_option(
-        "-s",
-        "--sync",
-        help="commit prior worktree changes separately",
-        action="store_true",
-    )
 
     parser.add_option(
         "--no-accept",
@@ -112,12 +106,6 @@ def new_parser() -> optparse.OptionParser:
         "--no-reset",
         help="abort if there are any staged changes",
         dest="reset",
-        action="store_false",
-    )
-    parser.add_option(
-        "--no-sync",
-        help="do not commit intermediate worktree changes",
-        dest="sync",
         action="store_false",
     )
     parser.add_option(
@@ -160,7 +148,7 @@ class ToolPrinter(ToolVisitor):
         self,
         src_path: PurePosixPath,
         dst_path: PurePosixPath,
-        _reason: str | None
+        _reason: str | None,
     ) -> None:
         print(f"Renamed {src_path} to {dst_path}.")
 
@@ -233,7 +221,6 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt_transform=open_editor if editable else None,
                 tool_visitors=[ToolPrinter()],
                 reset=config.reset if opts.reset is None else opts.reset,
-                sync=config.sync if opts.sync is None else opts.sync,
             )
             match accept:
                 case Accept.MANUAL:
@@ -245,10 +232,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 case _:
                     raise UnreachableError()
         case "finalize":
-            draft = drafter.finalize_draft(
-                delete=opts.delete,
-                sync=config.sync if opts.sync is None else opts.sync,
-            )
+            draft = drafter.finalize_draft(delete=opts.delete)
             print(f"Finalized {draft.branch_name}.")
         case "show-drafts":
             table = drafter.history_table(args[0] if args else None)

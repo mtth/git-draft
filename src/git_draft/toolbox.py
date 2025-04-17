@@ -8,7 +8,7 @@ from pathlib import PurePosixPath
 import tempfile
 from typing import Protocol, override
 
-import git
+from .git import GitError, Repo
 
 
 _logger = logging.getLogger(__name__)
@@ -136,7 +136,7 @@ class StagingToolbox(Toolbox):
     """
 
     def __init__(
-        self, repo: git.Repo, visitors: Sequence[ToolVisitor] | None = None
+        self, repo: Repo, visitors: Sequence[ToolVisitor] | None = None
     ) -> None:
         super().__init__(visitors)
         self._repo = repo
@@ -145,12 +145,15 @@ class StagingToolbox(Toolbox):
     @override
     def _list(self) -> Sequence[PurePosixPath]:
         # Show staged files.
-        return self._repo.git.ls_files().splitlines()
+        return [
+            PurePosixPath(p)
+            for p in self._repo.git("ls-files").stdout.splitlines()
+        ]
 
     @override
     def _read(self, path: PurePosixPath) -> str:
         # Read the file from the index.
-        return self._repo.git.show(f":{path}")
+        return self._repo.git("show", f":{path}").stdout
 
     @override
     def _write(self, path: PurePosixPath, contents: str) -> None:
@@ -160,17 +163,19 @@ class StagingToolbox(Toolbox):
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
             temp.write(contents.encode("utf8"))
             temp.close()
-            sha = self._repo.git.hash_object("-w", temp.name, path=path)
+            sha = self._repo.git(
+                "hash-object", "-w", temp.name, "--path", str(path)
+            )
             mode = 644  # TODO: Read from original file if it exists.
-            self._repo.git.update_index(
-                f"{mode},{sha},{path}", add=True, cacheinfo=True
+            self._repo.git(
+                "update-index", f"{mode},{sha},{path}", "--add", "--cacheinfo"
             )
 
     @override
     def _delete(self, path: PurePosixPath) -> bool:
         try:
-            self._repo.git.rm("--", str(path), cached=True)
-        except git.GitCommandError as err:
+            self._repo.git("rm", "--cached", "--", str(path))
+        except GitError as err:
             _logger.warning("Failed to delete file. [err=%r]", err)
             return False
         else:
@@ -179,12 +184,12 @@ class StagingToolbox(Toolbox):
 
     def trim_index(self) -> None:
         """Unstage any files which have not been written to"""
-        diff = self._repo.git.diff(name_only=True, cached=True)
+        git = self._repo.git("diff", "--name-only", "--cached")
         untouched = [
             path
-            for path in diff.splitlines()
+            for path in git.stdout.splitlines()
             if path and path not in self._updated
         ]
         if untouched:
-            self._repo.git.reset("--", *untouched)
+            self._repo.git("reset", "--", *untouched)
             _logger.debug("Trimmed index. [reset_paths=%s]", untouched)

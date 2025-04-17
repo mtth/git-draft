@@ -3,11 +3,11 @@ import os
 from pathlib import Path, PurePosixPath
 from typing import Self
 
-import git
 import pytest
 
 from git_draft.bots import Action, Bot, Goal, Toolbox
 import git_draft.drafter as sut
+from git_draft.git import Repo
 from git_draft.prompt import TemplatedPrompt
 from git_draft.store import Store
 
@@ -41,7 +41,7 @@ class _SimpleBot(Bot):
 
 class TestDrafter:
     @pytest.fixture(autouse=True)
-    def setup(self, repo: git.Repo) -> None:
+    def setup(self, repo: Repo) -> None:
         self._repo = repo
         self._drafter = sut.Drafter(Store.in_memory(), repo)
 
@@ -114,9 +114,7 @@ class TestDrafter:
     def test_generate_dirty_index_reset_sync(self) -> None:
         self._write("log", "11")
         self._repo.git.add(all=True)
-        self._drafter.generate_draft(
-            "hi", _SimpleBot.prompt(), reset=True, sync=True
-        )
+        self._drafter.generate_draft("hi", _SimpleBot.prompt(), reset=True)
         assert self._read("log") == "11"
         assert not self._path("PROMPT").exists()
         self._repo.git.checkout(".")
@@ -125,9 +123,7 @@ class TestDrafter:
 
     def test_generate_clean_index_sync(self) -> None:
         prompt = TemplatedPrompt("add-test", {"symbol": "abc"})
-        self._drafter.generate_draft(
-            prompt, _SimpleBot({"p1": "abc"}), sync=True
-        )
+        self._drafter.generate_draft(prompt, _SimpleBot({"p1": "abc"}))
         self._repo.git.checkout(".")
         assert "abc" in (self._read("p1") or "")
         assert len(self._commits()) == 2  # sync, prompt
@@ -143,7 +139,7 @@ class TestDrafter:
     def test_generate_reuse_branch_sync(self) -> None:
         bot = _SimpleBot({"p1": "A"})
         self._drafter.generate_draft("prompt1", bot)
-        self._drafter.generate_draft("prompt2", bot, sync=True)
+        self._drafter.generate_draft("prompt2", bot)
         assert len(self._commits()) == 4  # init, prompt, sync, prompt
 
     def test_generate_noop(self) -> None:
@@ -160,7 +156,6 @@ class TestDrafter:
             "hello",
             _SimpleBot({"p1": "C", "p3": "D", "p4": None}),
             accept=sut.Accept.CHECKOUT,
-            sync=True,
         )
         assert self._read("p1") == "C"
         assert self._read("p2") == "B"
@@ -173,7 +168,7 @@ class TestDrafter:
             self._drafter.generate_draft(
                 "hello",
                 _SimpleBot({"p1": "B", "p2": "C"}),
-                accept=sut.Accept.CHECKOUT
+                accept=sut.Accept.CHECKOUT,
             )
         assert """<<<<<<< ours\nA""" in (self._read("p1") or "")
         assert self._read("p2") == "C"
@@ -208,7 +203,7 @@ class TestDrafter:
             accept=sut.Accept.CHECKOUT,
         )
         self._write("PROMPT", "a2")
-        self._drafter.finalize_draft(sync=True)
+        self._drafter.finalize_draft()
         assert self._read("PROMPT") == "a2"
         commits = self._commits(draft.branch_name)
         assert len(commits) == 3  # init, prompt, sync
