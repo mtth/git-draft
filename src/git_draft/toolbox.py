@@ -168,7 +168,7 @@ class StagingToolbox(Toolbox):
             ).stdout
             mode = 644  # TODO: Read from original file if it exists.
             self._repo.git(
-                "update-index", f"{mode},{sha},{path}", "--add", "--cacheinfo"
+                "update-index", "--add", "--cacheinfo", f"{mode},{sha},{path}"
             )
 
     @override

@@ -18,7 +18,7 @@ class TestStagingToolbox:
             with Path(repo.working_dir, name).open("w") as f:
                 f.write("ok")
         repo.git("add", "--all")
-        assert set(self._toolbox.list_files()) == names
+        assert set(str(p) for p in self._toolbox.list_files()) == names
 
     def test_read_file(self, repo: Repo) -> None:
         with Path(repo.working_dir, "one").open("w") as f:

@@ -4,9 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 import dataclasses
+import logging
 from pathlib import Path
 import subprocess
 from typing import Self
+
+
+_logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
@@ -84,6 +88,7 @@ class Git:
         executable: str = "git",
         expect_codes: Sequence[int] = (0,),
     ) -> Self:
+        _logger.debug("Running git command. [args=%r]", args)
         popen = subprocess.Popen(
             [executable, *args],
             encoding="utf8",

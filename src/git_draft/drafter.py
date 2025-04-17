@@ -281,13 +281,13 @@ class Drafter:
                 results = cursor.execute(
                     sql("list-prompts"),
                     {
-                        "repo_path": path,
+                        "repo_path": str(path),
                         "branch_suffix": branch.folio_id,
                     },
                 )
             else:
                 results = cursor.execute(
-                    sql("list-drafts"), {"repo_path": path}
+                    sql("list-drafts"), {"repo_path": str(path)}
                 )
             return Table.from_cursor(results)
 
