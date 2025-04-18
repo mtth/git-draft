@@ -12,17 +12,6 @@ def test_ensure_state_home() -> None:
     assert path.exists()
 
 
-class TestRandomId:
-    def test_length(self) -> None:
-        length = 10
-        result = sut.random_id(length)
-        assert len(result) == length
-
-    def test_content(self) -> None:
-        result = sut.random_id(1000)
-        assert set(result).issubset(sut._alphabet)
-
-
 class TestConfig:
     @pytest.fixture(autouse=True)
     def config_home(self, monkeypatch, tmp_path) -> Path:
