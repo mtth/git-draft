@@ -10,13 +10,13 @@ import json
 import logging
 from pathlib import Path, PurePosixPath
 import re
-from re import Match
 import textwrap
 import time
+from typing import Literal
 
 from .bots import Action, Bot, Goal
 from .common import JSONObject, Table, qualified_class_name
-from .git import Commit, Repo
+from .git import Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
 from .toolbox import StagingToolbox, ToolVisitor
@@ -37,12 +37,8 @@ class Accept(enum.Enum):
 class Draft:
     """Generated changes"""
 
-    folio_id: int
+    folio: Folio
     seqno: int
-
-    @property
-    def branch(self) -> str:
-        return _Branch(self.folio_id).name
 
     @property
     def ref(self) -> str:
@@ -53,40 +49,31 @@ def _draft_ref(folio_id: int, seqno: int) -> str:
     return f"refs/drafts/{folio_id}/{seqno}"
 
 
+_FOLIO_BRANCH_NAMESPACE = "drafts"
+
+_folio_branch_pattern = re.compile(_FOLIO_BRANCH_NAMESPACE + r"/(\d+)")
+
+FolioBranchSuffix = Literal["live", "upstream"]
+
+
 @dataclasses.dataclass(frozen=True)
 class Folio:
     """Collection of drafts"""
 
     id: int
 
+    def branch_name(self, suffix: FolioBranchSuffix = "live") -> str:
+        return f"{_FOLIO_BRANCH_NAMESPACE}/{self.id}/{suffix}"
 
-@dataclasses.dataclass(frozen=True)
-class _Branch:
-    """Draft folio branch"""
 
-    _PREFIX = "drafts/"
-    _pattern = re.compile(_PREFIX + r"(\d+)")
-
-    folio_id: int
-
-    @property
-    def name(self) -> str:
-        return f"{self._PREFIX}{self.folio_id}"
-
-    def __str__(self) -> str:
-        return self.name
-
-    @classmethod
-    def active(cls, repo: Repo, name: str | None = None) -> _Branch | None:
-        match: Match | None = None
-        active_branch = name or repo.active_branch()
-        if active_branch:
-            match = cls._pattern.fullmatch(active_branch)
-        if not match:
-            if name:
-                raise ValueError(f"Not a valid draft branch: {name!r}")
-            return None
-        return _Branch(int(match[1]))
+def _active_folio(repo: Repo) -> Folio | None:
+    active_branch = repo.active_branch()
+    if not active_branch:
+        return None
+    match = _folio_branch_pattern.fullmatch(active_branch)
+    if not match:
+        return None
+    return Folio(int(match[1]))
 
 
 class Drafter:
@@ -123,13 +110,10 @@ class Drafter:
             self._repo.git("reset")
 
         # Ensure that we are on a draft branch.
-        branch = _Branch.active(self._repo)
-        if branch:
-            self._stage_changes()
-            _logger.debug("Reusing active branch %s.", branch)
-        else:
-            branch = self._create_branch()
-            _logger.debug("Created branch %s.", branch)
+        folio = _active_folio(self._repo)
+        if not folio:
+            folio = self._create_folio()
+        self._sync_folio(folio)
 
         # Handle prompt templating and editing.
         prompt_contents = self._prepare_prompt(prompt, prompt_transform)
@@ -137,7 +121,7 @@ class Drafter:
             [(prompt_id, seqno)] = cursor.execute(
                 sql("add-prompt"),
                 {
-                    "folio_id": branch.folio_id,
+                    "folio_id": folio.id,
                     "template": prompt.template
                     if isinstance(prompt, TemplatedPrompt)
                     else None,
@@ -151,7 +135,7 @@ class Drafter:
             Goal(prompt_contents, timeout),
             [operation_recorder, *list(tool_visitors or [])],
         )
-        change.add_ref(branch.folio_id, seqno)
+        change.add_ref(folio.id, seqno)
 
         with self._store.cursor() as cursor:
             cursor.execute(
@@ -179,14 +163,14 @@ class Drafter:
                     for o in operation_recorder.operations
                 ],
             )
-        _logger.info("Created new change on %s.", branch)
+        _logger.info("Created new change in folio %s.", folio.id)
 
         delta = change.delta()
         if delta and accept.value >= Accept.CHECKOUT.value:
             delta.apply()
         if accept.value >= Accept.FINALIZE.value:
             self.finalize_folio()
-        return Draft(branch.folio_id, seqno)
+        return Draft(folio, seqno)
 
     def _prepare_prompt(
         self,
@@ -206,6 +190,8 @@ class Drafter:
 
     def _generate_change(
         self,
+        folio: Folio,
+        seqno: int,
         bot: Bot,
         goal: Goal,
         tool_visitors: Sequence[ToolVisitor],
@@ -220,49 +206,68 @@ class Drafter:
         _logger.info("Completed bot action. [action=%s]", action)
 
         # Generate an appropriate commit.
-        toolbox.trim_index()
         title = action.title
         if not title:
             title = _default_title(goal.prompt)
-        commit = self._repo.create_commit(
+        commit_sha = self._repo.git(
+            "commit",
+            "--allow-empty",
+            "--no-verify",
+            "-m",
             f"draft! {title}\n\n{goal.prompt}",
-            skip_hooks=True,
+        ).stdout
+
+        # Reference the commit so that it doesn't get GC'ed, and update the
+        # folio's upstream branch to enable easier diffing.
+        self._repo.git(
+            "update-ref",
+            _draft_ref(folio.id, seqno),
+            commit_sha,
+        )
+        self._repo.git(
+            "update-ref",
+            f"refs/heads/{folio.branch_name('upstream')}",
+            commit_sha,
         )
 
         return _Change(
-            commit.sha, timedelta(seconds=walltime), action, self._repo
+            commit_sha,
+            timedelta(seconds=walltime),
+            action,
         )
 
     def finalize_folio(self) -> Folio:
-        branch = _Branch.active(self._repo)
-        if not branch:
+        folio = _active_folio(self._repo)
+        if not folio:
             raise RuntimeError("Not currently on a draft branch")
-        self._stage_changes()
+        self._sync_folio(folio)
 
         with self._store.cursor() as cursor:
-            rows = cursor.execute(
-                sql("get-folio-by-id"), {"id": branch.folio_id}
-            )
+            rows = cursor.execute(sql("get-folio-by-id"), {"id": folio.id})
             if not rows:
                 raise RuntimeError("Unrecognized draft branch")
             [(origin_branch, origin_sha)] = rows
 
-        # We do a small dance to move back to the original branch, keeping the
-        # draft branch untouched. See https://stackoverflow.com/a/15993574 for
-        # the inspiration.
+        # We do a small dance to move back to the original branch. See
+        # https://stackoverflow.com/a/15993574 for the inspiration.
         self._repo.git("checkout", "--detach")
         self._repo.git("reset", "-N", origin_branch)
         self._repo.git("checkout", origin_branch)
-        self._repo.git("branch", "-D", branch.name)
+        self._repo.git(
+            "branch",
+            "-D",
+            folio.branch_name(),
+            folio.branch_name("upstream"),
+        )
 
-        _logger.info("Exited %s.", branch)
-        return Folio(branch.folio_id)
+        _logger.info("Exited %s.", folio)
+        return folio
 
-    def _create_branch(self) -> _Branch:
-        if self._repo.active_branch() is None:
-            raise RuntimeError("No currently active branch")
+    def _create_folio(self) -> Folio:
         origin_branch = self._repo.active_branch()
-        origin_sha = self._repo.head_commit().sha
+        if origin_branch is None:
+            raise RuntimeError("No currently active branch")
+        origin_sha = self.git("rev-parse", "HEAD").stdout
 
         with self._store.cursor() as cursor:
             [(folio_id,)] = cursor.execute(
@@ -273,29 +278,29 @@ class Drafter:
                     "origin_sha": origin_sha,
                 },
             )
+        folio = Folio(folio_id)
 
         self._repo.git("checkout", "--detach")
-        self._stage_changes()
-        branch = _Branch(folio_id)
-        self._repo.checkout_new_branch(branch.name)
-        return branch
+        upstream_branch = folio.branch_name("upstream")
+        self._repo.git("branch", upstream_branch)
+        live_branch = folio.branch_name()
+        self._repo.git("branch", "--track", live_branch, upstream_branch)
+        self._repo.git("checkout", live_branch)
+        return folio
 
-    def _stage_changes(self) -> Commit | None:
-        self._repo.git("add", "--all")
-        if not self._repo.has_staged_changes():
-            return None
-        return self._repo.create_commit("draft! sync")
+    def _sync_folio(self, folio: Folio) -> None:
+        raise NotImplementedError()  # TODO: Implement
 
-    def history_table(self, branch_name: str | None = None) -> Table:
+    def history_table(self, folio_id: int | None = None) -> Table:
         repo_uuid = self._repo.uuid
-        branch = _Branch.active(self._repo, branch_name)
+        folio = Folio(folio_id) if folio_id else _active_folio(self._repo)
         with self._store.cursor() as cursor:
-            if branch:
+            if folio:
                 results = cursor.execute(
                     sql("list-folio-prompts"),
                     {
                         "repo_uuid": str(repo_uuid),
-                        "folio_id": branch.folio_id,
+                        "folio_id": folio.id,
                     },
                 )
             else:
@@ -306,63 +311,27 @@ class Drafter:
 
     def latest_draft_prompt(self) -> str | None:
         """Returns the latest prompt for the current draft"""
-        branch = _Branch.active(self._repo)
-        if not branch:
+        folio = _active_folio(self._repo)
+        if not folio:
             return None
         with self._store.cursor() as cursor:
             result = cursor.execute(
                 sql("get-latest-folio-prompt"),
                 {
                     "repo_uuid": str(self._repo.uuid),
-                    "folio_id": branch.folio_id,
+                    "folio_id": folio.id,
                 },
             ).fetchone()
             return result[0] if result else None
-
-
-type _CommitSHA = str
 
 
 @dataclasses.dataclass(frozen=True)
 class _Change:
     """A bot-generated draft, may be a no-op"""
 
-    commit: _CommitSHA
+    commit_sha: str
     walltime: timedelta
     action: Action
-    repo: Repo = dataclasses.field(repr=False)
-
-    def add_ref(self, folio_id: int, seqno: int) -> None:
-        self.repo.git(
-            "update-ref",
-            _draft_ref(folio_id, seqno),
-            self.commit,
-        )
-
-    def delta(self) -> _Delta | None:
-        diff = self.repo.git("diff-tree", "--patch", self.commit).stdout
-        return _Delta(diff, self.repo) if diff else None
-
-
-@dataclasses.dataclass(frozen=True)
-class _Delta:
-    """A change's effects, guaranteed non-empty"""
-
-    diff: str
-    repo: Repo = dataclasses.field(repr=False)
-
-    def apply(self) -> None:
-        # For patch applcation to work as expected (adding conflict markers as
-        # needed), files in the patch must exist in the index.
-        self.repo.git("add", "--all")
-        call = self.repo.git(
-            "apply", "--3way", "-", stdin=self.diff, expect_codes=()
-        )
-        if "with conflicts" in call.stderr:
-            raise ConflictError()
-        if call.code != 0:
-            raise NotImplementedError()  # TODO: Raise better error
-        self.repo.git("reset")
 
 
 class ConflictError(Exception):

@@ -71,17 +71,6 @@ class BotConfig:
     pythonpath: str | None = None
 
 
-type RepoID = str
-
-
-@dataclasses.dataclass(frozen=True)
-class RepoConfig:  # TODO: Use
-    """Repository-specific config"""
-
-    repo_id: str
-    bot_name: str | None = None
-
-
 def config_string(arg: str) -> str:
     """Dereferences environment value if the input starts with `$`"""
     return os.environ[arg[1:]] if arg and arg.startswith("$") else arg

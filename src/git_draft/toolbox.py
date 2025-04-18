@@ -181,15 +181,3 @@ class StagingToolbox(Toolbox):
         else:
             self._updated.add(str(path))
             return True
-
-    def trim_index(self) -> None:
-        """Unstage any files which have not been written to"""
-        git = self._repo.git("diff", "--name-only", "--cached")
-        untouched = [
-            path
-            for path in git.stdout.splitlines()
-            if path and path not in self._updated
-        ]
-        if untouched:
-            self._repo.git("reset", "--", *untouched)
-            _logger.debug("Trimmed index. [reset_paths=%s]", untouched)

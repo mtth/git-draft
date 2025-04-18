@@ -16,95 +16,6 @@ _logger = logging.getLogger(__name__)
 
 
 @dataclasses.dataclass(frozen=True)
-class Commit:
-    """Commit newtype"""
-
-    sha: str
-
-    def __str__(self) -> str:
-        return self.sha
-
-
-class _ConfigKey(enum.StrEnum):
-    REPO_UUID = "repouuid"
-
-    @property
-    def fullname(self) -> str:
-        return f"draft.{self.value}"
-
-
-class Repo:
-    """Git repository"""
-
-    def __init__(self, working_dir: Path, uuid: uuid.UUID) -> None:
-        self.working_dir = working_dir
-        self.uuid = uuid
-
-    @classmethod
-    def enclosing(cls, path: Path) -> Self:
-        call = GitCall.sync("rev-parse", "--show-toplevel", working_dir=path)
-        working_dir = Path(call.stdout)
-        uuid = _ensure_repo_uuid(working_dir)
-        return cls(working_dir, uuid)
-
-    def git(
-        self,
-        cmd: str,
-        *args: str,
-        stdin: str | None = None,
-        expect_codes: Sequence[int] = (0,),
-    ) -> GitCall:
-        return GitCall.sync(
-            cmd,
-            *args,
-            stdin=stdin,
-            expect_codes=expect_codes,
-            working_dir=self.working_dir,
-        )
-
-    def active_branch(self) -> str | None:
-        return self.git("branch", "--show-current").stdout or None
-
-    def checkout_new_branch(self, name: str) -> None:
-        self.git("checkout", "-b", name)
-
-    def has_staged_changes(self) -> bool:
-        call = self.git("diff", "--quiet", "--staged", expect_codes=())
-        return call.code != 0
-
-    def head_commit(self) -> Commit:
-        sha = self.git("rev-parse", "HEAD").stdout
-        return Commit(sha)
-
-    def create_commit(self, message: str) -> Commit:
-        # TODO: Allow --verify under certain circumstances.
-        args = ["commit", "--allow-empty", "--no-verify", "-m", message]
-        self.git(*args)
-        return self.head_commit()
-
-
-def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
-    call = GitCall.sync(
-        "config",
-        "get",
-        _ConfigKey.REPO_UUID.fullname,
-        working_dir=working_dir,
-        expect_codes=(),
-    )
-    if call.code == 0:
-        return uuid.UUID(call.stdout)
-    repo_uuid = uuid.uuid4()
-    GitCall.sync(
-        "config",
-        "set",
-        _ConfigKey.REPO_UUID.fullname,
-        str(repo_uuid),
-        working_dir=working_dir,
-    )
-    return repo_uuid
-
-
-@dataclasses.dataclass(frozen=True)
 class GitCall:
     """Git command execution result"""
 
@@ -142,3 +53,73 @@ class GitCall:
 
 class GitError(Exception):
     """Git command execution error"""
+
+
+class _ConfigKey(enum.StrEnum):
+    REPO_UUID = "repouuid"
+    DEFAULT_BOT = "bot"  # TODO: Use
+
+    @property
+    def fullname(self) -> str:
+        return f"draft.{self.value}"
+
+
+class Repo:
+    """Git repository"""
+
+    def __init__(self, working_dir: Path, uuid: uuid.UUID) -> None:
+        self.working_dir = working_dir
+        self.uuid = uuid
+
+    @classmethod
+    def enclosing(cls, path: Path) -> Self:
+        """Returns the repo enclosing the given path"""
+        call = GitCall.sync("rev-parse", "--show-toplevel", working_dir=path)
+        working_dir = Path(call.stdout)
+        uuid = _ensure_repo_uuid(working_dir)
+        return cls(working_dir, uuid)
+
+    def git(
+        self,
+        cmd: str,
+        *args: str,
+        stdin: str | None = None,
+        expect_codes: Sequence[int] = (0,),
+    ) -> GitCall:
+        """Runs a git command inside this repo"""
+        return GitCall.sync(
+            cmd,
+            *args,
+            stdin=stdin,
+            expect_codes=expect_codes,
+            working_dir=self.working_dir,
+        )
+
+    def active_branch(self) -> str | None:
+        return self.git("branch", "--show-current").stdout or None
+
+    def has_staged_changes(self) -> bool:
+        call = self.git("diff", "--quiet", "--staged", expect_codes=())
+        return call.code != 0
+
+
+def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
+    call = GitCall.sync(
+        "config",
+        "get",
+        _ConfigKey.REPO_UUID.fullname,
+        working_dir=working_dir,
+        expect_codes=(),
+    )
+    if call.code == 0:
+        return uuid.UUID(call.stdout)
+    repo_uuid = uuid.uuid4()
+    GitCall.sync(
+        "config",
+        "set",
+        _ConfigKey.REPO_UUID.fullname,
+        str(repo_uuid),
+        working_dir=working_dir,
+    )
+    _logger.debug("Set repo UUID. [uuid=%s]", repo_uuid)
+    return repo_uuid
