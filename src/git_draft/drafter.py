@@ -62,7 +62,7 @@ class Folio:
 
 @dataclasses.dataclass(frozen=True)
 class _Branch:
-    """Draft branch"""
+    """Draft folio branch"""
 
     _PREFIX = "drafts/"
     _pattern = re.compile(_PREFIX + r"(\d+)")
@@ -125,7 +125,7 @@ class Drafter:
         # Ensure that we are on a draft branch.
         branch = _Branch.active(self._repo)
         if branch:
-            self._stage_repo()
+            self._stage_changes()
             _logger.debug("Reusing active branch %s.", branch)
         else:
             branch = self._create_branch()
@@ -237,7 +237,7 @@ class Drafter:
         branch = _Branch.active(self._repo)
         if not branch:
             raise RuntimeError("Not currently on a draft branch")
-        self._stage_repo()
+        self._stage_changes()
 
         with self._store.cursor() as cursor:
             rows = cursor.execute(
@@ -275,12 +275,12 @@ class Drafter:
             )
 
         self._repo.git("checkout", "--detach")
-        self._stage_repo()
+        self._stage_changes()
         branch = _Branch(folio_id)
         self._repo.checkout_new_branch(branch.name)
         return branch
 
-    def _stage_repo(self) -> Commit | None:
+    def _stage_changes(self) -> Commit | None:
         self._repo.git("add", "--all")
         if not self._repo.has_staged_changes():
             return None

@@ -76,10 +76,9 @@ class Repo:
         sha = self.git("rev-parse", "HEAD").stdout
         return Commit(sha)
 
-    def create_commit(self, message: str, skip_hooks: bool = False) -> Commit:
-        args = ["commit", "--allow-empty", "-m", message]
-        if skip_hooks:
-            args.append("--no-verify")
+    def create_commit(self, message: str) -> Commit:
+        # TODO: Allow --verify under certain circumstances.
+        args = ["commit", "--allow-empty", "--no-verify", "-m", message]
         self.git(*args)
         return self.head_commit()
 
