@@ -13,6 +13,7 @@ from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Accept, Drafter
 from .editor import open_editor
+from .git import Repo
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
 from .store import Store
 from .toolbox import ToolVisitor
@@ -165,11 +166,13 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         return
     logging.basicConfig(level=config.log_level, filename=str(log_path))
 
-    drafter = Drafter.create(store=Store.persistent(), path=opts.root)
+    repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
+    drafter = Drafter.create(repo, Store.persistent())
     match getattr(opts, "command", "generate"):
         case "generate":
             bot_config = None
-            if opts.bot:
+            bot_name = opts.bot or repo.default_bot()
+            if bot_name:
                 bot_configs = [c for c in config.bots if c.name == opts.bot]
                 if len(bot_configs) != 1:
                     raise ValueError(f"Found {len(bot_configs)} matching bots")
