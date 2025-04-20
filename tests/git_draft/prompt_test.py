@@ -1,13 +1,13 @@
 import pytest
 
 import git_draft.prompt as sut
-from git_draft.toolbox import StagingToolbox
+from git_draft.toolbox import RepoToolbox
 
 
 class TestPromptRenderer:
     @pytest.fixture(autouse=True)
     def setup(self, repo) -> None:
-        toolbox = StagingToolbox(repo)
+        toolbox = RepoToolbox(repo, "HEAD")
         self._renderer = sut.PromptRenderer.for_toolbox(toolbox)
 
     def test_ok(self) -> None:

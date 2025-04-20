@@ -5,9 +5,9 @@ select
     coalesce(round(sum(a.walltime_seconds), 1), 0) as walltime,
     count(o.id) as ops
   from prompts as p
-  join branches as b on p.branch_suffix = b.suffix
+  join folios as f on p.folio_id = f.id
   left join actions as a on p.id = a.prompt_id
   left join operations as o on a.commit_sha = o.action_commit_sha
-  where b.repo_path = :repo_path and b.suffix = :branch_suffix
+  where f.id = :folio_id
   group by p.id
   order by created desc;

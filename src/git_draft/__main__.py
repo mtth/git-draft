@@ -60,8 +60,6 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="create or update draft from a prompt")
-    add_command("show-drafts", short="D", help="show draft history")
-    add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
 
     parser.add_option(
@@ -75,12 +73,6 @@ def new_parser() -> optparse.OptionParser:
         "--bot",
         dest="bot",
         help="bot name",
-    )
-    parser.add_option(
-        "-d",
-        "--delete",
-        help="delete draft after finalizing",
-        action="store_true",
     )
     parser.add_option(
         "-e",
@@ -101,18 +93,6 @@ def new_parser() -> optparse.OptionParser:
         dest="accept",
         action="store_const",
         const=0,
-    )
-    parser.add_option(
-        "--no-reset",
-        help="abort if there are any staged changes",
-        dest="reset",
-        action="store_false",
-    )
-    parser.add_option(
-        "--reset",
-        help="reset index before generating a new draft",
-        dest="reset",
-        action="store_true",
     )
     parser.add_option(
         "--timeout",
@@ -213,33 +193,26 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = sys.stdin.read()
 
             accept = Accept(opts.accept or 0)
-            draft = drafter.generate_draft(
+            drafter.generate_draft(
                 prompt,
                 bot,
                 accept=accept,
                 bot_name=opts.bot,
                 prompt_transform=open_editor if editable else None,
                 tool_visitors=[ToolPrinter()],
-                reset=config.reset if opts.reset is None else opts.reset,
             )
             match accept:
                 case Accept.MANUAL:
-                    print(f"Generated change in {draft.branch_name}.")
-                case Accept.CHECKOUT:
-                    print(f"Applied change in {draft.branch_name}.")
-                case Accept.FINALIZE | Accept.NO_REGRETS:
-                    print(f"Finalized change via {draft.branch_name}.")
+                    print("Generated draft.")
+                case Accept.MERGE:
+                    print("Merged draft.")
+                case Accept.FINALIZE:
+                    print("Finalized draft.")
                 case _:
                     raise UnreachableError()
         case "finalize":
-            draft = drafter.finalize_draft(delete=opts.delete)
-            print(f"Finalized {draft.branch_name}.")
-        case "show-drafts":
-            table = drafter.history_table(args[0] if args else None)
-            if table:
-                print(table.to_json() if opts.json else table)
-        case "show-prompts":
-            raise NotImplementedError()  # TODO: Implement
+            drafter.finalize_folio()
+            print("Finalized draft folio.")
         case "show-templates":
             if args:
                 name = args[0]
