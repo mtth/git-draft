@@ -36,7 +36,6 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 --no-accept::
   Check out generated changes automatically.
   Can be repeated.
-  This may fail if you manually edit files that the bot updates during generation.
 
 -b BOT::
 --bot=BOT::
@@ -67,18 +66,8 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 --log::
   Show log path and exit.
 
---reset::
---no-reset::
-  Controls behavior when staged changes are present at the start of a generate command.
-  If enabled, these changes are automatically reset and combined with other working directory changes.
-  Otherwise an error is raised.
-
 --root::
   Repository search root.
-
--P::
---show-prompts::
-  Lists recently used prompts.
 
 -T::
 --show-templates::
@@ -99,13 +88,8 @@ The workhorse command is `git draft --generate` which leverages AI to edit our c
 A prompt can be specified as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft --generate`.
 If no prompt is specified and stdin is a TTY, `$EDITOR` will be opened to enter the prompt.
 
-If not on a draft branch, a new draft branch called `drafts/$parent/$hash` will be created (`$hash` is a random suffix used to guarantee uniqueness of branch names) and checked out.
-By default any unstaged changes are then automatically added and committed (`draft! sync`).
-This behavior can be disabled by passing in `--stash`, which will instead add them to the stash.
-Staged changes are always committed.
-
-The prompt automatically gets augmented with information about the files in the repository, and give the AI access to tools for reading and writing files.
-Once the response has been received and changes applied, a commit is created (`draft! prompt: a short summary of the change`).
+By default, the prompt gets augmented with information about the files in the repository, and give the AI access to tools for reading and writing files.
+Once the response has been received and changes applied, a commit is created in a separate branch.
 
 The `--generate` step can be repeated as many times as needed.
 Once you are satisfied with the changes, run `git draft --finalize` to apply them.
@@ -171,27 +155,6 @@ o draft! sync (drafts/123/pub)
 o draft! sync
  \
   o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
-
-
-on generate:
-1. add sync commit if changes
-2. detach, add prompt commit, move tmp branch to this commit
-
-on finalize:
-1. add sync commit if changes
-2. 
-
-
-Q: What is allowed on a draft branch?
-
-A1: No operations changing index.
-  => no commit => does not work with merge (needed for conflict resolution)
-  => no checkout
-
-A2: No operations changing index during generation.
-
-Q: Does only accept create merge commits?
-Advantage of having more merge commits is history and diffs. We can see all generated drafts from a log command.
 
 
 == See also

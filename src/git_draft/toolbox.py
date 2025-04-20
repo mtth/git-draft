@@ -266,7 +266,7 @@ def _update_tree(sha: SHA, updates: Sequence[_TreeUpdate], repo: Repo) -> SHA:
                         new_lines.append(f"{mode} blob {new_sha}\t{name}")
                 case "tree":
                     new_sha = visit_tree(old_sha, path / name)
-                    new_lines.append(f"040000 tree {new_sha}\n{name}")
+                    new_lines.append(f"040000 tree {new_sha}\t{name}")
                 case _:
                     raise UnreachableError()
 

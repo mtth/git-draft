@@ -144,6 +144,9 @@ class Drafter:
         commit_sha = self._record_change(
             change, parent_commit_sha, folio, seqno
         )
+        # TODO: Trim commits (sync and prompt of files which have not been
+        # operated on). This will improve the UX by allowing fast-forward when
+        # other files are edited.
         with self._store.cursor() as cursor:
             cursor.execute(
                 sql("add-action"),
@@ -184,6 +187,7 @@ class Drafter:
             )
         if accept.value >= Accept.FINALIZE.value:
             self.finalize_folio()
+
         return Draft(
             folio=folio,
             seqno=seqno,
@@ -338,8 +342,9 @@ class Drafter:
             f"refs/heads/{folio.upstream_branch_name()}",
             commit_sha,
         )
-        # Also reference the commit so that it doesn't get GC'ed after the
-        # upstream branch moves.
+        # We also add a reference to the commit so that it doesn't get GC'ed
+        # when the upstream branch moves. This also makes it easy to visualize
+        # the change using `git diff refs/drafts/xx/yy`.
         self._repo.git("update-ref", _draft_ref(folio.id, seqno), commit_sha)
         return commit_sha
 
@@ -380,10 +385,6 @@ class _Change:
     commit_message: str
     tree_sha: SHA
     is_noop: bool
-
-
-class ConflictError(Exception):
-    """A change could not be applied cleanly"""
 
 
 class _OperationRecorder(ToolVisitor):
