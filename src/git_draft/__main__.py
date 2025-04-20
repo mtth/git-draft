@@ -60,8 +60,6 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("finalize", help="apply current draft to original branch")
     add_command("generate", help="create or update draft from a prompt")
-    add_command("show-drafts", short="D", help="show draft history")
-    add_command("show-prompts", short="P", help="show prompt history")
     add_command("show-templates", short="T", help="show template information")
 
     parser.add_option(

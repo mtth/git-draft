@@ -38,6 +38,9 @@ class Draft:
 
     folio: Folio
     seqno: int
+    is_noop: bool
+    walltime: timedelta
+    token_count: int | None
 
     @property
     def ref(self) -> str:
@@ -181,7 +184,13 @@ class Drafter:
             )
         if accept.value >= Accept.FINALIZE.value:
             self.finalize_folio()
-        return Draft(folio, seqno)
+        return Draft(
+            folio=folio,
+            seqno=seqno,
+            is_noop=change.is_noop,
+            walltime=change.walltime,
+            token_count=change.action.token_count,
+        )
 
     def finalize_folio(self) -> Folio:
         folio = _active_folio(self._repo)
@@ -253,7 +262,7 @@ class Drafter:
     def _synced_toolbox(self) -> tuple[RepoToolbox, SHA]:
         toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
         if dirty:
-            upstream_rev = self.commit_tree(
+            upstream_rev = self._commit_tree(
                 toolbox.tree_sha(), "HEAD", "sync(prompt)"
             )
             _logger.debug("Created sync commit. [sha=%r]", upstream_rev)
@@ -320,7 +329,7 @@ class Drafter:
     def _record_change(
         self, change: _Change, parent_commit_sha: SHA, folio: Folio, seqno: int
     ) -> SHA:
-        commit_sha = self.commit_tree(
+        commit_sha = self._commit_tree(
             change.tree_sha, parent_commit_sha, change.commit_message
         )
         _logger.debug("Created prompt commit. [sha=%r]", commit_sha)
@@ -334,7 +343,9 @@ class Drafter:
         self._repo.git("update-ref", _draft_ref(folio.id, seqno), commit_sha)
         return commit_sha
 
-    def commit_tree(self, tree_sha: SHA, parent_rev: str, message: str) -> SHA:
+    def _commit_tree(
+        self, tree_sha: SHA, parent_rev: str, message: str
+    ) -> SHA:
         return self._repo.git(
             "commit-tree",
             "-p",
