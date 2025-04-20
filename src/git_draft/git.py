@@ -62,7 +62,7 @@ class GitError(Exception):
 
 class _ConfigKey(enum.StrEnum):
     REPO_UUID = "repouuid"
-    DEFAULT_BOT = "bot"  # TODO: Use
+    DEFAULT_BOT = "bot"
 
     @property
     def fullname(self) -> str:
@@ -103,17 +103,25 @@ class Repo:
     def active_branch(self) -> str | None:
         return self.git("branch", "--show-current").stdout or None
 
+    def default_bot(self) -> str | None:
+        return _get_config_value(_ConfigKey.DEFAULT_BOT, self.working_dir)
 
-def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
+
+def _get_config_value(key: _ConfigKey, working_dir: Path) -> str | None:
     call = GitCall.sync(
         "config",
         "get",
-        _ConfigKey.REPO_UUID.fullname,
+        key.fullname,
         working_dir=working_dir,
         expect_codes=(),
     )
-    if call.code == 0:
-        return uuid.UUID(call.stdout)
+    return None if call.code else call.stdout
+
+
+def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
+    value = _get_config_value(_ConfigKey.REPO_UUID, working_dir)
+    if value:
+        return uuid.UUID(value)
     repo_uuid = uuid.uuid4()
     GitCall.sync(
         "config",

@@ -44,7 +44,7 @@ class TestDrafter:
     def setup(self, repo: Repo, repo_fs: RepoFS) -> None:
         self._repo = repo
         self._fs = repo_fs
-        self._drafter = sut.Drafter(Store.in_memory(), repo)
+        self._drafter = sut.Drafter.create(repo, Store.in_memory())
 
     def _commits(self, ref: str | None = None) -> Sequence[SHA]:
         git = self._repo.git("log", "--pretty=format:%H", ref or "HEAD")

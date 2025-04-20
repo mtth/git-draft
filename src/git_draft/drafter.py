@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 import enum
 import json
 import logging
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 import re
 import textwrap
 import time
@@ -85,14 +85,13 @@ class Drafter:
     """Draft state orchestrator"""
 
     def __init__(self, store: Store, repo: Repo) -> None:
-        with store.cursor() as cursor:
-            cursor.executescript(sql("create-tables"))
         self._store = store
         self._repo = repo
 
     @classmethod
-    def create(cls, store: Store, path: str | None = None) -> Drafter:
-        repo = Repo.enclosing(Path(path) if path else Path.cwd())
+    def create(cls, repo: Repo, store: Store) -> Drafter:
+        with store.cursor() as cursor:
+            cursor.executescript(sql("create-tables"))
         return cls(store, repo)
 
     def generate_draft(  # noqa: PLR0913
