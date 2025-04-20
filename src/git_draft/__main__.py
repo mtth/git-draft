@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import enum
 import importlib.metadata
 import logging
 import optparse
@@ -11,7 +12,7 @@ import sys
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
-from .drafter import Accept, Drafter
+from .drafter import Drafter
 from .editor import open_editor
 from .git import Repo
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
@@ -97,6 +98,24 @@ def new_parser() -> optparse.OptionParser:
     )
 
     return parser
+
+
+class Accept(enum.Enum):
+    """Valid change accept mode"""
+
+    MANUAL = 0
+    MERGE = enum.auto()
+    MERGE_THEIRS = enum.auto()
+    FINALIZE = enum.auto()
+
+    def merge_strategy(self) -> str | None:
+        match self.value:
+            case Accept.MANUAL:
+                return None
+            case Accept.MERGE:
+                return "ignore-all-space"
+            case _:
+                return "theirs"
 
 
 class ToolPrinter(ToolVisitor):

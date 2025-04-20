@@ -5,7 +5,6 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 import dataclasses
 from datetime import datetime, timedelta
-import enum
 import json
 import logging
 from pathlib import PurePosixPath
@@ -22,24 +21,6 @@ from .toolbox import RepoToolbox, ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
-
-
-class Accept(enum.Enum):
-    """Valid change accept mode"""
-
-    MANUAL = 0
-    MERGE = enum.auto()
-    MERGE_THEIRS = enum.auto()
-    FINALIZE = enum.auto()
-
-    def merge_strategy(self) -> str | None:
-        match self.value:
-            case Accept.MANUAL:
-                return None
-            case Accept.MERGE:
-                return "ignore-all-space"
-            case _:
-                return "theirs"
 
 
 @dataclasses.dataclass(frozen=True)
