@@ -71,26 +71,13 @@ class TestDrafter:
         assert len(self._commits()) == 1
         assert len(self._commits("@{u}")) == 2
 
-    def test_generate_draft_accept_merge(self) -> None:
+    def test_generate_draft_merge(self) -> None:
         self._fs.write("p1", "a")
         self._drafter.generate_draft(
-            "hello",
-            _SimpleBot({"p2": "b"}),
-            accept=sut.Accept.MERGE,
+            "hello", _SimpleBot({"p2": "b"}), merge_strategy="theirs"
         )
         assert len(self._commits()) == 5  # init, sync, prompt, sync, merge
         assert self._fs.read("p1") == "a"
-        assert self._fs.read("p2") == "b"
-
-    def test_generate_draft_accept_finalize(self) -> None:
-        self._fs.write("p1", "a")
-        self._drafter.generate_draft(
-            "hello",
-            _SimpleBot({"p1": "A", "p2": "b"}),
-            accept=sut.Accept.FINALIZE,
-        )
-        assert len(self._commits()) == 1  # init
-        assert self._fs.read("p1") == "A"
         assert self._fs.read("p2") == "b"
 
     def test_generate_outside_branch(self) -> None:
@@ -104,8 +91,8 @@ class TestDrafter:
 
     def test_generate_reuse_branch(self) -> None:
         bot = _SimpleBot({"prompt": lambda goal: goal.prompt})
-        self._drafter.generate_draft("prompt1", bot, sut.Accept.MERGE)
-        self._drafter.generate_draft("prompt2", bot, sut.Accept.MERGE)
+        self._drafter.generate_draft("prompt1", bot, "theirs")
+        self._drafter.generate_draft("prompt2", bot, "theirs")
         assert self._fs.read("prompt") == "prompt2"
 
     def test_delete_unknown_file(self) -> None:
@@ -113,9 +100,7 @@ class TestDrafter:
 
     def test_finalize_keeps_changes(self) -> None:
         self._fs.write("p1.txt", "a1")
-        self._drafter.generate_draft(
-            "hello", _SimpleBot.prompt(), sut.Accept.MERGE
-        )
+        self._drafter.generate_draft("hello", _SimpleBot.prompt(), "theirs")
         self._fs.write("p1.txt", "a2")
         self._drafter.finalize_folio()
         assert self._fs.read("p1.txt") == "a2"

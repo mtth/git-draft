@@ -74,10 +74,6 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
   Lists available templates.
   With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
 
--t TIMEOUT::
---timeout=TIMEOUT::
-  Action timeout.
-
 --version::
   Show version and exit.
 

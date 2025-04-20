@@ -95,11 +95,6 @@ def new_parser() -> optparse.OptionParser:
         action="store_const",
         const=0,
     )
-    parser.add_option(
-        "--timeout",
-        dest="timeout",
-        help="generation timeout",
-    )
 
     return parser
 
@@ -199,17 +194,17 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             drafter.generate_draft(
                 prompt,
                 bot,
-                accept=accept,
-                bot_name=opts.bot,
                 prompt_transform=open_editor if editable else None,
+                merge_strategy=accept.merge_strategy(),
                 tool_visitors=[ToolPrinter()],
             )
             match accept:
                 case Accept.MANUAL:
                     print("Generated draft.")
-                case Accept.MERGE:
+                case Accept.MERGE | Accept.MERGE_THEIRS:
                     print("Merged draft.")
                 case Accept.FINALIZE:
+                    drafter.finalize_folio()
                     print("Finalized draft.")
                 case _:
                     raise UnreachableError()

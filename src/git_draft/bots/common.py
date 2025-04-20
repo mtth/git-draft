@@ -14,7 +14,7 @@ class Goal:
     """Bot request"""
 
     prompt: str
-    timeout: float | None
+    # TODO: Add timeout.
 
 
 @dataclasses.dataclass
