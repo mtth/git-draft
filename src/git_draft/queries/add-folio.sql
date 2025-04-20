@@ -1,3 +1,3 @@
-insert into folios (repo_uuid, origin_branch, origin_sha)
-  values (:repo_uuid, :origin_branch, :origin_sha)
+insert into folios (repo_uuid, origin_branch)
+  values (:repo_uuid, :origin_branch)
   returning id;

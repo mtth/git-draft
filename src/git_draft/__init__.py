@@ -2,7 +2,8 @@
 
 import logging
 
-from .bots import Action, Bot, Goal, Toolbox
+from .bots import Action, Bot, Goal
+from .toolbox import Toolbox
 
 
 __all__ = [

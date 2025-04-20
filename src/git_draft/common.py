@@ -39,7 +39,6 @@ class Config:
 
     bots: Sequence[BotConfig] = dataclasses.field(default_factory=lambda: [])
     log_level: int = logging.INFO
-    reset: bool = True
 
     @staticmethod
     def folder_path() -> Path:

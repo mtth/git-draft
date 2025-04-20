@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 import dataclasses
 import enum
 import logging
@@ -13,6 +13,9 @@ import uuid
 
 
 _logger = logging.getLogger(__name__)
+
+
+type SHA = str
 
 
 @dataclasses.dataclass(frozen=True)
@@ -47,7 +50,9 @@ class GitCall:
         stdout, stderr = popen.communicate(input=stdin)
         code = popen.returncode
         if expect_codes and code not in expect_codes:
-            raise GitError(f"Git command failed with code {code}: {stderr}")
+            raise GitError(
+                f"Git command failed with code {code}\n{stderr}\n{stdout}"
+            )
         return cls(code, stdout.rstrip(), stderr.rstrip())
 
 
@@ -98,10 +103,6 @@ class Repo:
     def active_branch(self) -> str | None:
         return self.git("branch", "--show-current").stdout or None
 
-    def has_staged_changes(self) -> bool:
-        call = self.git("diff", "--quiet", "--staged", expect_codes=())
-        return call.code != 0
-
 
 def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
     call = GitCall.sync(
@@ -123,3 +124,7 @@ def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
     )
     _logger.debug("Set repo UUID. [uuid=%s]", repo_uuid)
     return repo_uuid
+
+
+def null_delimited(arg: str) -> Iterator[str]:
+    return (item for item in arg.split("\x00") if item)

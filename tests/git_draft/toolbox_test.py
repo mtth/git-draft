@@ -1,51 +1,69 @@
-from pathlib import Path, PurePosixPath
+from pathlib import PurePosixPath
 
 import pytest
 
-from git_draft.git import GitError, Repo
+from git_draft.git import Repo
 import git_draft.toolbox as sut
 
+from .conftest import RepoFS
 
-class TestStagingToolbox:
+
+PPP = PurePosixPath
+
+
+class TestRepoToolbox:
     @pytest.fixture(autouse=True)
-    def setup(self, repo: Repo) -> None:
-        self._toolbox = sut.StagingToolbox(repo)
+    def setup(self, repo: Repo, repo_fs: RepoFS) -> None:
+        self._repo = repo
+        self._fs = repo_fs
 
-    def test_list_files(self, repo: Repo) -> None:
-        assert self._toolbox.list_files() == []
-        names = set(["one.txt", "two.txt"])
-        for name in names:
-            with Path(repo.working_dir, name).open("w") as f:
-                f.write("ok")
-        repo.git("add", "--all")
-        assert set(str(p) for p in self._toolbox.list_files()) == names
+    def test_list_files(self) -> None:
+        self._fs.write("f1", "a")
+        self._fs.write("f2", "b")
+        self._fs.flush()
 
-    def test_read_file(self, repo: Repo) -> None:
-        with Path(repo.working_dir, "one").open("w") as f:
-            f.write("ok")
+        toolbox = sut.RepoToolbox(self._repo, "HEAD")
+        self._fs.delete("f2")
+        self._fs.write("f3", "c")
+        assert set(str(p) for p in toolbox.list_files()) == {"f1", "f2"}
 
-        path = PurePosixPath("one")
-        with pytest.raises(GitError):
-            self._toolbox.read_file(path)
+    def test_read_file(self) -> None:
+        self._fs.write("f1", "a")
+        sha = self._fs.flush()
+        self._fs.write("f1", "aa")
+        self._fs.flush()
+        self._fs.write("f2", "b")
 
-        repo.git("add", "--all")
-        assert self._toolbox.read_file(path) == "ok"
+        toolbox = sut.RepoToolbox(self._repo, sha)
+        assert toolbox.read_file(PPP("f1")) == "a"
+        assert toolbox.read_file(PPP("f2")) is None
+        assert toolbox.read_file(PPP("f3")) is None
 
-    def test_write_file(self, repo: Repo) -> None:
-        self._toolbox.write_file(PurePosixPath("one"), "hi")
+    def test_write_file(self) -> None:
+        self._fs.write("f1", "a")
+        self._fs.write("f2", "b")
+        sha = self._fs.flush()
+        self._fs.write("f1", "aa")
+        self._fs.flush()
 
-        path = Path(repo.working_dir, "one")
-        assert not path.exists()
+        toolbox = sut.RepoToolbox(self._repo, sha)
+        toolbox.write_file(PPP("f1"), "aaa")
+        toolbox.write_file(PPP("f3"), "c")
+        assert toolbox.read_file(PPP("f1")) == "aaa"
+        assert toolbox.read_file(PPP("f3")) == "c"
+        assert self._fs.read("f1") == "aa"
+        assert self._fs.read("f3") is None
 
-        repo.git("checkout-index", "--all")
-        with path.open() as f:
-            assert f.read() == "hi"
+    def test_for_working_dir_dirty(self) -> None:
+        self._fs.write("f1", "a")
+        self._fs.write("f2", "b")
+        self._fs.write("f3", "c")
+        self._fs.flush()
+        self._fs.write("f1", "aa")
+        self._fs.delete("f2")
 
-    def test_rename_file(self, repo: Repo) -> None:
-        self._toolbox.write_file(PurePosixPath("one"), "hi")
-        self._toolbox.rename_file(PurePosixPath("one"), PurePosixPath("two"))
-
-        repo.git("checkout-index", "--all")
-        assert not Path(repo.working_dir, "one").exists()
-        with Path(repo.working_dir, "two").open() as f:
-            assert f.read() == "hi"
+        toolbox, dirty = sut.RepoToolbox.for_working_dir(self._repo)
+        assert dirty
+        assert toolbox.read_file(PPP("f1")) == "aa"
+        assert toolbox.read_file(PPP("f2")) is None
+        assert toolbox.read_file(PPP("f3")) == "c"

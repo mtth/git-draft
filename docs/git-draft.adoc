@@ -21,8 +21,6 @@ IMPORTANT: `git-draft` is WIP.
 git draft [options] [--generate] [--accept... | --no-accept] [--bot BOT]
                     [--edit] [--reset | --no-reset] [TEMPLATE [VARIABLE...]]
 git draft [options] --finalize
-git draft [options] --show-drafts [--json]
-git draft [options] --show-prompts [--json] [PROMPT]
 git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 
@@ -78,10 +76,6 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 --root::
   Repository search root.
 
--D::
---show-drafts::
-  List recently created drafts.
-
 -P::
 --show-prompts::
   Lists recently used prompts.
@@ -117,6 +111,87 @@ The `--generate` step can be repeated as many times as needed.
 Once you are satisfied with the changes, run `git draft --finalize` to apply them.
 This will check out the branch used when creating the draft, adding the final state of the draft to the worktree.
 Note that you can come back to an existing draft anytime (by checking its branch out), but you will not be able to apply it if its origin branch has moved since the draft was created.
+
+
+* Generate: create a new draft to the current folio, or create a new folio if none exists.
+* Finalize
+  ** Apply: include changes into origin branch.
+  ** Discard: abandon folio.
+  ** Save: return to original branch. Q: how to load after?
+* List templates
+
+
+o Foo (main)
+o Sync (drafts/123/pub)
+
+# After generate without accept
+o Foo (main)
+o Sync (drafts/123)
+o draft! <prompt> (drafts/123+, refs/drafts/123/1)
+
+# After generate with accept
+o Foo (main)
+o Sync
+|\
+| o draft! prompt: <prompt> (refs/drafts/123/1)
+o | Sync
+|/
+o Merge (drafts/123/pub)
+
+
+o Foo (main)
+o draft! sync
+|\
+| o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/1)
+o Something
+o Also something (drafts/123)
+
+
+o Foo (main)
+o draft! sync
+|\
+| o draft! prompt: <prompt> (refs/drafts/123/1)
+o Something
+o Also something (drafts/123/pub)
+o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
+
+
+o Foo (main)
+o draft! sync (drafts/123/pub)
+|\
+| o draft! prompt: <prompt> (refs/drafts/123/1)
+ \
+  o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
+
+o Foo (main)
+o draft! sync (drafts/123/pub)
+|\
+| o draft! prompt: <prompt> (refs/drafts/123/1)
+|/
+o draft! sync
+ \
+  o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
+
+
+on generate:
+1. add sync commit if changes
+2. detach, add prompt commit, move tmp branch to this commit
+
+on finalize:
+1. add sync commit if changes
+2. 
+
+
+Q: What is allowed on a draft branch?
+
+A1: No operations changing index.
+  => no commit => does not work with merge (needed for conflict resolution)
+  => no checkout
+
+A2: No operations changing index during generation.
+
+Q: Does only accept create merge commits?
+Advantage of having more merge commits is history and diffs. We can see all generated drafts from a log command.
 
 
 == See also

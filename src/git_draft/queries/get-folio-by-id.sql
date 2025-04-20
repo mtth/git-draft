@@ -1,3 +1,3 @@
-select origin_branch, origin_sha
+select origin_branch
   from folios
   where id = :id;

@@ -2,8 +2,7 @@ create table if not exists folios (
   id integer primary key,
   repo_uuid text not null,
   created_at timestamp default current_timestamp,
-  origin_branch text not null,
-  origin_sha text not null
+  origin_branch text not null
 );
 
 create index if not exists folios_by_repo on folios (repo_uuid);
