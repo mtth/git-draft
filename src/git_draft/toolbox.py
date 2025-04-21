@@ -155,8 +155,8 @@ class RepoToolbox(Toolbox):
 
     @classmethod
     def for_working_dir(cls, repo: Repo) -> tuple[Self, bool]:
-        toolbox = cls(repo, "HEAD")
-        head_tree_sha = toolbox.tree_sha()
+        index_tree_sha = repo.git("write-tree").stdout
+        toolbox = cls(repo, index_tree_sha)
 
         # Apply any changes from the working directory.
         deleted = set[SHA]()
@@ -170,6 +170,7 @@ class RepoToolbox(Toolbox):
                 continue  # Deleted files also show up as modified
             toolbox._write_from_disk(PurePosixPath(path), path)
 
+        head_tree_sha = repo.git("rev-parse", "HEAD^{tree}").stdout
         return toolbox, toolbox.tree_sha() != head_tree_sha
 
     def with_visitors(self, visitors: Sequence[ToolVisitor]) -> Self:
