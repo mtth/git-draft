@@ -43,7 +43,7 @@ def _draft_ref(folio_id: int, suffix: int | str) -> str:
     return f"refs/drafts/{folio_id}/{suffix}"
 
 
-_FOLIO_BRANCH_NAMESPACE = "drafts"
+_FOLIO_BRANCH_NAMESPACE = "draft"
 
 _FOLIO_UPSTREAM_BRANCH_SUFFIX = "+"
 

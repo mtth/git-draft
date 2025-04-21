@@ -210,7 +210,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 editable = False
                 prompt = edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
-                )
+                ).strip()
                 if not prompt or prompt == _PROMPT_PLACEHOLDER:
                     raise ValueError("Aborting: empty or placeholder prompt")
             else:
