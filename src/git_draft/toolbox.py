@@ -170,7 +170,7 @@ class RepoToolbox(Toolbox):
                 continue  # Deleted files also show up as modified
             toolbox._write_from_disk(PurePosixPath(path), path)
 
-        head_tree_sha = repo.git("rev-parse", "HEAD^{tree}")
+        head_tree_sha = repo.git("rev-parse", "HEAD^{tree}").stdout
         return toolbox, toolbox.tree_sha() != head_tree_sha
 
     def with_visitors(self, visitors: Sequence[ToolVisitor]) -> Self:
