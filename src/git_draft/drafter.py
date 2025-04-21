@@ -5,13 +5,13 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 import dataclasses
 from datetime import datetime, timedelta
-import enum
 import json
 import logging
 from pathlib import PurePosixPath
 import re
 import textwrap
 import time
+from typing import Literal
 
 from .bots import Action, Bot, Goal
 from .common import JSONObject, qualified_class_name
@@ -22,14 +22,6 @@ from .toolbox import RepoToolbox, ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
-
-
-class Accept(enum.Enum):
-    """Valid change accept mode"""
-
-    MANUAL = 0
-    MERGE = enum.auto()
-    FINALIZE = enum.auto()
 
 
 @dataclasses.dataclass(frozen=True)
@@ -81,6 +73,18 @@ def _active_folio(repo: Repo) -> Folio | None:
     return Folio(int(match[1]))
 
 
+#: Select ort strategies.
+DraftMergeStrategy = Literal[
+    "ours",
+    "theirs",
+    "ignore-space-change",
+    "ignore-all-space",
+    "ignore-space-at-eol",
+    "ignore-cr-at-eol",
+    "find-renames",
+]
+
+
 class Drafter:
     """Draft state orchestrator"""
 
@@ -94,19 +98,14 @@ class Drafter:
             cursor.executescript(sql("create-tables"))
         return cls(store, repo)
 
-    def generate_draft(  # noqa: PLR0913
+    def generate_draft(
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
-        accept: Accept = Accept.MANUAL,
-        bot_name: str | None = None,
+        merge_strategy: DraftMergeStrategy | None = None,
         prompt_transform: Callable[[str], str] | None = None,
-        timeout: float | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
-        if timeout is not None:
-            raise NotImplementedError()  # TODO: Implement
-
         # Handle prompt templating and editing. We do this first in case this
         # fails, to avoid creating unnecessary branches.
         toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
@@ -134,7 +133,7 @@ class Drafter:
         operation_recorder = _OperationRecorder()
         change = self._generate_change(
             bot,
-            Goal(prompt_contents, timeout),
+            Goal(prompt_contents),
             toolbox.with_visitors(
                 [operation_recorder, *list(tool_visitors or [])],
             ),
@@ -159,7 +158,6 @@ class Drafter:
                 {
                     "commit_sha": commit_sha,
                     "prompt_id": prompt_id,
-                    "bot_name": bot_name,
                     "bot_class": qualified_class_name(bot.__class__),
                     "walltime_seconds": change.walltime.total_seconds(),
                     "request_count": change.action.request_count,
@@ -181,18 +179,21 @@ class Drafter:
             )
         _logger.info("Created new change in folio %s.", folio.id)
 
-        if accept.value >= Accept.MERGE.value:
+        if merge_strategy:
+            if parent_commit_rev != "HEAD":
+                # If there was a sync(prompt) commit, we move forward to it.
+                # This will avoid conflicts with changes that happened earlier.
+                self._repo.git("reset", "--soft", parent_commit_rev)
             self._sync_head("merge")
             self._repo.git(
                 "merge",
                 "--no-ff",
-                "-Xtheirs",
+                "-X",
+                merge_strategy,
                 "-m",
                 "draft! merge",
                 commit_sha,
             )
-        if accept.value >= Accept.FINALIZE.value:
-            self.finalize_folio()
 
         return Draft(
             folio=folio,

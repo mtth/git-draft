@@ -1,7 +1,6 @@
 insert into actions (
     commit_sha,
     prompt_id,
-    bot_name,
     bot_class,
     walltime_seconds,
     request_count,
@@ -9,7 +8,6 @@ insert into actions (
   values (
     :commit_sha,
     :prompt_id,
-    :bot_name,
     :bot_class,
     :walltime_seconds,
     :request_count,

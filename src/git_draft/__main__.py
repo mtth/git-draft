@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+import enum
 import importlib.metadata
 import logging
 import optparse
@@ -11,7 +12,7 @@ import sys
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
-from .drafter import Accept, Drafter
+from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
 from .git import Repo
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
@@ -95,13 +96,26 @@ def new_parser() -> optparse.OptionParser:
         action="store_const",
         const=0,
     )
-    parser.add_option(
-        "--timeout",
-        dest="timeout",
-        help="generation timeout",
-    )
 
     return parser
+
+
+class Accept(enum.Enum):
+    """Valid change accept mode"""
+
+    MANUAL = 0
+    MERGE = enum.auto()
+    MERGE_THEIRS = enum.auto()
+    FINALIZE = enum.auto()
+
+    def merge_strategy(self) -> DraftMergeStrategy | None:
+        match self.value:
+            case Accept.MANUAL:
+                return None
+            case Accept.MERGE:
+                return "ignore-all-space"
+            case _:
+                return "theirs"
 
 
 class ToolPrinter(ToolVisitor):
@@ -199,17 +213,17 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             drafter.generate_draft(
                 prompt,
                 bot,
-                accept=accept,
-                bot_name=opts.bot,
                 prompt_transform=open_editor if editable else None,
+                merge_strategy=accept.merge_strategy(),
                 tool_visitors=[ToolPrinter()],
             )
             match accept:
                 case Accept.MANUAL:
                     print("Generated draft.")
-                case Accept.MERGE:
+                case Accept.MERGE | Accept.MERGE_THEIRS:
                     print("Merged draft.")
                 case Accept.FINALIZE:
+                    drafter.finalize_folio()
                     print("Finalized draft.")
                 case _:
                     raise UnreachableError()

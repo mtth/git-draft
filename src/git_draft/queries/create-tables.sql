@@ -23,7 +23,6 @@ create table if not exists actions (
   commit_sha text primary key,
   created_at timestamp default current_timestamp,
   prompt_id integer not null,
-  bot_name text,
   bot_class text not null,
   walltime_seconds real not null,
   request_count int,
