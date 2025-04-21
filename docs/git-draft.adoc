@@ -18,15 +18,15 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--generate] [--accept... | --no-accept] [--bot BOT]
-                    [--edit] [--reset | --no-reset] [TEMPLATE [VARIABLE...]]
-git draft [options] --finalize
-git draft [options] --show-templates [--json | [--edit] TEMPLATE]
+git draft [options] [--new] [--accept... | --no-accept] [--bot BOT]
+                    [--edit] [TEMPLATE [VARIABLE...]]
+git draft [options] --quit
+git draft [options] --templates [--json | [--edit] TEMPLATE]
 
 
 == Description
 
-`git-draft` is a git-centric way to develop using AI.
+`git-draft` is a git-centric way to edit code with AI.
 
 
 == Options
@@ -34,7 +34,7 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 -a::
 --accept::
 --no-accept::
-  Check out generated changes automatically.
+  Merge generated changes automatically.
   Can be repeated.
 
 -b BOT::
@@ -43,17 +43,8 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 
 -e::
 --edit::
-  Enable interactive editing of prompts and templates.
+  Enable interactive editing of draft prompts and templates.
   See `--generate` and `--show-templates` for details.
-
--F::
---finalize::
-  Go back to the draft's origin branch with the current working directory.
-
--G::
---generate::
-  Add an AI-generated commit.
-  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is forwarded to the bot.
 
 -h::
 --help::
@@ -66,12 +57,21 @@ git draft [options] --show-templates [--json | [--edit] TEMPLATE]
 --log::
   Show log path and exit.
 
+-N::
+--new::
+  Create an AI-generated draft.
+  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is forwarded to the bot.
+
+-Q::
+--quit::
+  Go back to the draft's origin branch with the current working directory.
+
 --root::
   Repository search root.
 
 -T::
---show-templates::
-  Lists available templates.
+--templates::
+  With no argument, lists available templates.
   With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
 
 --version::

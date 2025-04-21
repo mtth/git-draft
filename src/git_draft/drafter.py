@@ -144,8 +144,10 @@ class Drafter:
             parent_commit_rev = self._commit_tree(
                 toolbox.tree_sha(), "HEAD", "sync(prompt)"
             )
+            _logger.info("Created sync commit. [sha=%s]", parent_commit_rev)
         else:
             parent_commit_rev = "HEAD"
+            _logger.info("Skipping sync commit, tree is clean.")
         commit_sha = self._record_change(
             change, parent_commit_rev, folio, seqno
         )
@@ -177,9 +179,10 @@ class Drafter:
                     for o in operation_recorder.operations
                 ],
             )
-        _logger.info("Created new change in folio %s.", folio.id)
+        _logger.info("Created new draft in folio %s.", folio.id)
 
         if merge_strategy:
+            _logger.info("Merging draft. [strategy=%s]", merge_strategy)
             if parent_commit_rev != "HEAD":
                 # If there was a sync(prompt) commit, we move forward to it.
                 # This will avoid conflicts with changes that happened earlier.
@@ -194,6 +197,11 @@ class Drafter:
                 "draft! merge",
                 commit_sha,
             )
+            self._repo.git(
+                "update-ref",
+                f"refs/heads/{folio.upstream_branch_name()}",
+                "HEAD",
+            )
 
         return Draft(
             folio=folio,
@@ -203,7 +211,7 @@ class Drafter:
             token_count=change.action.token_count,
         )
 
-    def finalize_folio(self) -> Folio:
+    def quit_folio(self) -> Folio:
         folio = _active_folio(self._repo)
         if not folio:
             raise RuntimeError("Not currently on a draft branch")

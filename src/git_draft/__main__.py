@@ -32,7 +32,7 @@ def new_parser() -> optparse.OptionParser:
     parser.disable_interspersed_args()
 
     parser.add_option(
-        "--log",
+        "--log-path",
         help="show log path and exit",
         action="store_true",
     )
@@ -60,21 +60,21 @@ def new_parser() -> optparse.OptionParser:
             **kwargs,
         )
 
-    add_command("finalize", help="apply current draft to original branch")
-    add_command("generate", help="create or update draft from a prompt")
-    add_command("show-templates", short="T", help="show template information")
+    add_command("new", help="create a new draft from a prompt")
+    add_command("quit", help="return to original branch")
+    add_command("templates", short="T", help="show template information")
 
     parser.add_option(
         "-a",
         "--accept",
-        help="accept draft, may be repeated",
+        help="merge draft, may be repeated",
         action="count",
     )
     parser.add_option(
         "-b",
         "--bot",
         dest="bot",
-        help="bot name",
+        help="AI bot name",
     )
     parser.add_option(
         "-e",
@@ -91,7 +91,7 @@ def new_parser() -> optparse.OptionParser:
 
     parser.add_option(
         "--no-accept",
-        help="do not update worktree from draft",
+        help="do not merge draft",
         dest="accept",
         action="store_const",
         const=0,
@@ -106,16 +106,18 @@ class Accept(enum.Enum):
     MANUAL = 0
     MERGE = enum.auto()
     MERGE_THEIRS = enum.auto()
-    FINALIZE = enum.auto()
+    MERGE_THEN_QUIT = enum.auto()
 
     def merge_strategy(self) -> DraftMergeStrategy | None:
-        match self.value:
+        match self:
             case Accept.MANUAL:
                 return None
             case Accept.MERGE:
                 return "ignore-all-space"
-            case _:
+            case Accept.MERGE_THEIRS | Accept.MERGE_THEN_QUIT:
                 return "theirs"
+            case _:
+                raise UnreachableError()
 
 
 class ToolPrinter(ToolVisitor):
@@ -175,10 +177,15 @@ def main() -> None:  # noqa: PLR0912 PLR0915
     (opts, args) = new_parser().parse_args()
 
     log_path = ensure_state_home() / "log"
-    if opts.log:
+    if opts.log_path:
         print(log_path)
         return
-    logging.basicConfig(level=config.log_level, filename=str(log_path))
+    logging.basicConfig(
+        level=config.log_level,
+        filename=str(log_path),
+        format="%(asctime)s %(name)-12s %(levelname)-8s %(message)s",
+        datefmt="%m-%d %H:%M",
+    )
 
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent())
@@ -210,7 +217,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = sys.stdin.read()
 
             accept = Accept(opts.accept or 0)
-            drafter.generate_draft(
+            draft = drafter.generate_draft(
                 prompt,
                 bot,
                 prompt_transform=open_editor if editable else None,
@@ -219,18 +226,18 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             )
             match accept:
                 case Accept.MANUAL:
-                    print("Generated draft.")
+                    print(f"Generated draft. [ref={draft.ref}].")
                 case Accept.MERGE | Accept.MERGE_THEIRS:
-                    print("Merged draft.")
-                case Accept.FINALIZE:
-                    drafter.finalize_folio()
-                    print("Finalized draft.")
+                    print(f"Generated and merged draft. [ref={draft.ref}]")
+                case Accept.MERGE_THEN_QUIT:
+                    drafter.quit_folio()
+                    print(f"Generated and applied draft. [ref={draft.ref}]")
                 case _:
                     raise UnreachableError()
-        case "finalize":
-            drafter.finalize_folio()
-            print("Finalized draft folio.")
-        case "show-templates":
+        case "quit":
+            drafter.quit_folio()
+            print("Applied draft.")
+        case "templates":
             if args:
                 name = args[0]
                 tpl = find_template(name)

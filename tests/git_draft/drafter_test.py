@@ -144,11 +144,11 @@ class TestDrafter:
     def test_delete_unknown_file(self) -> None:
         self._drafter.generate_draft("hello", _SimpleBot({"p1": None}))
 
-    def test_finalize_keeps_changes(self) -> None:
+    def test_quit_keeps_changes(self) -> None:
         self._fs.write("p1.txt", "a1")
         self._drafter.generate_draft("hello", _SimpleBot.prompt(), "theirs")
         self._fs.write("p1.txt", "a2")
-        self._drafter.finalize_folio()
+        self._drafter.quit_folio()
         assert self._fs.read("p1.txt") == "a2"
         assert self._fs.read("PROMPT") == "hello"
 
