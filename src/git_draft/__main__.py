@@ -12,7 +12,7 @@ import sys
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
-from .drafter import Drafter
+from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
 from .git import Repo
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
@@ -108,7 +108,7 @@ class Accept(enum.Enum):
     MERGE_THEIRS = enum.auto()
     FINALIZE = enum.auto()
 
-    def merge_strategy(self) -> str | None:
+    def merge_strategy(self) -> DraftMergeStrategy | None:
         match self.value:
             case Accept.MANUAL:
                 return None

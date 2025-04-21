@@ -6,7 +6,7 @@ import pytest
 
 from git_draft.bots import Action, Bot, Goal, Toolbox
 import git_draft.drafter as sut
-from git_draft.git import SHA, Repo
+from git_draft.git import SHA, GitError, Repo
 from git_draft.store import Store
 
 from .conftest import RepoFS
@@ -73,12 +73,58 @@ class TestDrafter:
 
     def test_generate_draft_merge(self) -> None:
         self._fs.write("p1", "a")
+
         self._drafter.generate_draft(
-            "hello", _SimpleBot({"p2": "b"}), merge_strategy="theirs"
+            "hello", _SimpleBot({"p2": "b"}), merge_strategy="ignore-all-space"
         )
-        assert len(self._commits()) == 5  # init, sync, prompt, sync, merge
+        # No sync(merge) commit since no changes happened between.
+        assert len(self._commits()) == 4  # init, sync(prompt), prompt, merge
         assert self._fs.read("p1") == "a"
         assert self._fs.read("p2") == "b"
+
+    def test_generate_draft_merge_no_conflict(self) -> None:
+        self._fs.write("p1", "a")
+
+        def update(_goal: Goal) -> str:
+            self._fs.write("p2", "b")
+            return "A"
+
+        self._drafter.generate_draft(
+            "hello",
+            _SimpleBot({"p1": update}),
+            merge_strategy="ignore-all-space",
+        )
+        assert len(self._commits()) == 5  # init, sync, prompt, sync, merge
+        assert self._fs.read("p1") == "A"
+        assert self._fs.read("p2") == "b"
+
+    def test_generate_draft_merge_theirs(self) -> None:
+        self._fs.write("p1", "a")
+
+        def update(_goal: Goal) -> str:
+            self._fs.write("p1", "b")
+            return "A"
+
+        self._drafter.generate_draft(
+            "hello", _SimpleBot({"p1": update}), merge_strategy="theirs"
+        )
+        # sync(merge) commit here since p1 was updated separately.
+        assert len(self._commits()) == 5  # init, sync, prompt, sync, merge
+        assert self._fs.read("p1") == "A"
+
+    def test_generate_draft_merge_conflict(self) -> None:
+        self._fs.write("p1", "a")
+
+        def update(_goal: Goal) -> str:
+            self._fs.write("p1", "b")
+            return "A"
+
+        with pytest.raises(GitError):
+            self._drafter.generate_draft(
+                "hello",
+                _SimpleBot({"p1": update}),
+                merge_strategy="ignore-all-space",
+            )
 
     def test_generate_outside_branch(self) -> None:
         self._repo.git("checkout", "--detach")

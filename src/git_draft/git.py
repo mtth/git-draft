@@ -50,9 +50,10 @@ class GitCall:
         stdout, stderr = popen.communicate(input=stdin)
         code = popen.returncode
         if expect_codes and code not in expect_codes:
-            raise GitError(
-                f"Git command failed with code {code}\n{stderr}\n{stdout}"
-            )
+            message = f"Git command failed with code exit {code}: {stderr}"
+            if stdout:
+                message += f"\n{stdout}"
+            raise GitError(message)
         return cls(code, stdout.rstrip(), stderr.rstrip())
 
 

@@ -11,6 +11,7 @@ from pathlib import PurePosixPath
 import re
 import textwrap
 import time
+from typing import Literal
 
 from .bots import Action, Bot, Goal
 from .common import JSONObject, qualified_class_name
@@ -72,6 +73,18 @@ def _active_folio(repo: Repo) -> Folio | None:
     return Folio(int(match[1]))
 
 
+#: Select ort strategies.
+DraftMergeStrategy = Literal[
+    "ours",
+    "theirs",
+    "ignore-space-change",
+    "ignore-all-space",
+    "ignore-space-at-eol",
+    "ignore-cr-at-eol",
+    "find-renames",
+]
+
+
 class Drafter:
     """Draft state orchestrator"""
 
@@ -89,7 +102,7 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
-        merge_strategy: str | None = None,
+        merge_strategy: DraftMergeStrategy | None = None,
         prompt_transform: Callable[[str], str] | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
@@ -167,6 +180,10 @@ class Drafter:
         _logger.info("Created new change in folio %s.", folio.id)
 
         if merge_strategy:
+            if parent_commit_rev != "HEAD":
+                # If there was a sync(prompt) commit, we move forward to it.
+                # This will avoid conflicts with changes that happened earlier.
+                self._repo.git("reset", "--soft", parent_commit_rev)
             self._sync_head("merge")
             self._repo.git(
                 "merge",
