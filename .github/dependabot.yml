@@ -5,6 +5,11 @@ updates:
     schedule:
       interval: weekly
       day: saturday
+    ignore:
+      - dependency-name: '*'
+        update-types:
+          - version-update:semver-patch
+          - version-update:semver-minor
     commit-message:
       prefix: deps
     labels:
