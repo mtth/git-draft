@@ -2,12 +2,11 @@
 
 from __future__ import annotations
 
-from collections.abc import Sequence
 import enum
 import importlib.metadata
 import logging
 import optparse
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import sys
 
 from .bots import load_bot
@@ -23,7 +22,6 @@ from .editor import open_editor
 from .git import Repo
 from .prompt import Template, TemplatedPrompt, find_template, templates_table
 from .store import Store
-from .toolbox import ToolVisitor
 
 
 _logger = logging.getLogger(__name__)
@@ -126,36 +124,6 @@ class Accept(enum.Enum):
                 raise UnreachableError()
 
 
-class ToolPrinter(ToolVisitor):
-    """Visitor implementation which prints invocations to stdout"""
-
-    def on_list_files(
-        self, _paths: Sequence[PurePosixPath], _reason: str | None
-    ) -> None:
-        print("Listing available files...")
-
-    def on_read_file(
-        self, path: PurePosixPath, _contents: str | None, _reason: str | None
-    ) -> None:
-        print(f"Reading {path}...")
-
-    def on_write_file(
-        self, path: PurePosixPath, _contents: str, _reason: str | None
-    ) -> None:
-        print(f"Wrote {path}.")
-
-    def on_delete_file(self, path: PurePosixPath, _reason: str | None) -> None:
-        print(f"Deleted {path}.")
-
-    def on_rename_file(
-        self,
-        src_path: PurePosixPath,
-        dst_path: PurePosixPath,
-        _reason: str | None,
-    ) -> None:
-        print(f"Renamed {src_path} to {dst_path}.")
-
-
 def edit(*, path: Path | None = None, text: str | None = None) -> str:
     if sys.stdin.isatty():
         return open_editor(text or "", path)
@@ -231,18 +199,8 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 bot,
                 prompt_transform=open_editor if editable else None,
                 merge_strategy=accept.merge_strategy(),
-                tool_visitors=[ToolPrinter()],
             )
-            match accept:
-                case Accept.MANUAL:
-                    print(f"Generated draft. [ref={draft.ref}].")
-                case Accept.MERGE | Accept.MERGE_THEIRS:
-                    print(f"Generated and merged draft. [ref={draft.ref}]")
-                case Accept.MERGE_THEN_QUIT:
-                    drafter.quit_folio()
-                    print(f"Generated and applied draft. [ref={draft.ref}]")
-                case _:
-                    raise UnreachableError()
+            print(draft) # TODO: Pretty-print draft summary statistics.
         case "quit":
             drafter.quit_folio()
             print("Quit draft.")

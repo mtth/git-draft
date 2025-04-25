@@ -14,7 +14,7 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import Feedback, JSONObject, qualified_class_name
+from .common import Feedback, FeedbackSpinner, JSONObject, qualified_class_name
 from .git import SHA, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -105,16 +105,19 @@ class Drafter:
         bot: Bot,
         merge_strategy: DraftMergeStrategy | None = None,
         prompt_transform: Callable[[str], str] | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
-        with self._feedback.spinner("Preparing prompt..."):
+        with self._feedback.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
             toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
             prompt_contents = self._prepare_prompt(
                 prompt, prompt_transform, toolbox
             )
-
+            template_name = (
+                prompt.template
+                if isinstance(prompt, TemplatedPrompt)
+                else None
+            )
             # Ensure that we are in a folio.
             folio = _active_folio(self._repo)
             if not folio:
@@ -124,26 +127,41 @@ class Drafter:
                     sql("add-prompt"),
                     {
                         "folio_id": folio.id,
-                        "template": prompt.template
-                        if isinstance(prompt, TemplatedPrompt)
-                        else None,
+                        "template": template_name,
                         "contents": prompt_contents,
                     },
                 )
+            spinner.update(
+                "Prepared prompt.",
+                template=template_name,
+                length=len(prompt_contents),
+            )
 
         # Run the bot to generate the change.
-        with self._feedback.spinner("Running bot..."):
-            operation_recorder = _OperationRecorder()
+        with self._feedback.spinner("Running bot...") as spinner:
+            operation_recorder = _OperationRecorder(spinner)
             change = self._generate_change(
                 bot,
                 Goal(prompt_contents),
                 toolbox.with_visitors(
-                    [operation_recorder, *list(tool_visitors or [])],
+                    [operation_recorder],
                 ),
+            )
+            spinner.update(
+                "Completed bot run.",
+                runtime=change.walltime.total_seconds(),
+                tokens=change.action.token_count,
             )
 
         # Create git commits, references, and update branches.
-        with self._feedback.spinner("Committing changes..."):
+        draft = Draft(
+            folio=folio,
+            seqno=seqno,
+            is_noop=change.is_noop,
+            walltime=change.walltime,
+            token_count=change.action.token_count,
+        )
+        with self._feedback.spinner("Creating draft commit...") as spinner:
             if dirty:
                 parent_commit_rev = self._commit_tree(
                     toolbox.tree_sha(), "HEAD", "sync(prompt)"
@@ -185,10 +203,12 @@ class Drafter:
                         for o in operation_recorder.operations
                     ],
                 )
-            _logger.info("Created new draft in folio %s.", folio.id)
+                spinner.update("Created draft commit.", ref=draft.ref)
+
+        _logger.info("Created new draft in folio %s.", folio.id)
 
         if merge_strategy:
-            with self._feedback.spinner("Merging changes..."):
+            with self._feedback.spinner("Merging changes...") as spinner:
                 if parent_commit_rev != "HEAD":
                     # If there was a sync(prompt) commit, we move forward to
                     # it. This will avoid conflicts with earlier changes.
@@ -208,14 +228,9 @@ class Drafter:
                     f"refs/heads/{folio.upstream_branch_name()}",
                     "HEAD",
                 )
+                spinner.update("Merged changes.")
 
-        return Draft(
-            folio=folio,
-            seqno=seqno,
-            is_noop=change.is_noop,
-            walltime=change.walltime,
-            token_count=change.action.token_count,
-        )
+        return draft
 
     def quit_folio(self) -> Folio:
         folio = _active_folio(self._repo)
@@ -404,17 +419,20 @@ class _OperationRecorder(ToolVisitor):
     analysis.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, spinner: FeedbackSpinner) -> None:
         self.operations = list[_Operation]()
+        self._spinner = spinner
 
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None:
+        self._spinner.report("Listed available files.")
         self._record(reason, "list_files", count=len(paths))
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
     ) -> None:
+        self._spinner.report(f"Read {path}.")
         self._record(
             reason,
             "read_file",
@@ -425,9 +443,11 @@ class _OperationRecorder(ToolVisitor):
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
     ) -> None:
+        self._spinner.report(f"Wrote {path}.")
         self._record(reason, "write_file", path=str(path), size=len(contents))
 
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+        self._spinner.report(f"Deleted {path}.")
         self._record(reason, "delete_file", path=str(path))
 
     def on_rename_file(
@@ -436,6 +456,7 @@ class _OperationRecorder(ToolVisitor):
         dst_path: PurePosixPath,
         reason: str | None,
     ) -> None:
+        self._spinner.report(f"Renamed {src_path} to {dst_path}.")
         self._record(
             reason,
             "rename_file",

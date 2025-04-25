@@ -5,6 +5,7 @@ from typing import Self
 import pytest
 
 from git_draft.bots import Action, Bot, Goal, Toolbox
+from git_draft.common import Feedback
 import git_draft.drafter as sut
 from git_draft.git import SHA, GitError, Repo
 from git_draft.store import Store
@@ -44,7 +45,9 @@ class TestDrafter:
     def setup(self, repo: Repo, repo_fs: RepoFS) -> None:
         self._repo = repo
         self._fs = repo_fs
-        self._drafter = sut.Drafter.create(repo, Store.in_memory())
+        self._drafter = sut.Drafter.create(
+            repo, Store.in_memory(), Feedback.logging()
+        )
 
     def _commits(self, ref: str | None = None) -> Sequence[SHA]:
         git = self._repo.git("log", "--pretty=format:%H", ref or "HEAD")

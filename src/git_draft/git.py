@@ -62,8 +62,8 @@ class GitError(Exception):
 
 
 class _ConfigKey(enum.StrEnum):
-    #: Unique identifier used to keep track of a repo. We don't use its path to
-    #: allow tracking to persist if the repository is moves.
+    #: Unique identifier used to keep track of a repo. We don't just rely on
+    #: its path to allow tracking to persist across repo moves.
     REPO_UUID = "repouuid"
 
     #: Name of the default bot to use in this repository when none is specified

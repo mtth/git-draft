@@ -12,11 +12,12 @@ from pathlib import Path
 import sqlite3
 import textwrap
 import tomllib
-from typing import Any, ClassVar, Protocol, Self
+from typing import Any, ClassVar, Self
 
 import prettytable
 import xdg_base_dirs
 import yaspin
+import yaspin.core
 
 
 _logger = logging.getLogger(__name__)
@@ -133,7 +134,9 @@ class Table:
 class Feedback:
     """User feedback interface"""
 
-    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
+    def spinner(
+        self, text: str
+    ) -> contextlib.AbstractContextManager[FeedbackSpinner]:
         raise NotImplementedError()
 
     @staticmethod
@@ -145,18 +148,44 @@ class Feedback:
         return _LoggingFeedback()
 
 
-
-class FeedbackSpinner(Protocol):
+class FeedbackSpinner:
     """Operation feedback tracker"""
 
-    def ok(self, text: str) -> None: ...
-    def fail(self, text: str) -> None: ...
-
+    def update(self, text: str, **kwargs) -> None: ...
+    def report(self, text: str) -> None: ...
 
 
 class _LiveFeedback(Feedback):
+    @contextlib.contextmanager
     def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
-        return yaspin.yaspin(text=text)
+        with yaspin.yaspin(text=text) as spinner:
+            try:
+                yield _LiveFeedbackSpinner(spinner)
+            except Exception:
+                spinner.fail("✗")
+                raise
+            else:
+                spinner.ok("✓")
+
+
+def _tagged(text: str, /, **kwargs) -> str:
+    tags = [
+        f"{key}={val}"
+        for key, val in kwargs.items()
+        if val is not None
+    ]
+    return f"{text} [{', '.join(tags)}]" if tags else text
+
+
+class _LiveFeedbackSpinner(FeedbackSpinner):
+    def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
+        self._yaspin = yaspin
+
+    def update(self, text: str, **kwargs) -> None:
+        self._yaspin.text = _tagged(text, **kwargs)
+
+    def report(self, text: str) -> None:
+        self._yaspin.write(f"☞ {text}")
 
 
 class _LoggingFeedback(Feedback):
@@ -165,18 +194,18 @@ class _LoggingFeedback(Feedback):
         yield _LoggingFeedbackSpinner.start(text)
 
 
-class _LoggingFeedbackSpinner:
+class _LoggingFeedbackSpinner(FeedbackSpinner):
     @classmethod
     def start(cls, text: str) -> Self:
         spinner = cls()
-        spinner._log("Spinner started.", text)
+        spinner._log(text)
         return spinner
 
-    def _log(self, message: str, text: str) -> None:
-        self._log("%s [id=%s, text=%s]", message, id(self), text)
+    def _log(self, message: str, **kwargs) -> None:
+        _logger.debug(_tagged(message, spinner=id(self), **kwargs))
 
-    def ok(self, text: str) -> None:
-        self._log("Spinner succeeded.", text)
+    def update(self, text: str, **kwargs) -> None:
+        self._log(text, **kwargs)
 
-    def fail(self, text: str) -> None:
-        self._log("Spinner failed.", text)
+    def report(self, text: str) -> None:
+        self._log(text)
