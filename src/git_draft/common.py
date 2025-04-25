@@ -140,12 +140,12 @@ class Feedback:
         raise NotImplementedError()
 
     @staticmethod
-    def live() -> Feedback:
-        return _LiveFeedback()
+    def dynamic() -> Feedback:
+        return _DynamicFeedback()
 
     @staticmethod
-    def logging() -> Feedback:
-        return _LoggingFeedback()
+    def static() -> Feedback:
+        return _StaticFeedback()
 
 
 class FeedbackSpinner:
@@ -155,12 +155,12 @@ class FeedbackSpinner:
     def report(self, text: str) -> None: ...
 
 
-class _LiveFeedback(Feedback):
+class _DynamicFeedback(Feedback):
     @contextlib.contextmanager
     def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
         with yaspin.yaspin(text=text) as spinner:
             try:
-                yield _LiveFeedbackSpinner(spinner)
+                yield _DynamicFeedbackSpinner(spinner)
             except Exception:
                 spinner.fail("✗")
                 raise
@@ -177,7 +177,7 @@ def _tagged(text: str, /, **kwargs) -> str:
     return f"{text} [{', '.join(tags)}]" if tags else text
 
 
-class _LiveFeedbackSpinner(FeedbackSpinner):
+class _DynamicFeedbackSpinner(FeedbackSpinner):
     def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
         self._yaspin = yaspin
 
@@ -188,24 +188,24 @@ class _LiveFeedbackSpinner(FeedbackSpinner):
         self._yaspin.write(f"☞ {text}")
 
 
-class _LoggingFeedback(Feedback):
+class _StaticFeedback(Feedback):
     @contextlib.contextmanager
     def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
-        yield _LoggingFeedbackSpinner.start(text)
+        yield _StaticFeedbackSpinner.start(text)
 
 
-class _LoggingFeedbackSpinner(FeedbackSpinner):
+class _StaticFeedbackSpinner(FeedbackSpinner):
     @classmethod
     def start(cls, text: str) -> Self:
         spinner = cls()
-        spinner._log(text)
+        spinner._print(text)
         return spinner
 
-    def _log(self, message: str, **kwargs) -> None:
-        _logger.debug(_tagged(message, spinner=id(self), **kwargs))
+    def _print(self, message: str, **kwargs) -> None:
+        print(_tagged(message, spinner=id(self), **kwargs))  # noqa
 
     def update(self, text: str, **kwargs) -> None:
-        self._log(text, **kwargs)
+        self._print(text, **kwargs)
 
     def report(self, text: str) -> None:
-        self._log(text)
+        self._print(text)

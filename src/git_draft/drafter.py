@@ -118,23 +118,24 @@ class Drafter:
                 if isinstance(prompt, TemplatedPrompt)
                 else None
             )
-            # Ensure that we are in a folio.
-            folio = _active_folio(self._repo)
-            if not folio:
-                folio = self._create_folio()
-            with self._store.cursor() as cursor:
-                [(prompt_id, seqno)] = cursor.execute(
-                    sql("add-prompt"),
-                    {
-                        "folio_id": folio.id,
-                        "template": template_name,
-                        "contents": prompt_contents,
-                    },
-                )
             spinner.update(
                 "Prepared prompt.",
                 template=template_name,
                 length=len(prompt_contents),
+            )
+
+        # Ensure that we are in a folio.
+        folio = _active_folio(self._repo)
+        if not folio:
+            folio = self._create_folio()
+        with self._store.cursor() as cursor:
+            [(prompt_id, seqno)] = cursor.execute(
+                sql("add-prompt"),
+                {
+                    "folio_id": folio.id,
+                    "template": template_name,
+                    "contents": prompt_contents,
+                },
             )
 
         # Run the bot to generate the change.
@@ -232,7 +233,7 @@ class Drafter:
 
         return draft
 
-    def quit_folio(self) -> Folio:
+    def quit_folio(self) -> None:
         folio = _active_folio(self._repo)
         if not folio:
             raise RuntimeError("Not currently on a draft branch")
@@ -254,49 +255,56 @@ class Drafter:
         if check_call.code:
             raise RuntimeError("Origin branch diverged, please rebase first")
 
-        # Create a reference to the current state for later analysis.
-        self._sync_head("finalize")
-        self._repo.git("update-ref", _draft_ref(folio.id, "@"), "HEAD")
+        with self._feedback.spinner("Switching branch...") as spinner:
+            # Create a reference to the current state for later analysis.
+            self._sync_head("finalize")
+            self._repo.git("update-ref", _draft_ref(folio.id, "@"), "HEAD")
 
-        # Move back to the original branch, doing a little dance to keep the
-        # state. See https://stackoverflow.com/a/15993574 for the inspiration.
-        self._repo.git("checkout", "--detach")
-        self._repo.git("reset", "--soft", origin_branch)
-        self._repo.git("checkout", origin_branch)
+            # Move back to the original branch, doing a little dance to keep
+            # the state. See https://stackoverflow.com/a/15993574 for the
+            # inspiration.
+            self._repo.git("checkout", "--detach")
+            self._repo.git("reset", "--soft", origin_branch)
+            self._repo.git("checkout", origin_branch)
 
-        # Clean up folio branches.
-        self._repo.git(
-            "branch",
-            "-D",
-            folio.branch_name(),
-            folio.upstream_branch_name(),
-        )
+            # Clean up folio branches.
+            self._repo.git(
+                "branch",
+                "-D",
+                folio.branch_name(),
+                folio.upstream_branch_name(),
+            )
+            spinner.update(
+                "Switched back to origin branch.",
+                name=origin_branch,
+            )
 
-        _logger.info("Exited %s.", folio)
-        return folio
+        _logger.info("Quit %s.", folio)
 
     def _create_folio(self) -> Folio:
-        origin_branch = self._repo.active_branch()
-        if origin_branch is None:
-            raise RuntimeError("No currently active branch")
+        with self._feedback.spinner("Creating draft branch...") as spinner:
+            origin_branch = self._repo.active_branch()
+            if origin_branch is None:
+                raise RuntimeError("No currently active branch")
 
-        with self._store.cursor() as cursor:
-            [(folio_id,)] = cursor.execute(
-                sql("add-folio"),
-                {
-                    "repo_uuid": str(self._repo.uuid),
-                    "origin_branch": origin_branch,
-                },
-            )
-        folio = Folio(folio_id)
+            with self._store.cursor() as cursor:
+                [(folio_id,)] = cursor.execute(
+                    sql("add-folio"),
+                    {
+                        "repo_uuid": str(self._repo.uuid),
+                        "origin_branch": origin_branch,
+                    },
+                )
+            folio = Folio(folio_id)
 
-        self._repo.git("checkout", "--detach")
-        upstream_branch = folio.upstream_branch_name()
-        self._repo.git("branch", upstream_branch)
-        live_branch = folio.branch_name()
-        self._repo.git("branch", "--track", live_branch, upstream_branch)
-        self._repo.git("checkout", live_branch)
+            self._repo.git("checkout", "--detach")
+            upstream_branch = folio.upstream_branch_name()
+            self._repo.git("branch", upstream_branch)
+            live_branch = folio.branch_name()
+            self._repo.git("branch", "--track", live_branch, upstream_branch)
+            self._repo.git("checkout", live_branch)
 
+            spinner.update("Switched to new draft branch.", name=live_branch)
         return folio
 
     def _sync_head(self, scope: str) -> None:

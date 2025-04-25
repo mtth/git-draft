@@ -161,7 +161,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    feedback = Feedback.live() if sys.stdin.isatty() else Feedback.logging()
+    feedback = Feedback.dynamic() if sys.stdin.isatty() else Feedback.static()
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent(), feedback)
     match getattr(opts, "command", "new"):
@@ -194,16 +194,14 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = sys.stdin.read()
 
             accept = Accept(opts.accept or 0)
-            draft = drafter.generate_draft(
+            _ = drafter.generate_draft(
                 prompt,
                 bot,
                 prompt_transform=open_editor if editable else None,
                 merge_strategy=accept.merge_strategy(),
             )
-            print(draft) # TODO: Pretty-print draft summary statistics.
         case "quit":
             drafter.quit_folio()
-            print("Quit draft.")
         case "templates":
             if args:
                 name = args[0]

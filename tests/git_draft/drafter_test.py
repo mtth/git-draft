@@ -46,7 +46,7 @@ class TestDrafter:
         self._repo = repo
         self._fs = repo_fs
         self._drafter = sut.Drafter.create(
-            repo, Store.in_memory(), Feedback.logging()
+            repo, Store.in_memory(), Feedback.static()
         )
 
     def _commits(self, ref: str | None = None) -> Sequence[SHA]:
