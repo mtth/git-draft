@@ -7,3 +7,5 @@ updates:
       day: saturday
     commit-message:
       prefix: deps
+    labels:
+      - bot
