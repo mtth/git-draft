@@ -1,9 +1,9 @@
 version: 2
-commit-message:
-  prefix: deps
 updates:
   - package-ecosystem: pip
     directory: /
     schedule:
       interval: weekly
       day: saturday
+    commit-message:
+      prefix: deps
