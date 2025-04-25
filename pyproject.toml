@@ -36,7 +36,7 @@ packages = [{include="git_draft", from="src"}]
 python = ">=3.12,<4"
 
 [tool.poetry.group.dev.dependencies]
-coverage = "^7.4.4"
+coverage = "^7.8.0"
 mypy = "^1.2.1"
 poethepoet = "^0.25.0"
 pytest = "^7.1.0"
