@@ -14,7 +14,7 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import JSONObject, qualified_class_name
+from .common import Feedback, JSONObject, qualified_class_name
 from .git import SHA, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -88,15 +88,16 @@ DraftMergeStrategy = Literal[
 class Drafter:
     """Draft state orchestrator"""
 
-    def __init__(self, store: Store, repo: Repo) -> None:
+    def __init__(self, store: Store, repo: Repo, feedback: Feedback) -> None:
         self._store = store
         self._repo = repo
+        self._feedback = feedback
 
     @classmethod
-    def create(cls, repo: Repo, store: Store) -> Drafter:
+    def create(cls, repo: Repo, store: Store, feedback: Feedback) -> Drafter:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
-        return cls(store, repo)
+        return cls(store, repo, feedback)
 
     def generate_draft(
         self,
@@ -106,102 +107,107 @@ class Drafter:
         prompt_transform: Callable[[str], str] | None = None,
         tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
-        # Handle prompt templating and editing. We do this first in case this
-        # fails, to avoid creating unnecessary branches.
-        toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
-        prompt_contents = self._prepare_prompt(
-            prompt, prompt_transform, toolbox
-        )
-
-        # Ensure that we are in a folio.
-        folio = _active_folio(self._repo)
-        if not folio:
-            folio = self._create_folio()
-        with self._store.cursor() as cursor:
-            [(prompt_id, seqno)] = cursor.execute(
-                sql("add-prompt"),
-                {
-                    "folio_id": folio.id,
-                    "template": prompt.template
-                    if isinstance(prompt, TemplatedPrompt)
-                    else None,
-                    "contents": prompt_contents,
-                },
+        with self._feedback.spinner("Preparing prompt..."):
+            # Handle prompt templating and editing. We do this first in case
+            # this fails, to avoid creating unnecessary branches.
+            toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
+            prompt_contents = self._prepare_prompt(
+                prompt, prompt_transform, toolbox
             )
+
+            # Ensure that we are in a folio.
+            folio = _active_folio(self._repo)
+            if not folio:
+                folio = self._create_folio()
+            with self._store.cursor() as cursor:
+                [(prompt_id, seqno)] = cursor.execute(
+                    sql("add-prompt"),
+                    {
+                        "folio_id": folio.id,
+                        "template": prompt.template
+                        if isinstance(prompt, TemplatedPrompt)
+                        else None,
+                        "contents": prompt_contents,
+                    },
+                )
 
         # Run the bot to generate the change.
-        operation_recorder = _OperationRecorder()
-        change = self._generate_change(
-            bot,
-            Goal(prompt_contents),
-            toolbox.with_visitors(
-                [operation_recorder, *list(tool_visitors or [])],
-            ),
-        )
+        with self._feedback.spinner("Running bot..."):
+            operation_recorder = _OperationRecorder()
+            change = self._generate_change(
+                bot,
+                Goal(prompt_contents),
+                toolbox.with_visitors(
+                    [operation_recorder, *list(tool_visitors or [])],
+                ),
+            )
 
         # Create git commits, references, and update branches.
-        if dirty:
-            parent_commit_rev = self._commit_tree(
-                toolbox.tree_sha(), "HEAD", "sync(prompt)"
+        with self._feedback.spinner("Committing changes..."):
+            if dirty:
+                parent_commit_rev = self._commit_tree(
+                    toolbox.tree_sha(), "HEAD", "sync(prompt)"
+                )
+                _logger.info(
+                    "Created sync commit. [sha=%s]", parent_commit_rev
+                )
+            else:
+                parent_commit_rev = "HEAD"
+                _logger.info("Skipping sync commit, tree is clean.")
+            commit_sha = self._record_change(
+                change, parent_commit_rev, folio, seqno
             )
-            _logger.info("Created sync commit. [sha=%s]", parent_commit_rev)
-        else:
-            parent_commit_rev = "HEAD"
-            _logger.info("Skipping sync commit, tree is clean.")
-        commit_sha = self._record_change(
-            change, parent_commit_rev, folio, seqno
-        )
-        # TODO: Trim commits (sync and prompt of files which have not been
-        # operated on). This will improve the UX by allowing fast-forward when
-        # other files are edited.
-        with self._store.cursor() as cursor:
-            cursor.execute(
-                sql("add-action"),
-                {
-                    "commit_sha": commit_sha,
-                    "prompt_id": prompt_id,
-                    "bot_class": qualified_class_name(bot.__class__),
-                    "walltime_seconds": change.walltime.total_seconds(),
-                    "request_count": change.action.request_count,
-                    "token_count": change.action.token_count,
-                },
-            )
-            cursor.executemany(
-                sql("add-operation"),
-                [
+            # TODO: Trim commits (sync and prompt of files which have not been
+            # operated on). This will improve the UX by allowing fast-forward
+            # when other files are edited.
+            with self._store.cursor() as cursor:
+                cursor.execute(
+                    sql("add-action"),
                     {
                         "commit_sha": commit_sha,
-                        "tool": o.tool,
-                        "reason": o.reason,
-                        "details": json.dumps(o.details),
-                        "started_at": o.start,
-                    }
-                    for o in operation_recorder.operations
-                ],
-            )
-        _logger.info("Created new draft in folio %s.", folio.id)
+                        "prompt_id": prompt_id,
+                        "bot_class": qualified_class_name(bot.__class__),
+                        "walltime_seconds": change.walltime.total_seconds(),
+                        "request_count": change.action.request_count,
+                        "token_count": change.action.token_count,
+                    },
+                )
+                cursor.executemany(
+                    sql("add-operation"),
+                    [
+                        {
+                            "commit_sha": commit_sha,
+                            "tool": o.tool,
+                            "reason": o.reason,
+                            "details": json.dumps(o.details),
+                            "started_at": o.start,
+                        }
+                        for o in operation_recorder.operations
+                    ],
+                )
+            _logger.info("Created new draft in folio %s.", folio.id)
 
         if merge_strategy:
-            _logger.info("Merging draft. [strategy=%s]", merge_strategy)
-            if parent_commit_rev != "HEAD":
-                # If there was a sync(prompt) commit, we move forward to it.
-                # This will avoid conflicts with changes that happened earlier.
-                self._repo.git("reset", "--soft", parent_commit_rev)
-            self._sync_head("merge")
-            self._repo.git(
-                "merge",
-                "--no-ff",
-                "-X",
-                merge_strategy,
-                "-m",
-                "draft! merge",
-                commit_sha,
-            )
-            self._repo.git(
-                "update-ref",
-                f"refs/heads/{folio.upstream_branch_name()}",
-                "HEAD",
-            )
+            with self._feedback.spinner("Merging changes..."):
+                if parent_commit_rev != "HEAD":
+                    # If there was a sync(prompt) commit, we move forward to
+                    # it. This will avoid conflicts with earlier changes.
+                    self._repo.git("reset", "--soft", parent_commit_rev)
+                self._sync_head("merge")
+                self._repo.git(
+                    "merge",
+                    "--no-ff",
+                    "-X",
+                    merge_strategy,
+                    "-m",
+                    "draft! merge",
+                    commit_sha,
+                )
+                self._repo.git(
+                    "update-ref",
+                    f"refs/heads/{folio.upstream_branch_name()}",
+                    "HEAD",
+                )
 
         return Draft(
             folio=folio,

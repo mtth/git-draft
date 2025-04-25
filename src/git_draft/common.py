@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
+import contextlib
 import dataclasses
 import itertools
 import logging
@@ -11,10 +12,14 @@ from pathlib import Path
 import sqlite3
 import textwrap
 import tomllib
-from typing import Any, ClassVar, Self
+from typing import Any, ClassVar, Protocol, Self
 
 import prettytable
 import xdg_base_dirs
+import yaspin
+
+
+_logger = logging.getLogger(__name__)
 
 
 PROGRAM = "git-draft"
@@ -123,3 +128,55 @@ class Table:
         table = prettytable.from_db_cursor(cursor, **cls._kwargs)
         assert table
         return cls(table)
+
+
+class Feedback:
+    """User feedback interface"""
+
+    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
+        raise NotImplementedError()
+
+    @staticmethod
+    def live() -> Feedback:
+        return _LiveFeedback()
+
+    @staticmethod
+    def logging() -> Feedback:
+        return _LoggingFeedback()
+
+
+
+class FeedbackSpinner(Protocol):
+    """Operation feedback tracker"""
+
+    def ok(self, text: str) -> None: ...
+    def fail(self, text: str) -> None: ...
+
+
+
+class _LiveFeedback(Feedback):
+    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
+        return yaspin.yaspin(text=text)
+
+
+class _LoggingFeedback(Feedback):
+    @contextlib.contextmanager
+    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
+        yield _LoggingFeedbackSpinner.start(text)
+
+
+class _LoggingFeedbackSpinner:
+    @classmethod
+    def start(cls, text: str) -> Self:
+        spinner = cls()
+        spinner._log("Spinner started.", text)
+        return spinner
+
+    def _log(self, message: str, text: str) -> None:
+        self._log("%s [id=%s, text=%s]", message, id(self), text)
+
+    def ok(self, text: str) -> None:
+        self._log("Spinner succeeded.", text)
+
+    def fail(self, text: str) -> None:
+        self._log("Spinner failed.", text)

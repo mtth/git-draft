@@ -11,7 +11,13 @@ from pathlib import Path, PurePosixPath
 import sys
 
 from .bots import load_bot
-from .common import PROGRAM, Config, UnreachableError, ensure_state_home
+from .common import (
+    PROGRAM,
+    Config,
+    Feedback,
+    UnreachableError,
+    ensure_state_home,
+)
 from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
 from .git import Repo
@@ -187,10 +193,11 @@ def main() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
+    feedback = Feedback.live() if sys.stdin.isatty() else Feedback.logging()
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
-    drafter = Drafter.create(repo, Store.persistent())
-    match getattr(opts, "command", "generate"):
-        case "generate":
+    drafter = Drafter.create(repo, Store.persistent(), feedback)
+    match getattr(opts, "command", "new"):
+        case "new":
             bot_config = None
             bot_name = opts.bot or repo.default_bot()
             if bot_name:
@@ -214,6 +221,8 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 if not prompt or prompt == _PROMPT_PLACEHOLDER:
                     raise ValueError("Aborting: empty or placeholder prompt")
             else:
+                if sys.stdin.isatty():
+                    print("Reading prompt from stdin... (press C-D when done)")
                 prompt = sys.stdin.read()
 
             accept = Accept(opts.accept or 0)
@@ -236,7 +245,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                     raise UnreachableError()
         case "quit":
             drafter.quit_folio()
-            print("Applied draft.")
+            print("Quit draft.")
         case "templates":
             if args:
                 name = args[0]
