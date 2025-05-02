@@ -139,27 +139,32 @@ def _tagged(text: str, /, **kwargs) -> str:
 class Feedback:
     """User feedback interface"""
 
-    def report(self, text: str, **tags) -> None:
+    def report(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
 
     def spinner(
         self, text: str, **tags
-    ) -> contextlib.AbstractContextManager[FeedbackSpinner]:
+    ) -> contextlib.AbstractContextManager[
+        FeedbackSpinner
+    ]:  # pragma: no cover
         raise NotImplementedError()
 
     @staticmethod
     def dynamic() -> Feedback:
+        """Feedback suitable for interactive terminals"""
         return _DynamicFeedback()
 
     @staticmethod
     def static() -> Feedback:
+        """Feedback suitable for pipes, etc."""
         return _StaticFeedback()
 
 
 class FeedbackSpinner:
     """Operation feedback tracker"""
 
-    def update(self, text: str, **tags) -> None: ...
+    def update(self, text: str, **tags) -> None:  # pragma: no cover
+        raise NotImplementedError()
 
 
 class _DynamicFeedback(Feedback):
