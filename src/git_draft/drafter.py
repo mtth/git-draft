@@ -14,7 +14,7 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import JSONObject, qualified_class_name
+from .common import Feedback, JSONObject, qualified_class_name
 from .git import SHA, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -88,15 +88,16 @@ DraftMergeStrategy = Literal[
 class Drafter:
     """Draft state orchestrator"""
 
-    def __init__(self, store: Store, repo: Repo) -> None:
+    def __init__(self, store: Store, repo: Repo, feedback: Feedback) -> None:
         self._store = store
         self._repo = repo
+        self._feedback = feedback
 
     @classmethod
-    def create(cls, repo: Repo, store: Store) -> Drafter:
+    def create(cls, repo: Repo, store: Store, feedback: Feedback) -> Drafter:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
-        return cls(store, repo)
+        return cls(store, repo, feedback)
 
     def generate_draft(
         self,
@@ -104,14 +105,24 @@ class Drafter:
         bot: Bot,
         merge_strategy: DraftMergeStrategy | None = None,
         prompt_transform: Callable[[str], str] | None = None,
-        tool_visitors: Sequence[ToolVisitor] | None = None,
     ) -> Draft:
-        # Handle prompt templating and editing. We do this first in case this
-        # fails, to avoid creating unnecessary branches.
-        toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
-        prompt_contents = self._prepare_prompt(
-            prompt, prompt_transform, toolbox
-        )
+        with self._feedback.spinner("Preparing prompt...") as spinner:
+            # Handle prompt templating and editing. We do this first in case
+            # this fails, to avoid creating unnecessary branches.
+            toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
+            prompt_contents = self._prepare_prompt(
+                prompt, prompt_transform, toolbox
+            )
+            template_name = (
+                prompt.template
+                if isinstance(prompt, TemplatedPrompt)
+                else None
+            )
+            spinner.update(
+                "Prepared prompt.",
+                template=template_name,
+                length=len(prompt_contents),
+            )
 
         # Ensure that we are in a folio.
         folio = _active_folio(self._repo)
@@ -122,96 +133,107 @@ class Drafter:
                 sql("add-prompt"),
                 {
                     "folio_id": folio.id,
-                    "template": prompt.template
-                    if isinstance(prompt, TemplatedPrompt)
-                    else None,
+                    "template": template_name,
                     "contents": prompt_contents,
                 },
             )
 
         # Run the bot to generate the change.
-        operation_recorder = _OperationRecorder()
-        change = self._generate_change(
-            bot,
-            Goal(prompt_contents),
-            toolbox.with_visitors(
-                [operation_recorder, *list(tool_visitors or [])],
-            ),
-        )
+        operation_recorder = _OperationRecorder(self._feedback)
+        with self._feedback.spinner("Running bot...") as spinner:
+            change = self._generate_change(
+                bot,
+                Goal(prompt_contents),
+                toolbox.with_visitors(
+                    [operation_recorder],
+                ),
+            )
+            spinner.update(
+                "Completed bot run.",
+                runtime=round(change.walltime.total_seconds(), 1),
+                tokens=change.action.token_count,
+            )
 
         # Create git commits, references, and update branches.
-        if dirty:
-            parent_commit_rev = self._commit_tree(
-                toolbox.tree_sha(), "HEAD", "sync(prompt)"
-            )
-            _logger.info("Created sync commit. [sha=%s]", parent_commit_rev)
-        else:
-            parent_commit_rev = "HEAD"
-            _logger.info("Skipping sync commit, tree is clean.")
-        commit_sha = self._record_change(
-            change, parent_commit_rev, folio, seqno
-        )
-        # TODO: Trim commits (sync and prompt of files which have not been
-        # operated on). This will improve the UX by allowing fast-forward when
-        # other files are edited.
-        with self._store.cursor() as cursor:
-            cursor.execute(
-                sql("add-action"),
-                {
-                    "commit_sha": commit_sha,
-                    "prompt_id": prompt_id,
-                    "bot_class": qualified_class_name(bot.__class__),
-                    "walltime_seconds": change.walltime.total_seconds(),
-                    "request_count": change.action.request_count,
-                    "token_count": change.action.token_count,
-                },
-            )
-            cursor.executemany(
-                sql("add-operation"),
-                [
-                    {
-                        "commit_sha": commit_sha,
-                        "tool": o.tool,
-                        "reason": o.reason,
-                        "details": json.dumps(o.details),
-                        "started_at": o.start,
-                    }
-                    for o in operation_recorder.operations
-                ],
-            )
-        _logger.info("Created new draft in folio %s.", folio.id)
-
-        if merge_strategy:
-            _logger.info("Merging draft. [strategy=%s]", merge_strategy)
-            if parent_commit_rev != "HEAD":
-                # If there was a sync(prompt) commit, we move forward to it.
-                # This will avoid conflicts with changes that happened earlier.
-                self._repo.git("reset", "--soft", parent_commit_rev)
-            self._sync_head("merge")
-            self._repo.git(
-                "merge",
-                "--no-ff",
-                "-X",
-                merge_strategy,
-                "-m",
-                "draft! merge",
-                commit_sha,
-            )
-            self._repo.git(
-                "update-ref",
-                f"refs/heads/{folio.upstream_branch_name()}",
-                "HEAD",
-            )
-
-        return Draft(
+        draft = Draft(
             folio=folio,
             seqno=seqno,
             is_noop=change.is_noop,
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
+        with self._feedback.spinner("Creating draft commit...") as spinner:
+            if dirty:
+                parent_commit_rev = self._commit_tree(
+                    toolbox.tree_sha(), "HEAD", "sync(prompt)"
+                )
+                _logger.info(
+                    "Created sync commit. [sha=%s]", parent_commit_rev
+                )
+            else:
+                parent_commit_rev = "HEAD"
+                _logger.info("Skipping sync commit, tree is clean.")
+            commit_sha = self._record_change(
+                change, parent_commit_rev, folio, seqno
+            )
+            # TODO: Trim commits (sync and prompt of files which have not been
+            # operated on). This will improve the UX by allowing fast-forward
+            # when other files are edited.
+            with self._store.cursor() as cursor:
+                cursor.execute(
+                    sql("add-action"),
+                    {
+                        "commit_sha": commit_sha,
+                        "prompt_id": prompt_id,
+                        "bot_class": qualified_class_name(bot.__class__),
+                        "walltime_seconds": change.walltime.total_seconds(),
+                        "request_count": change.action.request_count,
+                        "token_count": change.action.token_count,
+                    },
+                )
+                cursor.executemany(
+                    sql("add-operation"),
+                    [
+                        {
+                            "commit_sha": commit_sha,
+                            "tool": o.tool,
+                            "reason": o.reason,
+                            "details": json.dumps(o.details),
+                            "started_at": o.start,
+                        }
+                        for o in operation_recorder.operations
+                    ],
+                )
+                spinner.update("Created draft commit.", ref=draft.ref)
 
-    def quit_folio(self) -> Folio:
+        _logger.info("Created new draft in folio %s.", folio.id)
+
+        if merge_strategy:
+            with self._feedback.spinner("Merging changes...") as spinner:
+                if parent_commit_rev != "HEAD":
+                    # If there was a sync(prompt) commit, we move forward to
+                    # it. This will avoid conflicts with earlier changes.
+                    self._repo.git("reset", "--soft", parent_commit_rev)
+                self._sync_head("merge")
+                self._repo.git(
+                    "merge",
+                    "--no-ff",
+                    "-X",
+                    merge_strategy,
+                    "-m",
+                    "draft! merge",
+                    commit_sha,
+                )
+                self._repo.git(
+                    "update-ref",
+                    f"refs/heads/{folio.upstream_branch_name()}",
+                    "HEAD",
+                )
+                spinner.update("Merged changes.")
+
+        return draft
+
+    def quit_folio(self) -> None:
         folio = _active_folio(self._repo)
         if not folio:
             raise RuntimeError("Not currently on a draft branch")
@@ -233,49 +255,56 @@ class Drafter:
         if check_call.code:
             raise RuntimeError("Origin branch diverged, please rebase first")
 
-        # Create a reference to the current state for later analysis.
-        self._sync_head("finalize")
-        self._repo.git("update-ref", _draft_ref(folio.id, "@"), "HEAD")
+        with self._feedback.spinner("Switching branch...") as spinner:
+            # Create a reference to the current state for later analysis.
+            self._sync_head("finalize")
+            self._repo.git("update-ref", _draft_ref(folio.id, "@"), "HEAD")
 
-        # Move back to the original branch, doing a little dance to keep the
-        # state. See https://stackoverflow.com/a/15993574 for the inspiration.
-        self._repo.git("checkout", "--detach")
-        self._repo.git("reset", "--soft", origin_branch)
-        self._repo.git("checkout", origin_branch)
+            # Move back to the original branch, doing a little dance to keep
+            # the state. See https://stackoverflow.com/a/15993574 for the
+            # inspiration.
+            self._repo.git("checkout", "--detach")
+            self._repo.git("reset", "--soft", origin_branch)
+            self._repo.git("checkout", origin_branch)
 
-        # Clean up folio branches.
-        self._repo.git(
-            "branch",
-            "-D",
-            folio.branch_name(),
-            folio.upstream_branch_name(),
-        )
+            # Clean up folio branches.
+            self._repo.git(
+                "branch",
+                "-D",
+                folio.branch_name(),
+                folio.upstream_branch_name(),
+            )
+            spinner.update(
+                "Switched back to origin branch.",
+                name=origin_branch,
+            )
 
-        _logger.info("Exited %s.", folio)
-        return folio
+        _logger.info("Quit %s.", folio)
 
     def _create_folio(self) -> Folio:
-        origin_branch = self._repo.active_branch()
-        if origin_branch is None:
-            raise RuntimeError("No currently active branch")
+        with self._feedback.spinner("Creating draft branch...") as spinner:
+            origin_branch = self._repo.active_branch()
+            if origin_branch is None:
+                raise RuntimeError("No currently active branch")
 
-        with self._store.cursor() as cursor:
-            [(folio_id,)] = cursor.execute(
-                sql("add-folio"),
-                {
-                    "repo_uuid": str(self._repo.uuid),
-                    "origin_branch": origin_branch,
-                },
-            )
-        folio = Folio(folio_id)
+            with self._store.cursor() as cursor:
+                [(folio_id,)] = cursor.execute(
+                    sql("add-folio"),
+                    {
+                        "repo_uuid": str(self._repo.uuid),
+                        "origin_branch": origin_branch,
+                    },
+                )
+            folio = Folio(folio_id)
 
-        self._repo.git("checkout", "--detach")
-        upstream_branch = folio.upstream_branch_name()
-        self._repo.git("branch", upstream_branch)
-        live_branch = folio.branch_name()
-        self._repo.git("branch", "--track", live_branch, upstream_branch)
-        self._repo.git("checkout", live_branch)
+            self._repo.git("checkout", "--detach")
+            upstream_branch = folio.upstream_branch_name()
+            self._repo.git("branch", upstream_branch)
+            live_branch = folio.branch_name()
+            self._repo.git("branch", "--track", live_branch, upstream_branch)
+            self._repo.git("checkout", live_branch)
 
+            spinner.update("Switched to new draft branch.", name=live_branch)
         return folio
 
     def _sync_head(self, scope: str) -> None:
@@ -398,30 +427,33 @@ class _OperationRecorder(ToolVisitor):
     analysis.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, feedback: Feedback) -> None:
         self.operations = list[_Operation]()
+        self._feedback = feedback
 
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None:
-        self._record(reason, "list_files", count=len(paths))
+        count = len(paths)
+        self._feedback.report("Listed available files.", count=count)
+        self._record(reason, "list_files", count=count)
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
     ) -> None:
-        self._record(
-            reason,
-            "read_file",
-            path=str(path),
-            size=-1 if contents is None else len(contents),
-        )
+        size = -1 if contents is None else len(contents)
+        self._feedback.report(f"Read {path}.", length=size)
+        self._record(reason, "read_file", path=str(path), size=size)
 
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
     ) -> None:
-        self._record(reason, "write_file", path=str(path), size=len(contents))
+        size = len(contents)
+        self._feedback.report(f"Wrote {path}.", length=size)
+        self._record(reason, "write_file", path=str(path), size=size)
 
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+        self._feedback.report(f"Deleted {path}.")
         self._record(reason, "delete_file", path=str(path))
 
     def on_rename_file(
@@ -430,6 +462,7 @@ class _OperationRecorder(ToolVisitor):
         dst_path: PurePosixPath,
         reason: str | None,
     ) -> None:
+        self._feedback.report(f"Renamed {src_path} to {dst_path}.")
         self._record(
             reason,
             "rename_file",

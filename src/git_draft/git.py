@@ -62,7 +62,13 @@ class GitError(Exception):
 
 
 class _ConfigKey(enum.StrEnum):
+    #: Unique identifier used to keep track of a repo. We don't just rely on
+    #: its path to allow tracking to persist across repo moves.
     REPO_UUID = "repouuid"
+
+    #: Name of the default bot to use in this repository when none is specified
+    #: at the command line. Takes precedence over the default "use first"
+    #: behavior.
     DEFAULT_BOT = "bot"
 
     @property
