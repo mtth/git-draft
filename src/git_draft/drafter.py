@@ -14,7 +14,7 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import Feedback, FeedbackSpinner, JSONObject, qualified_class_name
+from .common import Feedback, JSONObject, qualified_class_name
 from .git import SHA, Repo
 from .prompt import PromptRenderer, TemplatedPrompt
 from .store import Store, sql
@@ -139,8 +139,8 @@ class Drafter:
             )
 
         # Run the bot to generate the change.
+        operation_recorder = _OperationRecorder(self._feedback)
         with self._feedback.spinner("Running bot...") as spinner:
-            operation_recorder = _OperationRecorder(spinner)
             change = self._generate_change(
                 bot,
                 Goal(prompt_contents),
@@ -427,20 +427,20 @@ class _OperationRecorder(ToolVisitor):
     analysis.
     """
 
-    def __init__(self, spinner: FeedbackSpinner) -> None:
+    def __init__(self, feedback: Feedback) -> None:
         self.operations = list[_Operation]()
-        self._spinner = spinner
+        self._feedback = feedback
 
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None:
-        self._spinner.report("Listed available files.")
+        self._feedback.report("Listed available files.")
         self._record(reason, "list_files", count=len(paths))
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
     ) -> None:
-        self._spinner.report(f"Read {path}.")
+        self._feedback.report(f"Read {path}.")
         self._record(
             reason,
             "read_file",
@@ -451,11 +451,11 @@ class _OperationRecorder(ToolVisitor):
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
     ) -> None:
-        self._spinner.report(f"Wrote {path}.")
+        self._feedback.report(f"Wrote {path}.")
         self._record(reason, "write_file", path=str(path), size=len(contents))
 
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
-        self._spinner.report(f"Deleted {path}.")
+        self._feedback.report(f"Deleted {path}.")
         self._record(reason, "delete_file", path=str(path))
 
     def on_rename_file(
@@ -464,7 +464,7 @@ class _OperationRecorder(ToolVisitor):
         dst_path: PurePosixPath,
         reason: str | None,
     ) -> None:
-        self._spinner.report(f"Renamed {src_path} to {dst_path}.")
+        self._feedback.report(f"Renamed {src_path} to {dst_path}.")
         self._record(
             reason,
             "rename_file",

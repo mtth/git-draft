@@ -131,11 +131,19 @@ class Table:
         return cls(table)
 
 
+def _tagged(text: str, /, **kwargs) -> str:
+    tags = [f"{key}={val}" for key, val in kwargs.items() if val is not None]
+    return f"{text} [{', '.join(tags)}]" if tags else text
+
+
 class Feedback:
     """User feedback interface"""
 
+    def report(self, text: str, **tags) -> None:
+        raise NotImplementedError()
+
     def spinner(
-        self, text: str
+        self, text: str, **tags
     ) -> contextlib.AbstractContextManager[FeedbackSpinner]:
         raise NotImplementedError()
 
@@ -151,61 +159,57 @@ class Feedback:
 class FeedbackSpinner:
     """Operation feedback tracker"""
 
-    def update(self, text: str, **kwargs) -> None: ...
-    def report(self, text: str) -> None: ...
+    def update(self, text: str, **tags) -> None: ...
 
 
 class _DynamicFeedback(Feedback):
+    def __init__(self) -> None:
+        self._spinner: _DynamicFeedbackSpinner | None = None
+
+    def report(self, text: str, **tags) -> None:
+        message = f"☞ {_tagged(text, **tags)}"
+        if self._spinner:
+            self._spinner.yaspin.write(message)
+        else:
+            print(message)  # noqa
+
     @contextlib.contextmanager
-    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
-        with yaspin.yaspin(text=text) as spinner:
+    def spinner(self, text: str, **tags) -> Iterator[FeedbackSpinner]:
+        assert not self._spinner
+        with yaspin.yaspin(text=_tagged(text, **tags)) as spinner:
+            self._spinner = _DynamicFeedbackSpinner(spinner)
             try:
-                yield _DynamicFeedbackSpinner(spinner)
+                yield self._spinner
             except Exception:
-                spinner.fail("✗")
+                self._spinner.yaspin.fail("✗")
                 raise
             else:
-                spinner.ok("✓")
-
-
-def _tagged(text: str, /, **kwargs) -> str:
-    tags = [
-        f"{key}={val}"
-        for key, val in kwargs.items()
-        if val is not None
-    ]
-    return f"{text} [{', '.join(tags)}]" if tags else text
+                self._spinner.yaspin.ok("✓")
+            finally:
+                self._spinner = None
 
 
 class _DynamicFeedbackSpinner(FeedbackSpinner):
     def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
-        self._yaspin = yaspin
+        self.yaspin = yaspin
 
-    def update(self, text: str, **kwargs) -> None:
-        self._yaspin.text = _tagged(text, **kwargs)
-
-    def report(self, text: str) -> None:
-        self._yaspin.write(f"☞ {text}")
+    def update(self, text: str, **tags) -> None:
+        self.yaspin.text = _tagged(text, **tags)
 
 
 class _StaticFeedback(Feedback):
+    def report(self, text: str, **tags) -> None:
+        print(_tagged(text, **tags))  # noqa
+
     @contextlib.contextmanager
-    def spinner(self, text: str) -> Iterator[FeedbackSpinner]:
-        yield _StaticFeedbackSpinner.start(text)
+    def spinner(self, text: str, **tags) -> Iterator[FeedbackSpinner]:
+        self.report(text, **tags)
+        yield _StaticFeedbackSpinner(self)
 
 
 class _StaticFeedbackSpinner(FeedbackSpinner):
-    @classmethod
-    def start(cls, text: str) -> Self:
-        spinner = cls()
-        spinner._print(text)
-        return spinner
+    def __init__(self, feedback: _StaticFeedback) -> None:
+        self._feedback = feedback
 
-    def _print(self, message: str, **kwargs) -> None:
-        print(_tagged(message, spinner=id(self), **kwargs))  # noqa
-
-    def update(self, text: str, **kwargs) -> None:
-        self._print(text, **kwargs)
-
-    def report(self, text: str) -> None:
-        self._print(text)
+    def update(self, text: str, **tags) -> None:
+        self._feedback.report(text, **tags)
