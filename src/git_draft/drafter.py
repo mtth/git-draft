@@ -150,7 +150,7 @@ class Drafter:
             )
             spinner.update(
                 "Completed bot run.",
-                runtime=change.walltime.total_seconds(),
+                runtime=round(change.walltime.total_seconds(), 1),
                 tokens=change.action.token_count,
             )
 
@@ -434,25 +434,23 @@ class _OperationRecorder(ToolVisitor):
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None:
-        self._feedback.report("Listed available files.")
-        self._record(reason, "list_files", count=len(paths))
+        count = len(paths)
+        self._feedback.report("Listed available files.", count=count)
+        self._record(reason, "list_files", count=count)
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
     ) -> None:
-        self._feedback.report(f"Read {path}.")
-        self._record(
-            reason,
-            "read_file",
-            path=str(path),
-            size=-1 if contents is None else len(contents),
-        )
+        size = -1 if contents is None else len(contents)
+        self._feedback.report(f"Read {path}.", length=size)
+        self._record(reason, "read_file", path=str(path), size=size)
 
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
     ) -> None:
-        self._feedback.report(f"Wrote {path}.")
-        self._record(reason, "write_file", path=str(path), size=len(contents))
+        size = len(contents)
+        self._feedback.report(f"Wrote {path}.", length=size)
+        self._record(reason, "write_file", path=str(path), size=size)
 
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
         self._feedback.report(f"Deleted {path}.")
