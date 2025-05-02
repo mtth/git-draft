@@ -188,8 +188,8 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 prompt = edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
                 ).strip()
-                if not prompt or prompt == _PROMPT_PLACEHOLDER:
-                    raise ValueError("Aborting: empty or placeholder prompt")
+                if prompt.strip() == _PROMPT_PLACEHOLDER:
+                    prompt = ""  # Enable consistent error message
                 editable = False  # We already edited the prompt
 
             accept = Accept(opts.accept or 0)

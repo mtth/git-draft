@@ -336,7 +336,7 @@ class Drafter:
         if prompt_transform:
             contents = prompt_transform(contents)
         if not contents.strip():
-            raise ValueError("Empty prompt")
+            raise ValueError("Missing prompt")
         return contents
 
     def _generate_change(
