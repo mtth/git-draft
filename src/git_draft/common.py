@@ -163,6 +163,10 @@ class Feedback:
 class FeedbackSpinner:
     """Operation feedback tracker"""
 
+    @contextlib.contextmanager
+    def hidden(self) -> Iterator[None]:
+        yield None
+
     def update(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
 
@@ -197,6 +201,11 @@ class _DynamicFeedback(Feedback):
 class _DynamicFeedbackSpinner(FeedbackSpinner):
     def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
         self.yaspin = yaspin
+
+    @contextlib.contextmanager
+    def hidden(self) -> Iterator[None]:
+        with self.yaspin.hidden():
+            yield
 
     def update(self, text: str, **tags) -> None:
         self.yaspin.text = _tagged(text, **tags)

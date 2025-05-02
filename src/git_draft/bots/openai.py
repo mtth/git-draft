@@ -20,7 +20,7 @@ from typing import Any, Self, TypedDict, override
 
 import openai
 
-from ..common import JSONObject, config_string, reindent
+from ..common import JSONObject, UnreachableError, config_string, reindent
 from .common import Action, Bot, Goal, Toolbox
 
 
@@ -85,6 +85,21 @@ class _ToolsFactory:
 
     def params(self) -> Sequence[openai.types.chat.ChatCompletionToolParam]:
         return [
+            self._param(
+                name="ask_user",
+                description="""
+                    Request more information from the user
+
+                    Call this function if and only if you are unable to achieve
+                    your task with the information you already have.
+                """,
+                inputs={
+                    "question": {
+                        "type": "string",
+                        "description": "Question to be answered by the user",
+                    },
+                },
+            ),
             self._param(
                 name="list_files",
                 description="List all available files",
@@ -152,17 +167,15 @@ _INSTRUCTIONS = """
     read the content of the relevant ones, and save the changes you suggest.
 
     You should stop when and ONLY WHEN all the files you need to change have
-    been updated. If you stop for any reason before completing your task,
-    explain why by updating a REASON file before stopping. For example if you
-    are missing some information or noticed something inconsistent with the
-    instructions, say so there. DO NOT STOP without updating at least this
-    file.
+    been updated. If you do not have enough information to complete your task,
+    use the provided tool to request it from the user, then stop.
 """
 
 
 class _ToolHandler[V]:
     def __init__(self, toolbox: Toolbox) -> None:
         self._toolbox = toolbox
+        self.question: str | None = None
 
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> V:
         raise NotImplementedError()
@@ -185,6 +198,10 @@ class _ToolHandler[V]:
         inputs = json.loads(function.arguments)
         _logger.info("Requested function: %s", function)
         match function.name:
+            case "ask_user":
+                assert not self.question
+                self.question = inputs["question"]
+                return None
             case "read_file":
                 path = PurePosixPath(inputs["path"])
                 return self._on_read_file(path, self._toolbox.read_file(path))
@@ -202,10 +219,11 @@ class _ToolHandler[V]:
                 dst_path = PurePosixPath(inputs["dst_path"])
                 self._toolbox.rename_file(src_path, dst_path)
                 return self._on_rename_file(src_path, dst_path)
-            case _ as name:
-                assert name == "list_files" and not inputs
+            case "list_files":
                 paths = self._toolbox.list_files()
                 return self._on_list_files(paths)
+            case _ as name:
+                raise UnreachableError(f"Unexpected function: {name}")
 
 
 class _CompletionsBot(Bot):
@@ -243,7 +261,10 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return Action(request_count=request_count)
+        return Action(
+            request_count=request_count,
+            question=tool_handler.question,
+        )
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
@@ -353,6 +374,9 @@ class _EventHandler(openai.AssistantEventHandler):
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             handler = _ThreadToolHandler(self._toolbox, tool.id)
             tool_outputs.append(handler.handle_function(tool.function))
+            if handler.question:
+                assert not self._action.question
+                self._action.question = handler.question
 
         run = self.current_run
         assert run, "No ongoing run"

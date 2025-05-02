@@ -110,9 +110,10 @@ class Drafter:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
             toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
-            prompt_contents = self._prepare_prompt(
-                prompt, prompt_transform, toolbox
-            )
+            with spinner.hidden():
+                prompt_contents = self._prepare_prompt(
+                    prompt, prompt_transform, toolbox
+                )
             template_name = (
                 prompt.template
                 if isinstance(prompt, TemplatedPrompt)
