@@ -194,7 +194,7 @@ class _ToolHandler[V]:
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
         raise NotImplementedError()
 
-    def handle_function(self, function: Any) -> V:
+    def handle_function(self, function: Any) -> V | None:
         inputs = json.loads(function.arguments)
         _logger.info("Requested function: %s", function)
         match function.name:

@@ -178,20 +178,19 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             bot = load_bot(bot_config)
 
             prompt: str | TemplatedPrompt
-            editable = opts.edit
             if args:
-                prompt = TemplatedPrompt.parse(args[0], *args[1:])
-            elif opts.edit:
-                editable = False
+                if args[0] == "-":
+                    prompt = sys.stdin.read()
+                else:
+                    prompt = TemplatedPrompt.parse(args[0], *args[1:])
+                editable = opts.edit
+            else:
                 prompt = edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
                 ).strip()
                 if not prompt or prompt == _PROMPT_PLACEHOLDER:
                     raise ValueError("Aborting: empty or placeholder prompt")
-            else:
-                if sys.stdin.isatty():
-                    print("Reading prompt from stdin... (press C-D when done)")
-                prompt = sys.stdin.read()
+                editable = False  # We already edited the prompt
 
             accept = Accept(opts.accept or 0)
             _ = drafter.generate_draft(
