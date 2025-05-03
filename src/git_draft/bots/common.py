@@ -28,6 +28,7 @@ class Action:
     title: str | None = None
     request_count: int | None = None
     token_count: int | None = None
+    question: str | None = None
 
     def increment_request_count(self, n: int = 1, init: bool = False) -> None:
         self._increment("request_count", n, init)

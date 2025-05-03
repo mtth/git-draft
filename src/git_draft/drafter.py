@@ -110,9 +110,10 @@ class Drafter:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
             toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
-            prompt_contents = self._prepare_prompt(
-                prompt, prompt_transform, toolbox
-            )
+            with spinner.hidden():
+                prompt_contents = self._prepare_prompt(
+                    prompt, prompt_transform, toolbox
+                )
             template_name = (
                 prompt.template
                 if isinstance(prompt, TemplatedPrompt)
@@ -183,7 +184,6 @@ class Drafter:
                 cursor.execute(
                     sql("add-action"),
                     {
-                        "commit_sha": commit_sha,
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
@@ -195,7 +195,7 @@ class Drafter:
                     sql("add-operation"),
                     [
                         {
-                            "commit_sha": commit_sha,
+                            "prompt_id": prompt_id,
                             "tool": o.tool,
                             "reason": o.reason,
                             "details": json.dumps(o.details),
@@ -335,7 +335,7 @@ class Drafter:
         if prompt_transform:
             contents = prompt_transform(contents)
         if not contents.strip():
-            raise ValueError("Empty prompt")
+            raise ValueError("Missing prompt")
         return contents
 
     def _generate_change(
