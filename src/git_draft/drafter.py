@@ -184,7 +184,6 @@ class Drafter:
                 cursor.execute(
                     sql("add-action"),
                     {
-                        "commit_sha": commit_sha,
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
@@ -196,7 +195,7 @@ class Drafter:
                     sql("add-operation"),
                     [
                         {
-                            "commit_sha": commit_sha,
+                            "prompt_id": prompt_id,
                             "tool": o.tool,
                             "reason": o.reason,
                             "details": json.dumps(o.details),

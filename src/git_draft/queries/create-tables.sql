@@ -20,9 +20,8 @@ create table if not exists prompts (
 create unique index if not exists prompts_by_folio_seqno on prompts (folio_id, seqno);
 
 create table if not exists actions (
-  commit_sha text primary key,
+  prompt_id integer primary key,
   created_at timestamp default current_timestamp,
-  prompt_id integer not null,
   bot_class text not null,
   walltime_seconds real not null,
   request_count int,
@@ -32,10 +31,10 @@ create table if not exists actions (
 
 create table if not exists operations (
   id integer primary key,
-  action_commit_sha text not null,
+  prompt_id integer not null,
   tool text not null,
   reason text,
   details text not null,
   started_at timestamp not null,
-  foreign key (action_commit_sha) references actions (commit_sha) on delete cascade
+  foreign key (prompt_id) references actions (prompt_id) on delete cascade
 );
