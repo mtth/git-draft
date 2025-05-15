@@ -34,7 +34,6 @@ git draft [options] --templates [--json | [--edit] TEMPLATE]
 -a::
 --accept::
 --no-accept::
-
 Merge generated changes automatically, updating the working directory.
 This option can be repeated up to 3 times, with the following behavior at each level:
 +
@@ -48,19 +47,16 @@ When doing so, the `--no-accept` flag can be used to disable merging at CLI invo
 
 -b BOT::
 --bot=BOT::
-
 Bot name.
 Defaults to the first bot defined in the configuration.
 
 -e::
 --edit::
-
 Enable interactive editing of draft prompts and templates.
 See `--new` and `--templates` for details.
 
 -h::
 --help::
-
 Show help message and exit.
 
 -j::
@@ -72,30 +68,25 @@ Show help message and exit.
 
 -N::
 --new::
-
 Create an AI-generated draft.
 If the `--edit` option is set, an interactive editor will be opened with the rendered prompt to allow modification before it is forwarded to the bot.
 
 -Q::
 --quit::
-
 Go back to the draft's origin branch, keeping the working directory's current state.
 This will delete the draft branch and its upstream.
 Generated commits remain available via `ref/drafts`.
 
 --root::
-
 Repository search root.
 Defaults to the current working directory.
 
 -T::
 --templates::
-
 With no argument, lists available templates.
 With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
 
 --version::
-
 Show version and exit.
 
 
