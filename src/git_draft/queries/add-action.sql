@@ -1,14 +1,14 @@
 insert into actions (
-    commit_sha,
     prompt_id,
     bot_class,
     walltime_seconds,
     request_count,
-    token_count)
+    token_count,
+    question)
   values (
-    :commit_sha,
     :prompt_id,
     :bot_class,
     :walltime_seconds,
     :request_count,
-    :token_count);
+    :token_count,
+    :question);

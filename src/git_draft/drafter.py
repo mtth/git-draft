@@ -14,9 +14,9 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import Feedback, JSONObject, qualified_class_name
+from .common import Feedback, JSONObject, qualified_class_name, reindent
 from .git import SHA, Repo
-from .prompt import PromptRenderer, TemplatedPrompt
+from .prompt import TemplatedPrompt
 from .store import Store, sql
 from .toolbox import RepoToolbox, ToolVisitor
 
@@ -31,6 +31,7 @@ class Draft:
     folio: Folio
     seqno: int
     is_noop: bool
+    has_question: bool
     walltime: timedelta
     token_count: int | None
 
@@ -110,13 +111,14 @@ class Drafter:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
             toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
-            prompt_contents = self._prepare_prompt(
-                prompt, prompt_transform, toolbox
-            )
+            with spinner.hidden():
+                prompt_contents = self._prepare_prompt(
+                    prompt,
+                    prompt_transform,
+                    toolbox,
+                )
             template_name = (
-                prompt.template
-                if isinstance(prompt, TemplatedPrompt)
-                else None
+                prompt.name if isinstance(prompt, TemplatedPrompt) else None
             )
             spinner.update(
                 "Prepared prompt.",
@@ -148,6 +150,8 @@ class Drafter:
                     [operation_recorder],
                 ),
             )
+            if change.action.question:
+                self._feedback.report("Requested feedback.")
             spinner.update(
                 "Completed bot run.",
                 runtime=round(change.walltime.total_seconds(), 1),
@@ -159,6 +163,7 @@ class Drafter:
             folio=folio,
             seqno=seqno,
             is_noop=change.is_noop,
+            has_question=change.action.question is not None,
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
@@ -183,19 +188,19 @@ class Drafter:
                 cursor.execute(
                     sql("add-action"),
                     {
-                        "commit_sha": commit_sha,
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
                         "request_count": change.action.request_count,
                         "token_count": change.action.token_count,
+                        "question": change.action.question,
                     },
                 )
                 cursor.executemany(
                     sql("add-operation"),
                     [
                         {
-                            "commit_sha": commit_sha,
+                            "prompt_id": prompt_id,
                             "tool": o.tool,
                             "reason": o.reason,
                             "details": json.dumps(o.details),
@@ -328,14 +333,13 @@ class Drafter:
         toolbox: RepoToolbox,
     ) -> str:
         if isinstance(prompt, TemplatedPrompt):
-            renderer = PromptRenderer.for_toolbox(toolbox)
-            contents = renderer.render(prompt)
+            contents = prompt.render(toolbox)
         else:
             contents = prompt
         if prompt_transform:
             contents = prompt_transform(contents)
         if not contents.strip():
-            raise ValueError("Empty prompt")
+            raise ValueError("Missing or empty prompt")
         return contents
 
     def _generate_change(
@@ -406,7 +410,12 @@ class Drafter:
                     "folio_id": folio.id,
                 },
             ).fetchone()
-            return result[0] if result else None
+            if not result:
+                return None
+            prompt, question = result
+        if question:
+            prompt = "\n\n".join([prompt, reindent(question, prefix="> ")])
+        return prompt
 
 
 @dataclasses.dataclass(frozen=True)

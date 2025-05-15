@@ -20,7 +20,7 @@ from typing import Any, Self, TypedDict, override
 
 import openai
 
-from ..common import JSONObject, config_string, reindent
+from ..common import JSONObject, UnreachableError, config_string, reindent
 from .common import Action, Bot, Goal, Toolbox
 
 
@@ -45,7 +45,7 @@ def threads_bot(
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
     """Beta bot, uses assistant threads with function calling"""
-    return _ThreadsBot.create(_new_client(api_key, base_url), model)
+    return _ThreadsBot(_new_client(api_key, base_url), model)
 
 
 def _new_client(api_key: str | None, base_url: str | None) -> openai.OpenAI:
@@ -85,6 +85,21 @@ class _ToolsFactory:
 
     def params(self) -> Sequence[openai.types.chat.ChatCompletionToolParam]:
         return [
+            self._param(
+                name="ask_user",
+                description="""
+                    Request more information from the user
+
+                    Call this function if and only if you are unable to achieve
+                    your task with the information you already have.
+                """,
+                inputs={
+                    "question": {
+                        "type": "string",
+                        "description": "Question to be answered by the user",
+                    },
+                },
+            ),
             self._param(
                 name="list_files",
                 description="List all available files",
@@ -152,17 +167,18 @@ _INSTRUCTIONS = """
     read the content of the relevant ones, and save the changes you suggest.
 
     You should stop when and ONLY WHEN all the files you need to change have
-    been updated. If you stop for any reason before completing your task,
-    explain why by updating a REASON file before stopping. For example if you
-    are missing some information or noticed something inconsistent with the
-    instructions, say so there. DO NOT STOP without updating at least this
-    file.
+    been updated. If you do not have enough information to complete your task,
+    use the provided tool to request it from the user, then stop.
 """
 
 
 class _ToolHandler[V]:
     def __init__(self, toolbox: Toolbox) -> None:
         self._toolbox = toolbox
+        self.question: str | None = None
+
+    def _on_ask_user(self) -> V:
+        raise NotImplementedError()
 
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> V:
         raise NotImplementedError()
@@ -185,6 +201,10 @@ class _ToolHandler[V]:
         inputs = json.loads(function.arguments)
         _logger.info("Requested function: %s", function)
         match function.name:
+            case "ask_user":
+                assert not self.question
+                self.question = inputs["question"]
+                return self._on_ask_user()
             case "read_file":
                 path = PurePosixPath(inputs["path"])
                 return self._on_read_file(path, self._toolbox.read_file(path))
@@ -202,10 +222,11 @@ class _ToolHandler[V]:
                 dst_path = PurePosixPath(inputs["dst_path"])
                 self._toolbox.rename_file(src_path, dst_path)
                 return self._on_rename_file(src_path, dst_path)
-            case _ as name:
-                assert name == "list_files" and not inputs
+            case "list_files":
                 paths = self._toolbox.list_files()
                 return self._on_list_files(paths)
+            case _ as name:
+                raise UnreachableError(f"Unexpected function: {name}")
 
 
 class _CompletionsBot(Bot):
@@ -243,10 +264,16 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return Action(request_count=request_count)
+        return Action(
+            request_count=request_count,
+            question=tool_handler.question,
+        )
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
+    def _on_ask_user(self) -> None:
+        return None
+
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> str:
         if contents is None:
             return f"`{path}` does not exist."
@@ -269,32 +296,31 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
 
 
 class _ThreadsBot(Bot):
-    def __init__(self, client: openai.OpenAI, assistant_id: str) -> None:
+    def __init__(self, client: openai.OpenAI, model: str) -> None:
         self._client = client
-        self._assistant_id = assistant_id
+        self._model = model
 
-    @classmethod
-    def create(cls, client: openai.OpenAI, model: str) -> Self:
-        assistant_kwargs: JSONObject = dict(
-            model=model,
+    def _load_assistant_id(self) -> str:
+        kwargs: JSONObject = dict(
+            model=self._model,
             instructions=reindent(_INSTRUCTIONS),
             tools=_ToolsFactory(strict=True).params(),
         )
-
-        path = cls.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
+        path = self.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
         try:
             with open(path) as f:
                 assistant_id = f.read()
-            client.beta.assistants.update(assistant_id, **assistant_kwargs)
+            self._client.beta.assistants.update(assistant_id, **kwargs)
         except (FileNotFoundError, openai.NotFoundError):
-            assistant = client.beta.assistants.create(**assistant_kwargs)
+            assistant = self._client.beta.assistants.create(**kwargs)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
-
-        return cls(client, assistant_id)
+        return assistant_id
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        assistant_id = self._load_assistant_id()
+
         thread = self._client.beta.threads.create()
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
@@ -307,7 +333,7 @@ class _ThreadsBot(Bot):
         action = Action(request_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
-            assistant_id=self._assistant_id,
+            assistant_id=assistant_id,
             event_handler=_EventHandler(self._client, toolbox, action),
         ) as stream:
             stream.until_done()
@@ -353,6 +379,9 @@ class _EventHandler(openai.AssistantEventHandler):
         for tool in data.required_action.submit_tool_outputs.tool_calls:
             handler = _ThreadToolHandler(self._toolbox, tool.id)
             tool_outputs.append(handler.handle_function(tool.function))
+            if handler.question:
+                assert not self._action.question
+                self._action.question = handler.question
 
         run = self.current_run
         assert run, "No ongoing run"
@@ -377,6 +406,9 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
 
     def _wrap(self, output: str) -> _ToolOutput:
         return _ToolOutput(tool_call_id=self._call_id, output=output)
+
+    def _on_ask_user(self) -> _ToolOutput:
+        return self._wrap("OK")
 
     def _on_read_file(
         self, _path: PurePosixPath, contents: str | None

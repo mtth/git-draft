@@ -20,7 +20,12 @@ from .common import (
 from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
 from .git import Repo
-from .prompt import Template, TemplatedPrompt, find_template, templates_table
+from .prompt import (
+    PromptMetadata,
+    TemplatedPrompt,
+    find_prompt_metadata,
+    templates_table,
+)
 from .store import Store
 
 
@@ -178,43 +183,45 @@ def main() -> None:  # noqa: PLR0912 PLR0915
             bot = load_bot(bot_config)
 
             prompt: str | TemplatedPrompt
-            editable = opts.edit
             if args:
-                prompt = TemplatedPrompt.parse(args[0], *args[1:])
-            elif opts.edit:
-                editable = False
+                if args[0] == "-":
+                    prompt = sys.stdin.read()
+                else:
+                    prompt = TemplatedPrompt.public(args[0], args[1:])
+                editable = opts.edit
+            else:
                 prompt = edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
                 ).strip()
-                if not prompt or prompt == _PROMPT_PLACEHOLDER:
-                    raise ValueError("Aborting: empty or placeholder prompt")
-            else:
-                if sys.stdin.isatty():
-                    print("Reading prompt from stdin... (press C-D when done)")
-                prompt = sys.stdin.read()
+                if prompt.strip() == _PROMPT_PLACEHOLDER:
+                    prompt = ""  # Enable consistent error message
+                editable = False  # We already edited the prompt
 
             accept = Accept(opts.accept or 0)
-            _ = drafter.generate_draft(
+            drafter.generate_draft(
                 prompt,
                 bot,
                 prompt_transform=open_editor if editable else None,
                 merge_strategy=accept.merge_strategy(),
             )
+            if accept == Accept.MERGE_THEN_QUIT:
+                # TODO: Refuse to quit on pending question?
+                drafter.quit_folio()
         case "quit":
             drafter.quit_folio()
         case "templates":
             if args:
                 name = args[0]
-                tpl = find_template(name)
+                meta = find_prompt_metadata(name)
                 if opts.edit:
-                    if tpl:
-                        edit(path=tpl.local_path(), text=tpl.source)
+                    if meta:
+                        edit(path=meta.local_path(), text=meta.source())
                     else:
-                        edit(path=Template.local_path_for(name))
+                        edit(path=PromptMetadata.local_path_for(name))
                 else:
-                    if not tpl:
+                    if not meta:
                         raise ValueError(f"No template named {name!r}")
-                    print(tpl.source)
+                    print(meta.source())
             else:
                 table = templates_table()
                 print(table.to_json() if opts.json else table)

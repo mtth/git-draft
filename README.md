@@ -22,5 +22,3 @@ pipx install git-draft[openai]
 ## Next steps
 
 * MCP bot.
-* Mechanism for reporting feedback from a bot, and possibly allowing user to
-  interactively respond.

@@ -34,53 +34,65 @@ git draft [options] --templates [--json | [--edit] TEMPLATE]
 -a::
 --accept::
 --no-accept::
-  Merge generated changes automatically.
-  Can be repeated.
+Merge generated changes automatically, updating the working directory.
+This option can be repeated up to 3 times, with the following behavior at each level:
++
+* `-a`: Merge changes conservatively, flagging any conflicts for manual user resolution.
+* `-aa`: Merge changes aggressively, resolving all conflicts in favor of the generated change.
+* `-aaa`: Merge changes aggressively (same as `-aa`) then run `--quit` automatically.
++
+By default, changes are not merged - keeping the working directory untouched.
+A different default can be set in the configuration file.
+When doing so, the `--no-accept` flag can be used to disable merging at CLI invocation time.
 
 -b BOT::
 --bot=BOT::
-  Bot name.
+Bot name.
+Defaults to the first bot defined in the configuration.
 
 -e::
 --edit::
-  Enable interactive editing of draft prompts and templates.
-  See `--generate` and `--show-templates` for details.
+Enable interactive editing of draft prompts and templates.
+See `--new` and `--templates` for details.
 
 -h::
 --help::
-  Show help message and exit.
+Show help message and exit.
 
 -j::
 --json::
   Use JSON output.
 
---log::
+--log-path::
   Show log path and exit.
 
 -N::
 --new::
-  Create an AI-generated draft.
-  If the `--edit` option is set, an interactive editor will be open with the rendered prompt to allow modification before it is forwarded to the bot.
+Create an AI-generated draft.
+If the `--edit` option is set, an interactive editor will be opened with the rendered prompt to allow modification before it is forwarded to the bot.
 
 -Q::
 --quit::
-  Go back to the draft's origin branch with the current working directory.
+Go back to the draft's origin branch, keeping the working directory's current state.
+This will delete the draft branch and its upstream.
+Generated commits remain available via `ref/drafts`.
 
 --root::
-  Repository search root.
+Repository search root.
+Defaults to the current working directory.
 
 -T::
 --templates::
-  With no argument, lists available templates.
-  With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
+With no argument, lists available templates.
+With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
 
 --version::
-  Show version and exit.
+Show version and exit.
 
 
 == Examples
 
-The workhorse command is `git draft --generate` which leverages AI to edit our code.
+The workhorse command is `git draft --new` which leverages AI to edit code.
 A prompt can be specified as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft --generate`.
 If no prompt is specified and stdin is a TTY, `$EDITOR` will be opened to enter the prompt.
 
@@ -91,14 +103,6 @@ The `--generate` step can be repeated as many times as needed.
 Once you are satisfied with the changes, run `git draft --finalize` to apply them.
 This will check out the branch used when creating the draft, adding the final state of the draft to the worktree.
 Note that you can come back to an existing draft anytime (by checking its branch out), but you will not be able to apply it if its origin branch has moved since the draft was created.
-
-
-* Generate: create a new draft to the current folio, or create a new folio if none exists.
-* Finalize
-  ** Apply: include changes into origin branch.
-  ** Discard: abandon folio.
-  ** Save: return to original branch. Q: how to load after?
-* List templates
 
 
 o Foo (main)

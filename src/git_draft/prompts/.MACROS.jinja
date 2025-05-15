@@ -1,0 +1,13 @@
+{% macro file_list() %}
+{% set paths = toolbox.list_files() %}
+{% if paths %}
+For reference, here is the list of all currently available files in the
+repository:
+
+{% for path in paths %}
+  * {{ path }}
+{% endfor %}
+{% else %}
+This repository does not contain any files yet.
+{% endif %}
+{% endmacro %}

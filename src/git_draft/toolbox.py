@@ -131,6 +131,26 @@ class ToolVisitor(Protocol):
     ) -> None: ...  # pragma: no cover
 
 
+class NoopToolbox(Toolbox):
+    """No-op read-only toolbox"""
+
+    @override
+    def _list(self) -> Sequence[PurePosixPath]:
+        return []
+
+    @override
+    def _read(self, _path: PurePosixPath) -> str:
+        raise RuntimeError()
+
+    @override
+    def _write(self, _path: PurePosixPath, _contents: str) -> None:
+        raise RuntimeError()
+
+    @override
+    def _delete(self, _path: PurePosixPath) -> None:
+        raise RuntimeError()
+
+
 class RepoToolbox(Toolbox):
     """Git-repo backed toolbox implementation
 

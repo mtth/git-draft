@@ -85,15 +85,23 @@ class UnreachableError(RuntimeError):
     """Indicates unreachable code was unexpectedly executed"""
 
 
-def reindent(s: str, width: int = 0) -> str:
+def reindent(s: str, prefix: str = "", width: int = 0) -> str:
     """Reindents text by dedenting and optionally wrapping paragraphs"""
     paragraphs = (
         " ".join(textwrap.dedent("\n".join(g)).splitlines())
         for b, g in itertools.groupby(s.splitlines(), bool)
         if b
     )
-    return "\n\n".join(
+    if width and prefix:
+        width -= len(prefix) + 1
+        assert width > 0
+    wrapped = "\n\n".join(
         textwrap.fill(p, width=width) if width else p for p in paragraphs
+    )
+    if not prefix:
+        return wrapped
+    return "\n".join(
+        f"{prefix} {t}" if t else prefix for t in wrapped.splitlines()
     )
 
 
@@ -163,6 +171,10 @@ class Feedback:
 class FeedbackSpinner:
     """Operation feedback tracker"""
 
+    @contextlib.contextmanager
+    def hidden(self) -> Iterator[None]:
+        yield None
+
     def update(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
 
@@ -197,6 +209,11 @@ class _DynamicFeedback(Feedback):
 class _DynamicFeedbackSpinner(FeedbackSpinner):
     def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
         self.yaspin = yaspin
+
+    @contextlib.contextmanager
+    def hidden(self) -> Iterator[None]:
+        with self.yaspin.hidden():
+            yield
 
     def update(self, text: str, **tags) -> None:
         self.yaspin.text = _tagged(text, **tags)
