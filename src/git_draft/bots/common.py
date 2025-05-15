@@ -66,6 +66,6 @@ class Bot:
             path.mkdir(parents=True, exist_ok=True)
         return path
 
-    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         """Runs the bot, striving to achieve the goal with the given toolbox"""
         raise NotImplementedError()

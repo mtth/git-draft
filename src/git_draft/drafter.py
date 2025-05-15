@@ -100,7 +100,7 @@ class Drafter:
             cursor.executescript(sql("create-tables"))
         return cls(store, repo, feedback)
 
-    def generate_draft(
+    async def generate_draft(
         self,
         prompt: str | TemplatedPrompt,
         bot: Bot,
@@ -143,7 +143,7 @@ class Drafter:
         # Run the bot to generate the change.
         operation_recorder = _OperationRecorder(self._feedback)
         with self._feedback.spinner("Running bot...") as spinner:
-            change = self._generate_change(
+            change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
                 toolbox.with_visitors(
@@ -342,7 +342,7 @@ class Drafter:
             raise ValueError("Missing or empty prompt")
         return contents
 
-    def _generate_change(
+    async def _generate_change(
         self,
         bot: Bot,
         goal: Goal,
@@ -352,7 +352,7 @@ class Drafter:
 
         start_time = time.perf_counter()
         _logger.debug("Running bot... [bot=%s]", bot)
-        action = bot.act(goal, toolbox)
+        action = await bot.act(goal, toolbox)
         _logger.info("Completed bot action. [action=%s]", action)
         end_time = time.perf_counter()
 
