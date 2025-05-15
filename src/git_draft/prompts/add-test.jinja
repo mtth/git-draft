@@ -1,13 +1,31 @@
-{# symbol src_path? test_path? #}
+{% extends prompt.docopt %}
 
-Add tests for {{ symbol }}. Follow existing conventions when implementing the
+{% block doc %}
+Add tests for a symbol
+
+Usage:
+  add-test --symbol NAME [--src-path PATH] [--test-path PATH]
+
+Options:
+  --symbol NAME     Name of the symbol to be tested.
+  --src-path PATH   Path to source file where the symbol is defined.
+  --test-path PATH  Path to file where the test should be added.
+{% endblock %}
+
+{% block body %}
+Add tests for {{ opts.symbol }}. Follow existing conventions when implementing the
 tests. For example, if the surrounding code uses fixtures, do so as well.
+{% if opts.src_path %}
 
-{% if src_path is defined %}The symbol to be tested is defined in {{ src_path }}.{% endif %}
+The symbol to be tested is defined in {{ opts.src_path }}.
+{% endif %}
+{% if opts.test_path %}
 
-{% if test_path is defined %}The tests should be added to {{ test_path }}.{% endif %}
+The tests should be added to {{ opts.test_path }}.
+{% endif %}
 
 Do not stop until you have added at least one test. You should add separate
 tests to cover the normal execution path, and to cover any exceptional cases.
 
-{% include "includes/.file-list.jinja" %}
+{{ macros.file_list() }}
+{% endblock %}

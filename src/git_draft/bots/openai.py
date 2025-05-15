@@ -45,7 +45,7 @@ def threads_bot(
     model: str = _DEFAULT_MODEL,
 ) -> Bot:
     """Beta bot, uses assistant threads with function calling"""
-    return _ThreadsBot.create(_new_client(api_key, base_url), model)
+    return _ThreadsBot(_new_client(api_key, base_url), model)
 
 
 def _new_client(api_key: str | None, base_url: str | None) -> openai.OpenAI:
@@ -177,6 +177,9 @@ class _ToolHandler[V]:
         self._toolbox = toolbox
         self.question: str | None = None
 
+    def _on_ask_user(self) -> V:
+        raise NotImplementedError()
+
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> V:
         raise NotImplementedError()
 
@@ -194,14 +197,14 @@ class _ToolHandler[V]:
     def _on_list_files(self, paths: Sequence[PurePosixPath]) -> V:
         raise NotImplementedError()
 
-    def handle_function(self, function: Any) -> V | None:
+    def handle_function(self, function: Any) -> V:
         inputs = json.loads(function.arguments)
         _logger.info("Requested function: %s", function)
         match function.name:
             case "ask_user":
                 assert not self.question
                 self.question = inputs["question"]
-                return None
+                return self._on_ask_user()
             case "read_file":
                 path = PurePosixPath(inputs["path"])
                 return self._on_read_file(path, self._toolbox.read_file(path))
@@ -268,6 +271,9 @@ class _CompletionsBot(Bot):
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
+    def _on_ask_user(self) -> None:
+        return None
+
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> str:
         if contents is None:
             return f"`{path}` does not exist."
@@ -290,32 +296,31 @@ class _CompletionsToolHandler(_ToolHandler[str | None]):
 
 
 class _ThreadsBot(Bot):
-    def __init__(self, client: openai.OpenAI, assistant_id: str) -> None:
+    def __init__(self, client: openai.OpenAI, model: str) -> None:
         self._client = client
-        self._assistant_id = assistant_id
+        self._model = model
 
-    @classmethod
-    def create(cls, client: openai.OpenAI, model: str) -> Self:
-        assistant_kwargs: JSONObject = dict(
-            model=model,
+    def _load_assistant_id(self) -> str:
+        kwargs: JSONObject = dict(
+            model=self._model,
             instructions=reindent(_INSTRUCTIONS),
             tools=_ToolsFactory(strict=True).params(),
         )
-
-        path = cls.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
+        path = self.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
         try:
             with open(path) as f:
                 assistant_id = f.read()
-            client.beta.assistants.update(assistant_id, **assistant_kwargs)
+            self._client.beta.assistants.update(assistant_id, **kwargs)
         except (FileNotFoundError, openai.NotFoundError):
-            assistant = client.beta.assistants.create(**assistant_kwargs)
+            assistant = self._client.beta.assistants.create(**kwargs)
             assistant_id = assistant.id
             with open(path, "w") as f:
                 f.write(assistant_id)
-
-        return cls(client, assistant_id)
+        return assistant_id
 
     def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+        assistant_id = self._load_assistant_id()
+
         thread = self._client.beta.threads.create()
         self._client.beta.threads.messages.create(
             thread_id=thread.id,
@@ -328,7 +333,7 @@ class _ThreadsBot(Bot):
         action = Action(request_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
-            assistant_id=self._assistant_id,
+            assistant_id=assistant_id,
             event_handler=_EventHandler(self._client, toolbox, action),
         ) as stream:
             stream.until_done()
@@ -401,6 +406,9 @@ class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
 
     def _wrap(self, output: str) -> _ToolOutput:
         return _ToolOutput(tool_call_id=self._call_id, output=output)
+
+    def _on_ask_user(self) -> _ToolOutput:
+        return self._wrap("OK")
 
     def _on_read_file(
         self, _path: PurePosixPath, contents: str | None

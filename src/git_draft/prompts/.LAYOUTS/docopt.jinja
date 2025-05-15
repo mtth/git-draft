@@ -1,0 +1,7 @@
+{% set layout = "docopt" %}
+{% import ".MACROS.jinja" as macros with context %}
+{% if opts is defined %}
+{% block body required %}{% endblock %}
+{% else %}
+{% block doc required %}{% endblock %}
+{% endif %}

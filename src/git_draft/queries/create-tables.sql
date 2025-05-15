@@ -26,6 +26,7 @@ create table if not exists actions (
   walltime_seconds real not null,
   request_count int,
   token_count int,
+  question text,
   foreign key (prompt_id) references prompts (id) on delete cascade
 ) without rowid;
 

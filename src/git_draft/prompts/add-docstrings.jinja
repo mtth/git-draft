@@ -1,9 +1,23 @@
-{# symbol path? #}
+{% extends prompt.docopt %}
 
-{% if symbol is defined and path is defined %}
-Add a docstring to {{ symbol }} defined in {{ path }}.
-{% elif path is defined %}
-Add docstrings to all public functions and classes in {{ path }}.
+{% block doc %}
+Add docstrings to one or more public symbols
+
+Usage:
+  add-docstrings [--path PATH] [--symbol SYMBOL]
+
+Options:
+  --path PATH      Path to (Python) file where docstrings should be added. If
+                   omitted, all source files in this repository will be used.
+  --symbol SYMBOL  Name of symbol to be documented. If omitted, all symbols
+                   will be considered.
+{% endblock %}
+
+{% block body %}
+{% if opts.symbol and opts.path %}
+Add a docstring to {{ opts.symbol }} defined in {{ opts.path }}.
+{% elif opts.path %}
+Add docstrings to all public functions and classes in {{ opts.path }}.
 {% else %}
 Add docstrings to all public functions and classes in this repository.
 {% endif %}
@@ -38,4 +52,5 @@ Additionally, the first paragraph of each docstring should fit in a single line
 and not include a period at the end. It should be a brief summary of the
 symbol's functionality.
 
-{% include "includes/.file-list.jinja" %}
+{{ macros.file_list() }}
+{% endblock %}

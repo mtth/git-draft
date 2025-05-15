@@ -62,13 +62,13 @@ class TestConfigString:
 
 
 @pytest.mark.parametrize(
-    "text,width,want",
+    "text,width,prefix,want",
     [
-        ("", 10, ""),
-        ("abc", 5, "abc"),
-        ("ab", 0, "ab"),
-        ("\nabc def", 4, "abc\ndef"),
-        ("  abc\n  def  ", 10, "abc def"),
+        ("", 10, "", ""),
+        ("abc", 5, "", "abc"),
+        ("ab", 0, "", "ab"),
+        ("\nabc def", 4, "", "abc\ndef"),
+        ("  abc\n  def  ", 10, "", "abc def"),
         (
             """
                 This is a fun paragraph
@@ -77,9 +77,21 @@ class TestConfigString:
                 And another.
             """,
             60,
+            "",
             "This is a fun paragraph which continues.\n\nAnd another.",
+        ),
+        (
+            """
+                A quoted
+                something.
+
+                And very long follow up.
+            """,
+            24,
+            ">",
+            "> A quoted something.\n>\n> And very long follow\n> up.",
         ),
     ],
 )
-def test_reindent(text, width, want):
-    assert sut.reindent(text, width) == want
+def test_reindent(text, width, prefix, want):
+    assert sut.reindent(text, prefix=prefix, width=width) == want

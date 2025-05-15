@@ -152,6 +152,18 @@ files = [
 ]
 
 [[package]]
+name = "docopt-ng"
+version = "0.9.0"
+description = "Jazzband-maintained fork of docopt, the humane command line arguments parser."
+optional = false
+python-versions = ">=3.7"
+groups = ["main"]
+files = [
+    {file = "docopt_ng-0.9.0-py3-none-any.whl", hash = "sha256:bfe4c8b03f9fca424c24ee0b4ffa84bf7391cb18c29ce0f6a8227a3b01b81ff9"},
+    {file = "docopt_ng-0.9.0.tar.gz", hash = "sha256:91c6da10b5bb6f2e9e25345829fb8278c78af019f6fc40887ad49b060483b1d7"},
+]
+
+[[package]]
 name = "h11"
 version = "0.14.0"
 description = "A pure-Python, bring-your-own-I/O implementation of HTTP/1.1"
@@ -922,4 +934,4 @@ openai = ["openai"]
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.12,<4"
-content-hash = "0786ebdc5d020335f23530a7897e3b293c67be2b5d7708b2dd0ec7f6e9bc4cc7"
+content-hash = "3e30f690d81bad2a4f36bfc042d3b45bcd83eeed65167c2d6b232083b30370f1"

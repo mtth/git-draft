@@ -4,56 +4,42 @@ import git_draft.prompt as sut
 from git_draft.toolbox import RepoToolbox
 
 
-class TestPromptRenderer:
+class TestCheckPublicTemplateName:
+    @pytest.mark.parametrize("name", ["ok", ".hidden", "composite-name"])
+    def test_ok(self, name: str) -> None:
+        sut._check_public_template_name(name)
+
+    @pytest.mark.parametrize("name", ["", "ABC", ".PROMPT", ".with.ext"])
+    def test_raises(self, name: str) -> None:
+        with pytest.raises(ValueError):
+            sut._check_public_template_name(name)
+
+
+class TestTemplatedPrompt:
     @pytest.fixture(autouse=True)
     def setup(self, repo) -> None:
-        toolbox = RepoToolbox(repo, "HEAD")
-        self._renderer = sut.PromptRenderer.for_toolbox(toolbox)
+        self._toolbox = RepoToolbox(repo, "HEAD")
 
     def test_ok(self) -> None:
-        prompt = sut.TemplatedPrompt.parse("add-test", "symbol=foo")
-        rendered = self._renderer.render(prompt)
+        prompt = sut.TemplatedPrompt("add-test", ("--symbol=foo",))
+        rendered = prompt.render(self._toolbox)
         assert "foo" in rendered
 
     def test_missing_variable(self) -> None:
-        prompt = sut.TemplatedPrompt.parse("add-test")
+        prompt = sut.TemplatedPrompt("add-test")
         with pytest.raises(ValueError):
-            self._renderer.render(prompt)
+            prompt.render(self._toolbox)
 
 
-class TestTemplate:
-    @pytest.fixture(autouse=True)
-    def setup(self) -> None:
-        self._env = sut._jinja_environment()
+class TestFindPromptMetadata:
+    def test_ok(self) -> None:
+        metadata = sut.find_prompt_metadata("add-test")
+        assert metadata
+        assert "symbol" in (metadata.description or "")
 
-    def test_fields(self):
-        tpl = sut._load_template("includes/.file-list.jinja", self._env)
-        assert not tpl.is_local()
-        assert tpl.name == "includes/.file-list"
-        assert tpl.local_path() != tpl.abs_path
-
-    def test_preamble_ok(self):
-        tpl = sut._load_template("add-test.jinja", self._env)
-        assert "symbol" in tpl.preamble
-
-    def test_preamble_missing(self):
-        tpl = sut._load_template("includes/.file-list.jinja", self._env)
-        assert tpl.preamble is None
-
-    def test_extract_variables(self):
-        tpl = sut._load_template("add-test.jinja", self._env)
-        variables = tpl.extract_variables(self._env)
-        assert "symbol" in variables
-        assert "repo" not in variables
-
-    def test_find_ok(self) -> None:
-        tpl = sut.find_template("add-test")
-        assert tpl
-        assert "symbol" in tpl.source
-
-    def test_find_missing(self) -> None:
-        assert sut.find_template("foo") is None
+    def test_missing(self) -> None:
+        assert sut.find_prompt_metadata("foo") is None
 
 
 def test_templates_table() -> None:
-    assert sut.templates_table()
+    assert sut.templates_table(include_local=False)
