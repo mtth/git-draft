@@ -175,7 +175,7 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
             bot_config = None
             bot_name = opts.bot or repo.default_bot()
             if bot_name:
-                bot_configs = [c for c in config.bots if c.name == opts.bot]
+                bot_configs = [c for c in config.bots if c.name == bot_name]
                 if len(bot_configs) != 1:
                     raise ValueError(f"Found {len(bot_configs)} matching bots")
                 bot_config = bot_configs[0]
