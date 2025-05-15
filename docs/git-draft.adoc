@@ -19,7 +19,7 @@ IMPORTANT: `git-draft` is WIP.
 
 [verse]
 git draft [options] [--new] [--accept... | --no-accept] [--bot BOT]
-                    [--edit] [TEMPLATE [VARIABLE...]]
+                    [--edit] [TEMPLATE [VARIABLE...] | -]
 git draft [options] --quit
 git draft [options] --templates [--json | [--edit] TEMPLATE]
 
@@ -27,6 +27,15 @@ git draft [options] --templates [--json | [--edit] TEMPLATE]
 == Description
 
 `git-draft` is a git-centric way to edit code with AI.
+
+Its workhorse command is `git draft --new` (and its shorthand, `git draft`) which suggests code changes using LLMs.
+Prompts can be specified inline or via customizable templates.
+Prompt templates can get augmented with information about the files in the repository, and give the LLM access to tools for reading and writing files.
+Once the response has been received and changes applied, a commit is created in a dedicated draft branch.
+The `--new` step can be repeated as many times as needed.
+
+Once satisfied with the changes, run `git draft --quit` to return to the original branch.
+This keeps the working directory's current state.
 
 
 == Options
@@ -39,7 +48,8 @@ This option can be repeated up to 3 times, with the following behavior at each l
 +
 * `-a`: Merge changes conservatively, flagging any conflicts for manual user resolution.
 * `-aa`: Merge changes aggressively, resolving all conflicts in favor of the generated change.
-* `-aaa`: Merge changes aggressively (same as `-aa`) then run `--quit` automatically.
+* `-aaa`: Merge changes aggressively (same as `-aa`) then run `--quit`.
+
 +
 By default, changes are not merged - keeping the working directory untouched.
 A different default can be set in the configuration file.
@@ -53,7 +63,10 @@ Defaults to the first bot defined in the configuration.
 -e::
 --edit::
 Enable interactive editing of draft prompts and templates.
-See `--new` and `--templates` for details.
+When used with `--new`, it opens an editor with the rendered prompt.
+The updated prompt will be used by the bot after the editor exits.
+When used with `--templates`, it opens an editor with the selected template.
+The template will be created automatically if it did not already exist.
 
 -h::
 --help::
@@ -61,21 +74,22 @@ Show help message and exit.
 
 -j::
 --json::
-  Use JSON output.
+Use JSON output.
 
 --log-path::
-  Show log path and exit.
+Show log path and exit.
 
 -N::
 --new::
-Create an AI-generated draft.
-If the `--edit` option is set, an interactive editor will be opened with the rendered prompt to allow modification before it is forwarded to the bot.
+Generate a draft commit for a given prompt.
+`-` can be specified instead of a template name to read the prompt from stdin.
+Otherwise if no template is specified and stdin is a TTY, `$EDITOR` will be opened to enter the prompt.
 
 -Q::
 --quit::
 Go back to the draft's origin branch, keeping the working directory's current state.
 This will delete the draft branch and its upstream.
-Generated commits remain available via `ref/drafts`.
+Generated commits and the draft branch's final state remain available via `ref/drafts`.
 
 --root::
 Repository search root.
@@ -84,7 +98,7 @@ Defaults to the current working directory.
 -T::
 --templates::
 With no argument, lists available templates.
-With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor.
+With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor with its contents.
 
 --version::
 Show version and exit.
@@ -92,69 +106,67 @@ Show version and exit.
 
 == Examples
 
-The workhorse command is `git draft --new` which leverages AI to edit code.
-A prompt can be specified as standard input, for example `echo "Add a test for compute_offset in chart.py" | git draft --generate`.
-If no prompt is specified and stdin is a TTY, `$EDITOR` will be opened to enter the prompt.
+=== Commit graphs
 
-By default, the prompt gets augmented with information about the files in the repository, and give the AI access to tools for reading and writing files.
-Once the response has been received and changes applied, a commit is created in a separate branch.
+This section shows representative commit histories in draft branches for various scenarios.
 
-The `--generate` step can be repeated as many times as needed.
-Once you are satisfied with the changes, run `git draft --finalize` to apply them.
-This will check out the branch used when creating the draft, adding the final state of the draft to the worktree.
-Note that you can come back to an existing draft anytime (by checking its branch out), but you will not be able to apply it if its origin branch has moved since the draft was created.
+When the working directory is clean, a single commit is created and set as the draft branch's upstream (suffixed with `+`).
 
+[source]
+----
+o <some commit> (main, draft/123)
+o draft! prompt: <prompt> (draft/123+, refs/drafts/123/1)
+----
 
-o Foo (main)
-o Sync (drafts/123/pub)
+If the working directory is dirty, a sync commit is added to identify the LLM-generated changes.
 
-# After generate without accept
-o Foo (main)
-o Sync (drafts/123)
-o draft! <prompt> (drafts/123+, refs/drafts/123/1)
+[source]
+----
+o <some commit> (main, draft/123)
+o draft! sync(prompt)
+o draft! prompt: <prompt> (draft/123+, refs/drafts/123/1)
+----
 
-# After generate with accept
-o Foo (main)
-o Sync
+If merging is enabled, it have both the LLM-generated changes and manual edits as parents.
+
+[source]
+----
+o <some commit> (main)
 |\
-| o draft! prompt: <prompt> (refs/drafts/123/1)
-o | Sync
-|/
-o Merge (drafts/123/pub)
-
-
-o Foo (main)
-o draft! sync
-|\
-| o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/1)
-o Something
-o Also something (drafts/123)
-
-
-o Foo (main)
-o draft! sync
-|\
-| o draft! prompt: <prompt> (refs/drafts/123/1)
-o Something
-o Also something (drafts/123/pub)
-o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
-
-
-o Foo (main)
-o draft! sync (drafts/123/pub)
-|\
-| o draft! prompt: <prompt> (refs/drafts/123/1)
- \
-  o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
-
-o Foo (main)
-o draft! sync (drafts/123/pub)
-|\
+| o draft! sync(prompt)
+o | draft! sync(merge)
 | o draft! prompt: <prompt> (refs/drafts/123/1)
 |/
-o draft! sync
- \
-  o draft! prompt: <prompt> (drafts/123+, refs/drafts/123/2)
+o Merge (draft/123, draft/123/+)
+----
+
+Otherwise, the user is free to incorporate the changes as needed.
+Note that the steps above can be repeated arbitrarily many times within a given draft branch, both with and without automatic merging.
+
+[source]
+----
+o <some commit> (main)
+|\
+| o draft! prompt: <prompt1> (refs/drafts/123/1)
+o draft! sync(prompt)
+o draft! prompt: <prompt2> (refs/drafts/123/2)
+o <a manual commit> (draft/123)
+o draft! prompt: <prompt3> (draft/123+, refs/drafts/123/3)
+----
+
+Sync commits will be reused if no new changes were added.
+This can be useful when iterating on a prompt, and discarding results from prior iterations.
+
+[source]
+----
+o <some commit> (main)
+o draft! sync(prompt)
+|\
+| \
+|\ o draft! prompt: <prompt1> (refs/drafts/123/1)
+| o draft! prompt: <prompt2> (refs/drafts/123/2)
+o draft! prompt: <prompt3> (refs/drafts/123/3)
+----
 
 
 == See also
