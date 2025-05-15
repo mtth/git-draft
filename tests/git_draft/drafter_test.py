@@ -29,7 +29,7 @@ class _SimpleBot(Bot):
     def prompt(cls) -> Self:
         return cls({"PROMPT": lambda goal: goal.prompt})
 
-    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         for key, value in self._contents.items():
             path = PurePosixPath(key)
             if value is None:
@@ -62,22 +62,25 @@ class TestDrafter:
     def _checkout(self) -> None:
         self._repo.git("checkout", "--", ".")
 
-    def test_generate_draft(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_draft(self) -> None:
         self._fs.write("p1", "a")
-        self._drafter.generate_draft("hello", _SimpleBot({"p1": "A"}))
+        await self._drafter.generate_draft("hello", _SimpleBot({"p1": "A"}))
         assert len(self._commits()) == 1
         assert len(self._commits("@{u}")) == 3
         assert self._fs.read("p1") == "a"
 
-    def test_generate_empty_draft(self) -> None:
-        self._drafter.generate_draft("hello", _SimpleBot.noop())
+    @pytest.mark.asyncio
+    async def test_generate_empty_draft(self) -> None:
+        await self._drafter.generate_draft("hello", _SimpleBot.noop())
         assert len(self._commits()) == 1
         assert len(self._commits("@{u}")) == 2
 
-    def test_generate_draft_merge(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_draft_merge(self) -> None:
         self._fs.write("p1", "a")
 
-        self._drafter.generate_draft(
+        await self._drafter.generate_draft(
             "hello", _SimpleBot({"p2": "b"}), merge_strategy="ignore-all-space"
         )
         # No sync(merge) commit since no changes happened between.
@@ -85,14 +88,15 @@ class TestDrafter:
         assert self._fs.read("p1") == "a"
         assert self._fs.read("p2") == "b"
 
-    def test_generate_draft_merge_no_conflict(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_draft_merge_no_conflict(self) -> None:
         self._fs.write("p1", "a")
 
         def update(_goal: Goal) -> str:
             self._fs.write("p2", "b")
             return "A"
 
-        self._drafter.generate_draft(
+        await self._drafter.generate_draft(
             "hello",
             _SimpleBot({"p1": update}),
             merge_strategy="ignore-all-space",
@@ -101,21 +105,23 @@ class TestDrafter:
         assert self._fs.read("p1") == "A"
         assert self._fs.read("p2") == "b"
 
-    def test_generate_draft_merge_theirs(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_draft_merge_theirs(self) -> None:
         self._fs.write("p1", "a")
 
         def update(_goal: Goal) -> str:
             self._fs.write("p1", "b")
             return "A"
 
-        self._drafter.generate_draft(
+        await self._drafter.generate_draft(
             "hello", _SimpleBot({"p1": update}), merge_strategy="theirs"
         )
         # sync(merge) commit here since p1 was updated separately.
         assert len(self._commits()) == 5  # init, sync, prompt, sync, merge
         assert self._fs.read("p1") == "A"
 
-    def test_generate_draft_merge_conflict(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_draft_merge_conflict(self) -> None:
         self._fs.write("p1", "a")
 
         def update(_goal: Goal) -> str:
@@ -123,48 +129,57 @@ class TestDrafter:
             return "A"
 
         with pytest.raises(GitError):
-            self._drafter.generate_draft(
+            await self._drafter.generate_draft(
                 "hello",
                 _SimpleBot({"p1": update}),
                 merge_strategy="ignore-all-space",
             )
 
-    def test_generate_outside_branch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_outside_branch(self) -> None:
         self._repo.git("checkout", "--detach")
         with pytest.raises(RuntimeError):
-            self._drafter.generate_draft("ok", _SimpleBot.noop())
+            await self._drafter.generate_draft("ok", _SimpleBot.noop())
 
-    def test_generate_empty_prompt(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_empty_prompt(self) -> None:
         with pytest.raises(ValueError):
-            self._drafter.generate_draft("", _SimpleBot.noop())
+            await self._drafter.generate_draft("", _SimpleBot.noop())
 
-    def test_generate_reuse_branch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_generate_reuse_branch(self) -> None:
         bot = _SimpleBot({"prompt": lambda goal: goal.prompt})
-        self._drafter.generate_draft("prompt1", bot, "theirs")
-        self._drafter.generate_draft("prompt2", bot, "theirs")
+        await self._drafter.generate_draft("prompt1", bot, "theirs")
+        await self._drafter.generate_draft("prompt2", bot, "theirs")
         assert self._fs.read("prompt") == "prompt2"
 
-    def test_delete_unknown_file(self) -> None:
-        self._drafter.generate_draft("hello", _SimpleBot({"p1": None}))
+    @pytest.mark.asyncio
+    async def test_delete_unknown_file(self) -> None:
+        await self._drafter.generate_draft("hello", _SimpleBot({"p1": None}))
 
-    def test_quit_keeps_changes(self) -> None:
+    @pytest.mark.asyncio
+    async def test_quit_keeps_changes(self) -> None:
         self._fs.write("p1.txt", "a1")
-        self._drafter.generate_draft("hello", _SimpleBot.prompt(), "theirs")
+        await self._drafter.generate_draft(
+            "hello", _SimpleBot.prompt(), "theirs"
+        )
         self._fs.write("p1.txt", "a2")
         self._drafter.quit_folio()
         assert self._fs.read("p1.txt") == "a2"
         assert self._fs.read("PROMPT") == "hello"
 
-    def test_latest_draft_prompt(self) -> None:
+    @pytest.mark.asyncio
+    async def test_latest_draft_prompt(self) -> None:
         bot = _SimpleBot.noop()
 
         prompt1 = "First prompt"
-        self._drafter.generate_draft(prompt1, bot)
+        await self._drafter.generate_draft(prompt1, bot)
         assert self._drafter.latest_draft_prompt() == prompt1
 
         prompt2 = "Second prompt"
-        self._drafter.generate_draft(prompt2, bot)
+        await self._drafter.generate_draft(prompt2, bot)
         assert self._drafter.latest_draft_prompt() == prompt2
 
-    def test_latest_draft_prompt_no_active_branch(self) -> None:
+    @pytest.mark.asyncio
+    async def test_latest_draft_prompt_no_active_branch(self) -> None:
         assert self._drafter.latest_draft_prompt() is None

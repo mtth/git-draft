@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import enum
 import importlib.metadata
 import logging
@@ -151,7 +152,7 @@ def edit(*, path: Path | None = None, text: str | None = None) -> str:
 _PROMPT_PLACEHOLDER = "Enter your prompt here..."
 
 
-def main() -> None:  # noqa: PLR0912 PLR0915
+async def main() -> None:  # noqa: PLR0912 PLR0915
     config = Config.load()
     (opts, args) = new_parser().parse_args()
 
@@ -198,7 +199,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
                 editable = False  # We already edited the prompt
 
             accept = Accept(opts.accept or 0)
-            drafter.generate_draft(
+            await drafter.generate_draft(
                 prompt,
                 bot,
                 prompt_transform=open_editor if editable else None,
@@ -231,7 +232,7 @@ def main() -> None:  # noqa: PLR0912 PLR0915
 
 if __name__ == "__main__":
     try:
-        main()
+        asyncio.run(main())
     except Exception as err:
         _logger.exception("Program failed.")
         print(f"Error: {err}", file=sys.stderr)

@@ -234,7 +234,7 @@ class _CompletionsBot(Bot):
         self._client = client
         self._model = model
 
-    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         tools = _ToolsFactory(strict=False).params()
         tool_handler = _CompletionsToolHandler(toolbox)
 
@@ -318,7 +318,7 @@ class _ThreadsBot(Bot):
                 f.write(assistant_id)
         return assistant_id
 
-    def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
         assistant_id = self._load_assistant_id()
 
         thread = self._client.beta.threads.create()
