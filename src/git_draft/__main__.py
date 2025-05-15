@@ -152,7 +152,7 @@ def edit(*, path: Path | None = None, text: str | None = None) -> str:
 _PROMPT_PLACEHOLDER = "Enter your prompt here..."
 
 
-async def main() -> None:  # noqa: PLR0912 PLR0915
+async def run() -> None:  # noqa: PLR0912 PLR0915
     config = Config.load()
     (opts, args) = new_parser().parse_args()
 
@@ -230,10 +230,14 @@ async def main() -> None:  # noqa: PLR0912 PLR0915
             raise UnreachableError()
 
 
-if __name__ == "__main__":
+def main() -> None:
     try:
-        asyncio.run(main())
+        asyncio.run(run())
     except Exception as err:
         _logger.exception("Program failed.")
         print(f"Error: {err}", file=sys.stderr)
         sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
