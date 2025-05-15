@@ -34,26 +34,29 @@ git draft [options] --templates [--json | [--edit] TEMPLATE]
 -a::
 --accept::
 --no-accept::
-  Merge generated changes automatically, updating the working directory.
-  This option can be repeated up to 3 times, with the following behavior at each level:
-+
-  * `-a`: Merge changes conservatively, flagging any conflicts for manual user resolution.
-  * `-aa`: Merge changes aggressively, resolving all conflicts in favor of the generated change.
-  * `-aaa`: Merge changes aggressively (same as `-aa`) then run `--quit` automatically.
-+
-  By default, changes are not merged - keeping the working directory untouched.
-  A different default can be set in the configuration file.
-  When doing so, the `--no-accept` flag can be used to disable merging at CLI invocation time.
+
+Merge generated changes automatically, updating the working directory.
+This option can be repeated up to 3 times, with the following behavior at each level:
+
+* `-a`: Merge changes conservatively, flagging any conflicts for manual user resolution.
+* `-aa`: Merge changes aggressively, resolving all conflicts in favor of the generated change.
+* `-aaa`: Merge changes aggressively (same as `-aa`) then run `--quit` automatically.
+
+By default, changes are not merged - keeping the working directory untouched.
+A different default can be set in the configuration file.
+When doing so, the `--no-accept` flag can be used to disable merging at CLI invocation time.
 
 -b BOT::
 --bot=BOT::
-  Bot name.
-  Defaults to the first bot defined in the configuration.
+
+Bot name.
+Defaults to the first bot defined in the configuration.
 
 -e::
 --edit::
-  Enable interactive editing of draft prompts and templates.
-  See `--new` and `--templates` for details.
+
+Enable interactive editing of draft prompts and templates.
+See `--new` and `--templates` for details.
 
 -h::
 --help::
