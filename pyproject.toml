@@ -42,7 +42,7 @@ coverage = "^7.4.4"
 mypy = "^1.2.1"
 poethepoet = "^0.25.0"
 pytest = "^8.2.0"
-pytest-asyncio = "^0.26.0"
+pytest-asyncio = "^1.0.0"
 ruff = "^0.11.0"
 
 # Poe
