@@ -84,6 +84,7 @@ def _load_layouts() -> Mapping[str, str]:
 
 class _Context(TypedDict):
     prompt: Mapping[str, str]
+    program: PromptName
     toolbox: Toolbox
 
 
@@ -167,7 +168,7 @@ class _DocoptPrompt(_Prompt):
         try:
             opts = docopt.docopt(self._doc, list(args))
         except docopt.DocoptExit as exc:
-            raise ValueError(f"Invalid template arguments: {args}") from exc
+            raise ValueError(f"Invalid template arguments\n{exc}") from exc
         return self._template.render({**self._context, "opts": opts})
 
 
@@ -185,7 +186,11 @@ def _load_prompt(
     rel_path = Path(f"{name}.{_extension}")
     assert env.loader, "No loader in environment"
     template = env.loader.load(env, str(rel_path))
-    context: _Context = dict(prompt=_load_layouts(), toolbox=toolbox)
+    context: _Context = dict(
+        program=name,
+        prompt=_load_layouts(),
+        toolbox=toolbox
+    )
     try:
         module = template.make_module(vars=cast(dict, context))
     except jinja2.TemplateError as exc:
