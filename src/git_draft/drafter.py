@@ -14,7 +14,7 @@ import time
 from typing import Literal
 
 from .bots import Action, Bot, Goal
-from .common import Feedback, JSONObject, qualified_class_name, reindent
+from .common import JSONObject, Progress, qualified_class_name, reindent
 from .git import SHA, Repo
 from .prompt import TemplatedPrompt
 from .store import Store, sql
@@ -89,16 +89,16 @@ DraftMergeStrategy = Literal[
 class Drafter:
     """Draft state orchestrator"""
 
-    def __init__(self, store: Store, repo: Repo, feedback: Feedback) -> None:
+    def __init__(self, store: Store, repo: Repo, progress: Progress) -> None:
         self._store = store
         self._repo = repo
-        self._feedback = feedback
+        self._progress = progress
 
     @classmethod
-    def create(cls, repo: Repo, store: Store, feedback: Feedback) -> Drafter:
+    def create(cls, repo: Repo, store: Store, progress: Progress) -> Drafter:
         with store.cursor() as cursor:
             cursor.executescript(sql("create-tables"))
-        return cls(store, repo, feedback)
+        return cls(store, repo, progress)
 
     async def generate_draft(
         self,
@@ -107,7 +107,7 @@ class Drafter:
         merge_strategy: DraftMergeStrategy | None = None,
         prompt_transform: Callable[[str], str] | None = None,
     ) -> Draft:
-        with self._feedback.spinner("Preparing prompt...") as spinner:
+        with self._progress.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
             toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
@@ -141,8 +141,8 @@ class Drafter:
             )
 
         # Run the bot to generate the change.
-        operation_recorder = _OperationRecorder(self._feedback)
-        with self._feedback.spinner("Running bot...") as spinner:
+        operation_recorder = _OperationRecorder(self._progress)
+        with self._progress.spinner("Running bot...") as spinner:
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
@@ -151,7 +151,7 @@ class Drafter:
                 ),
             )
             if change.action.question:
-                self._feedback.report("Requested feedback.")
+                self._progress.report("Requested progress.")
             spinner.update(
                 "Completed bot run.",
                 runtime=round(change.walltime.total_seconds(), 1),
@@ -167,7 +167,7 @@ class Drafter:
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
-        with self._feedback.spinner("Creating draft commit...") as spinner:
+        with self._progress.spinner("Creating draft commit...") as spinner:
             if dirty:
                 parent_commit_rev = self._commit_tree(
                     toolbox.tree_sha(), "HEAD", "sync(prompt)"
@@ -214,7 +214,7 @@ class Drafter:
         _logger.info("Created new draft in folio %s.", folio.id)
 
         if merge_strategy:
-            with self._feedback.spinner("Merging changes...") as spinner:
+            with self._progress.spinner("Merging changes...") as spinner:
                 if parent_commit_rev != "HEAD":
                     # If there was a sync(prompt) commit, we move forward to
                     # it. This will avoid conflicts with earlier changes.
@@ -260,7 +260,7 @@ class Drafter:
         if check_call.code:
             raise RuntimeError("Origin branch diverged, please rebase first")
 
-        with self._feedback.spinner("Switching branch...") as spinner:
+        with self._progress.spinner("Switching branch...") as spinner:
             # Create a reference to the current state for later analysis.
             self._sync_head("finalize")
             self._repo.git("update-ref", _draft_ref(folio.id, "@"), "HEAD")
@@ -287,7 +287,7 @@ class Drafter:
         _logger.info("Quit %s.", folio)
 
     def _create_folio(self) -> Folio:
-        with self._feedback.spinner("Creating draft branch...") as spinner:
+        with self._progress.spinner("Creating draft branch...") as spinner:
             origin_branch = self._repo.active_branch()
             if origin_branch is None:
                 raise RuntimeError("No currently active branch")
@@ -436,33 +436,33 @@ class _OperationRecorder(ToolVisitor):
     analysis.
     """
 
-    def __init__(self, feedback: Feedback) -> None:
+    def __init__(self, progress: Progress) -> None:
         self.operations = list[_Operation]()
-        self._feedback = feedback
+        self._progress = progress
 
     def on_list_files(
         self, paths: Sequence[PurePosixPath], reason: str | None
     ) -> None:
         count = len(paths)
-        self._feedback.report("Listed available files.", count=count)
+        self._progress.report("Listed available files.", count=count)
         self._record(reason, "list_files", count=count)
 
     def on_read_file(
         self, path: PurePosixPath, contents: str | None, reason: str | None
     ) -> None:
         size = -1 if contents is None else len(contents)
-        self._feedback.report(f"Read {path}.", length=size)
+        self._progress.report(f"Read {path}.", length=size)
         self._record(reason, "read_file", path=str(path), size=size)
 
     def on_write_file(
         self, path: PurePosixPath, contents: str, reason: str | None
     ) -> None:
         size = len(contents)
-        self._feedback.report(f"Wrote {path}.", length=size)
+        self._progress.report(f"Wrote {path}.", length=size)
         self._record(reason, "write_file", path=str(path), size=size)
 
     def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
-        self._feedback.report(f"Deleted {path}.")
+        self._progress.report(f"Deleted {path}.")
         self._record(reason, "delete_file", path=str(path))
 
     def on_rename_file(
@@ -471,7 +471,7 @@ class _OperationRecorder(ToolVisitor):
         dst_path: PurePosixPath,
         reason: str | None,
     ) -> None:
-        self._feedback.report(f"Renamed {src_path} to {dst_path}.")
+        self._progress.report(f"Renamed {src_path} to {dst_path}.")
         self._record(
             reason,
             "rename_file",

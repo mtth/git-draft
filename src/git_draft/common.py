@@ -144,8 +144,8 @@ def _tagged(text: str, /, **kwargs) -> str:
     return f"{text} [{', '.join(tags)}]" if tags else text
 
 
-class Feedback:
-    """User feedback interface"""
+class Progress:
+    """Progress progress interface"""
 
     def report(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
@@ -153,23 +153,23 @@ class Feedback:
     def spinner(
         self, text: str, **tags
     ) -> contextlib.AbstractContextManager[
-        FeedbackSpinner
+        ProgressSpinner
     ]:  # pragma: no cover
         raise NotImplementedError()
 
     @staticmethod
-    def dynamic() -> Feedback:
-        """Feedback suitable for interactive terminals"""
-        return _DynamicFeedback()
+    def dynamic() -> Progress:
+        """Progress suitable for interactive terminals"""
+        return _DynamicProgress()
 
     @staticmethod
-    def static() -> Feedback:
-        """Feedback suitable for pipes, etc."""
-        return _StaticFeedback()
+    def static() -> Progress:
+        """Progress suitable for pipes, etc."""
+        return _StaticProgress()
 
 
-class FeedbackSpinner:
-    """Operation feedback tracker"""
+class ProgressSpinner:
+    """Operation progress tracker"""
 
     @contextlib.contextmanager
     def hidden(self) -> Iterator[None]:
@@ -179,9 +179,9 @@ class FeedbackSpinner:
         raise NotImplementedError()
 
 
-class _DynamicFeedback(Feedback):
+class _DynamicProgress(Progress):
     def __init__(self) -> None:
-        self._spinner: _DynamicFeedbackSpinner | None = None
+        self._spinner: _DynamicProgressSpinner | None = None
 
     def report(self, text: str, **tags) -> None:
         message = f"☞ {_tagged(text, **tags)}"
@@ -191,10 +191,10 @@ class _DynamicFeedback(Feedback):
             print(message)  # noqa
 
     @contextlib.contextmanager
-    def spinner(self, text: str, **tags) -> Iterator[FeedbackSpinner]:
+    def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
         assert not self._spinner
         with yaspin.yaspin(text=_tagged(text, **tags)) as spinner:
-            self._spinner = _DynamicFeedbackSpinner(spinner)
+            self._spinner = _DynamicProgressSpinner(spinner)
             try:
                 yield self._spinner
             except Exception:
@@ -206,7 +206,7 @@ class _DynamicFeedback(Feedback):
                 self._spinner = None
 
 
-class _DynamicFeedbackSpinner(FeedbackSpinner):
+class _DynamicProgressSpinner(ProgressSpinner):
     def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
         self.yaspin = yaspin
 
@@ -219,19 +219,19 @@ class _DynamicFeedbackSpinner(FeedbackSpinner):
         self.yaspin.text = _tagged(text, **tags)
 
 
-class _StaticFeedback(Feedback):
+class _StaticProgress(Progress):
     def report(self, text: str, **tags) -> None:
         print(_tagged(text, **tags))  # noqa
 
     @contextlib.contextmanager
-    def spinner(self, text: str, **tags) -> Iterator[FeedbackSpinner]:
+    def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
         self.report(text, **tags)
-        yield _StaticFeedbackSpinner(self)
+        yield _StaticProgressSpinner(self)
 
 
-class _StaticFeedbackSpinner(FeedbackSpinner):
-    def __init__(self, feedback: _StaticFeedback) -> None:
-        self._feedback = feedback
+class _StaticProgressSpinner(ProgressSpinner):
+    def __init__(self, progress: _StaticProgress) -> None:
+        self._progress = progress
 
     def update(self, text: str, **tags) -> None:
-        self._feedback.report(text, **tags)
+        self._progress.report(text, **tags)

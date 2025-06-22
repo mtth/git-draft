@@ -14,7 +14,7 @@ from .bots import load_bot
 from .common import (
     PROGRAM,
     Config,
-    Feedback,
+    Progress,
     UnreachableError,
     ensure_state_home,
 )
@@ -167,9 +167,9 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    feedback = Feedback.dynamic() if sys.stdin.isatty() else Feedback.static()
+    progress = Progress.dynamic() if sys.stdin.isatty() else Progress.static()
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
-    drafter = Drafter.create(repo, Store.persistent(), feedback)
+    drafter = Drafter.create(repo, Store.persistent(), progress)
     match getattr(opts, "command", "new"):
         case "new":
             bot_config = None
