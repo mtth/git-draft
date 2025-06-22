@@ -187,9 +187,7 @@ def _load_prompt(
     assert env.loader, "No loader in environment"
     template = env.loader.load(env, str(rel_path))
     context: _Context = dict(
-        program=name,
-        prompt=_load_layouts(),
-        toolbox=toolbox
+        program=name, prompt=_load_layouts(), toolbox=toolbox
     )
     try:
         module = template.make_module(vars=cast(dict, context))
