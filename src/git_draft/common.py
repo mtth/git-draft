@@ -145,7 +145,7 @@ def _tagged(text: str, /, **kwargs) -> str:
 
 
 class Progress:
-    """Progress progress interface"""
+    """Progress feedback interface"""
 
     def report(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
