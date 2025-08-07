@@ -270,7 +270,7 @@ def _update_tree(sha: SHA, updates: Sequence[_TreeUpdate], repo: Repo) -> SHA:
             case _DeleteBlob(path):
                 blob_shas[path.parent][path.name] = ""
             case _:
-                raise UnreachableError()
+                raise UnreachableError(f"Unexpected update: {update}")
 
     def visit_tree(sha: SHA, path: PurePosixPath) -> SHA:
         old_lines = null_delimited(repo.git("ls-tree", "-z", sha).stdout)
@@ -288,8 +288,10 @@ def _update_tree(sha: SHA, updates: Sequence[_TreeUpdate], repo: Repo) -> SHA:
                 case "tree":
                     new_sha = visit_tree(old_sha, path / name)
                     new_lines.append(f"040000 tree {new_sha}\t{name}")
+                case "commit":  # Submodule
+                    new_lines.append(line)
                 case _:
-                    raise UnreachableError()
+                    raise UnreachableError(f"Unexpected line: {line}")
 
         for name, blob_sha in new_blob_shas.items():
             if blob_sha:
