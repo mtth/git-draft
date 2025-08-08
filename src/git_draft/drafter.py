@@ -472,7 +472,7 @@ class _OperationRecorder(ToolVisitor):
 
     def on_expose_files(self) -> None:
         self._progress.report("Exposed files.")
-        self._record(None, "expose_files")
+        self._record("expose_files")
 
     def _record(self, tool: str, **kwargs) -> None:
         op = _Operation(tool=tool, details=kwargs, start=datetime.now())
