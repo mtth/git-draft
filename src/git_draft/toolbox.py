@@ -269,14 +269,16 @@ class RepoToolbox(Toolbox):
         commit_sha = self._repo.git(
             "commit-tree", "-m", "draft! worktree", tree_sha
         ).stdout
-        with tempfile.TemporaryDirectory() as name:
+        with tempfile.TemporaryDirectory() as path_str:
             try:
-                self._repo.git("worktree", "add", "--detach", name, commit_sha)
-                path = Path(name)
+                self._repo.git(
+                    "worktree", "add", "--detach", path_str, commit_sha
+                )
+                path = Path(path_str)
                 yield path
                 self._sync_updates(worktree_path=path)
             finally:
-                self._repo.git("worktree", "remove", "-f", name)
+                self._repo.git("worktree", "remove", "-f", path_str)
 
     def _write_from_disk(
         self, path: PurePosixPath, contents_path: Path

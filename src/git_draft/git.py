@@ -131,8 +131,7 @@ def _get_config_value(key: _ConfigKey, working_dir: Path) -> str | None:
 
 
 def _ensure_repo_uuid(working_dir: Path) -> None:
-    value = _get_config_value(_ConfigKey.REPO_UUID, working_dir)
-    if value:
+    if _get_config_value(_ConfigKey.REPO_UUID, working_dir):
         return
     repo_uuid = uuid.uuid4()
     GitCall.sync(
