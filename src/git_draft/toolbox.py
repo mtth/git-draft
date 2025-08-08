@@ -3,10 +3,10 @@
 from __future__ import annotations
 
 import collections
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 import dataclasses
 import logging
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 import tempfile
 from typing import Protocol, Self, override
 
@@ -20,8 +20,8 @@ _logger = logging.getLogger(__name__)
 class Toolbox:
     """File-system intermediary
 
-    Note that the toolbox is not thread-safe. Concurrent operations should be
-    serialized by the caller.
+    Note that toolbox implementations may not be thread-safe. Concurrent
+    operations should be serialized by the caller.
     """
 
     # TODO: Something similar to https://aider.chat/docs/repomap.html,
@@ -30,6 +30,13 @@ class Toolbox:
 
     # TODO: Support a diff-based edit method.
     # https://gist.github.com/noporpoise/16e731849eb1231e86d78f9dfeca3abc
+
+    # TODO: Add user feedback tool here. This will make it possible to request
+    # feedback more than once during a bot action, which leads to a better
+    # experience when used interactively.
+
+    # TODO: Remove all reason arguments. They are not currently used, and there
+    # is no obvious use-case at the moment.
 
     def __init__(self, visitors: Sequence[ToolVisitor] | None = None) -> None:
         self._visitors = visitors or []
@@ -78,8 +85,19 @@ class Toolbox:
         dst_path: PurePosixPath,
         reason: str | None = None,
     ) -> None:
+        """Rename a single file"""
         self._dispatch(lambda v: v.on_rename_file(src_path, dst_path, reason))
         self._rename(src_path, dst_path)
+
+    def expose_files(self) -> Iterator[Path]:  # pragma: no cover
+        """Creates a temporary folder with editable copies of all files
+
+        All updates are synced back afterwards. Other operations should not be
+        performed concurrently as they may be stale or lost.
+        """
+        self._dispatch(lambda v: v.on_expose_files())
+        # TODO: Expose updated files to hook?
+        return self._expose()
 
     def _list(self) -> Sequence[PurePosixPath]:  # pragma: no cover
         raise NotImplementedError()
@@ -102,6 +120,9 @@ class Toolbox:
         contents = self._read(src_path)
         self._write(dst_path, contents)
         self._delete(src_path)
+
+    def _expose(self) -> Iterator[Path]:  # pragma: no cover
+        raise NotImplementedError()
 
 
 class ToolVisitor(Protocol):
@@ -130,6 +151,8 @@ class ToolVisitor(Protocol):
         reason: str | None,
     ) -> None: ...  # pragma: no cover
 
+    def on_expose_files(self) -> None: ...  # pragma: no cover
+
 
 class NoopToolbox(Toolbox):
     """No-op read-only toolbox"""
@@ -148,6 +171,10 @@ class NoopToolbox(Toolbox):
 
     @override
     def _delete(self, _path: PurePosixPath) -> None:
+        raise RuntimeError()
+
+    @override
+    def _expose(self) -> Iterator[Path]:
         raise RuntimeError()
 
 
