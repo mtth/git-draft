@@ -19,7 +19,7 @@ sqlite3.register_converter(
 class Store:
     """Lightweight sqlite wrapper"""
 
-    _name = "v3.sqlite3"
+    _name = "v4.sqlite3"
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._connection = conn

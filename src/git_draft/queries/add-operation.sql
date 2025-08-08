@@ -1,2 +1,2 @@
-insert into operations (prompt_id, tool, reason, details, started_at)
-  values (:prompt_id, :tool, :reason, :details, :started_at)
+insert into operations (prompt_id, tool, details, started_at)
+  values (:prompt_id, :tool, :details, :started_at)
