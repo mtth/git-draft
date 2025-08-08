@@ -28,14 +28,14 @@ git draft [options] --templates [--json | [--edit] TEMPLATE]
 
 `git-draft` is a git-centric way to edit code with AI.
 
-Its workhorse command is `git draft --new` (and its shorthand, `git draft`) which suggests code changes using LLMs.
+Its workhorse command is `git draft` (shorthand for `git draft --new`) which suggests code changes using LLMs.
 Prompts can be specified inline or via customizable templates.
-Prompt templates can get augmented with information about the files in the repository, and give the LLM access to tools for reading and writing files.
+Prompt templates can be augmented with information about the files in the repository, and give the LLM access to tools for reading and writing files.
 Once the response has been received and changes applied, a commit is created in a dedicated draft branch.
-The `--new` step can be repeated as many times as needed.
+This command can be repeated as many times as needed within a draft branch to iterate on the changes.
+Manual changes can of course be included.
 
-Once satisfied with the changes, run `git draft --quit` to return to the original branch.
-This keeps the working directory's current state.
+Once satisfied with the changes, run `git draft --quit` to return to the original branch, keeping the working directory's current state.
 
 
 == Options
@@ -90,10 +90,6 @@ Otherwise if no template is specified and stdin is a TTY, `$EDITOR` will be open
 Go back to the draft's origin branch, keeping the working directory's current state.
 This will delete the draft branch and its upstream.
 Generated commits and the draft branch's final state remain available via `ref/drafts`.
-
---root::
-Repository search root.
-Defaults to the current working directory.
 
 -T::
 --templates::
