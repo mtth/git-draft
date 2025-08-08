@@ -48,7 +48,7 @@ def new_parser() -> optparse.OptionParser:
     )
     parser.add_option(
         "--root",
-        help="path used to locate repository root",
+        help=optparse.SUPPRESS_HELP,  # Not needed when invoked via git
         dest="root",
     )
 
