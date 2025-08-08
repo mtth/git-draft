@@ -17,8 +17,3 @@
 ```sh
 pipx install git-draft[openai]
 ```
-
-
-## Next steps
-
-* MCP bot.
