@@ -34,7 +34,6 @@ create table if not exists operations (
   id integer primary key,
   prompt_id integer not null,
   tool text not null,
-  reason text,
   details text not null,
   started_at timestamp not null,
   foreign key (prompt_id) references actions (prompt_id) on delete cascade

@@ -202,7 +202,6 @@ class Drafter:
                         {
                             "prompt_id": prompt_id,
                             "tool": o.tool,
-                            "reason": o.reason,
                             "details": json.dumps(o.details),
                             "started_at": o.start,
                         }
@@ -440,40 +439,32 @@ class _OperationRecorder(ToolVisitor):
         self.operations = list[_Operation]()
         self._progress = progress
 
-    def on_list_files(
-        self, paths: Sequence[PurePosixPath], reason: str | None
-    ) -> None:
+    def on_list_files(self, paths: Sequence[PurePosixPath]) -> None:
         count = len(paths)
         self._progress.report("Listed available files.", count=count)
-        self._record(reason, "list_files", count=count)
+        self._record("list_files", count=count)
 
-    def on_read_file(
-        self, path: PurePosixPath, contents: str | None, reason: str | None
-    ) -> None:
+    def on_read_file(self, path: PurePosixPath, contents: str | None) -> None:
         size = -1 if contents is None else len(contents)
         self._progress.report(f"Read {path}.", length=size)
-        self._record(reason, "read_file", path=str(path), size=size)
+        self._record("read_file", path=str(path), size=size)
 
-    def on_write_file(
-        self, path: PurePosixPath, contents: str, reason: str | None
-    ) -> None:
+    def on_write_file(self, path: PurePosixPath, contents: str) -> None:
         size = len(contents)
         self._progress.report(f"Wrote {path}.", length=size)
-        self._record(reason, "write_file", path=str(path), size=size)
+        self._record("write_file", path=str(path), size=size)
 
-    def on_delete_file(self, path: PurePosixPath, reason: str | None) -> None:
+    def on_delete_file(self, path: PurePosixPath) -> None:
         self._progress.report(f"Deleted {path}.")
-        self._record(reason, "delete_file", path=str(path))
+        self._record("delete_file", path=str(path))
 
     def on_rename_file(
         self,
         src_path: PurePosixPath,
         dst_path: PurePosixPath,
-        reason: str | None,
     ) -> None:
         self._progress.report(f"Renamed {src_path} to {dst_path}.")
         self._record(
-            reason,
             "rename_file",
             src_path=str(src_path),
             dst_path=str(dst_path),
@@ -483,10 +474,8 @@ class _OperationRecorder(ToolVisitor):
         self._progress.report("Exposed files.")
         self._record(None, "expose_files")
 
-    def _record(self, reason: str | None, tool: str, **kwargs) -> None:
-        op = _Operation(
-            tool=tool, details=kwargs, reason=reason, start=datetime.now()
-        )
+    def _record(self, tool: str, **kwargs) -> None:
+        op = _Operation(tool=tool, details=kwargs, start=datetime.now())
         _logger.debug("Recorded operation. [op=%s]", op)
         self.operations.append(op)
 
@@ -497,7 +486,6 @@ class _Operation:
 
     tool: str
     details: JSONObject
-    reason: str | None
     start: datetime
 
 

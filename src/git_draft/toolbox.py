@@ -36,9 +36,6 @@ class Toolbox:
     # feedback more than once during a bot action, which leads to a better
     # experience when used interactively.
 
-    # TODO: Remove all reason arguments. They are not currently used, and there
-    # is no obvious use-case at the moment.
-
     def __init__(self, visitors: Sequence[ToolVisitor] | None = None) -> None:
         self._visitors = visitors or []
 
@@ -46,48 +43,34 @@ class Toolbox:
         for visitor in self._visitors:
             effect(visitor)
 
-    def list_files(self, reason: str | None = None) -> Sequence[PurePosixPath]:
+    def list_files(self) -> Sequence[PurePosixPath]:
         paths = self._list()
-        self._dispatch(lambda v: v.on_list_files(paths, reason))
+        self._dispatch(lambda v: v.on_list_files(paths))
         return paths
 
-    def read_file(
-        self,
-        path: PurePosixPath,
-        reason: str | None = None,
-    ) -> str | None:
+    def read_file(self, path: PurePosixPath) -> str | None:
         try:
             contents = self._read(path)
         except FileNotFoundError:
             contents = None
-        self._dispatch(lambda v: v.on_read_file(path, contents, reason))
+        self._dispatch(lambda v: v.on_read_file(path, contents))
         return contents
 
-    def write_file(
-        self,
-        path: PurePosixPath,
-        contents: str,
-        reason: str | None = None,
-    ) -> None:
-        self._dispatch(lambda v: v.on_write_file(path, contents, reason))
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
+        self._dispatch(lambda v: v.on_write_file(path, contents))
         return self._write(path, contents)
 
-    def delete_file(
-        self,
-        path: PurePosixPath,
-        reason: str | None = None,
-    ) -> None:
-        self._dispatch(lambda v: v.on_delete_file(path, reason))
+    def delete_file(self, path: PurePosixPath) -> None:
+        self._dispatch(lambda v: v.on_delete_file(path))
         self._delete(path)
 
     def rename_file(
         self,
         src_path: PurePosixPath,
         dst_path: PurePosixPath,
-        reason: str | None = None,
     ) -> None:
         """Rename a single file"""
-        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path, reason))
+        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path))
         self._rename(src_path, dst_path)
 
     def expose_files(
@@ -134,26 +117,25 @@ class ToolVisitor(Protocol):
     """Tool usage hook"""
 
     def on_list_files(
-        self, paths: Sequence[PurePosixPath], reason: str | None
+        self, paths: Sequence[PurePosixPath]
     ) -> None: ...  # pragma: no cover
 
     def on_read_file(
-        self, path: PurePosixPath, contents: str | None, reason: str | None
+        self, path: PurePosixPath, contents: str | None
     ) -> None: ...  # pragma: no cover
 
     def on_write_file(
-        self, path: PurePosixPath, contents: str, reason: str | None
+        self, path: PurePosixPath, contents: str
     ) -> None: ...  # pragma: no cover
 
     def on_delete_file(
-        self, path: PurePosixPath, reason: str | None
+        self, path: PurePosixPath
     ) -> None: ...  # pragma: no cover
 
     def on_rename_file(
         self,
         src_path: PurePosixPath,
         dst_path: PurePosixPath,
-        reason: str | None,
     ) -> None: ...  # pragma: no cover
 
     def on_expose_files(self) -> None: ...  # pragma: no cover
@@ -266,24 +248,6 @@ class RepoToolbox(Toolbox):
             temp.close()
             self._write_from_disk(path, Path(temp.name))
 
-    @override
-    @contextlib.contextmanager
-    def _expose(self) -> Iterator[Path]:
-        tree_sha = self.tree_sha()
-        commit_sha = self._repo.git(
-            "commit-tree", "-m", "draft! worktree", tree_sha
-        ).stdout
-        with tempfile.TemporaryDirectory() as path_str:
-            try:
-                self._repo.git(
-                    "worktree", "add", "--detach", path_str, commit_sha
-                )
-                path = Path(path_str)
-                yield path
-                self._sync_updates(worktree_path=path)
-            finally:
-                self._repo.git("worktree", "remove", "-f", path_str)
-
     def _write_from_disk(
         self, path: PurePosixPath, contents_path: Path
     ) -> None:
@@ -299,6 +263,23 @@ class RepoToolbox(Toolbox):
     @override
     def _delete(self, path: PurePosixPath) -> None:
         self._tree_updates.append(_DeleteBlob(path))
+
+    @override
+    @contextlib.contextmanager
+    def _expose(self) -> Iterator[Path]:
+        commit_sha = self._repo.git(
+            "commit-tree", "-m", "draft! worktree", self.tree_sha()
+        ).stdout
+        with tempfile.TemporaryDirectory() as path_str:
+            try:
+                self._repo.git(
+                    "worktree", "add", "--detach", path_str, commit_sha
+                )
+                path = Path(path_str)
+                yield path
+                self._sync_updates(worktree_path=path)
+            finally:
+                self._repo.git("worktree", "remove", "-f", path_str)
 
 
 class _TreeUpdate:
