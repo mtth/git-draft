@@ -90,7 +90,9 @@ class Toolbox:
         self._dispatch(lambda v: v.on_rename_file(src_path, dst_path, reason))
         self._rename(src_path, dst_path)
 
-    def expose_files(self) -> Iterator[Path]:  # pragma: no cover
+    def expose_files(
+        self,
+    ) -> contextlib.AbstractContextManager[Path]:  # pragma: no cover
         """Creates a temporary folder with editable copies of all files
 
         All updates are synced back afterwards. Other operations should not be
@@ -122,7 +124,9 @@ class Toolbox:
         self._write(dst_path, contents)
         self._delete(src_path)
 
-    def _expose(self) -> Iterator[Path]:  # pragma: no cover
+    def _expose(
+        self,
+    ) -> contextlib.AbstractContextManager[Path]:  # pragma: no cover
         raise NotImplementedError()
 
 
@@ -175,7 +179,7 @@ class NoopToolbox(Toolbox):
         raise RuntimeError()
 
     @override
-    def _expose(self) -> Iterator[Path]:
+    def _expose(self) -> contextlib.AbstractContextManager[Path]:
         raise RuntimeError()
 
 
