@@ -479,6 +479,10 @@ class _OperationRecorder(ToolVisitor):
             dst_path=str(dst_path),
         )
 
+    def on_expose_files(self) -> None:
+        self._progress.report("Exposed files.")
+        self._record(None, "expose_files")
+
     def _record(self, reason: str | None, tool: str, **kwargs) -> None:
         op = _Operation(
             tool=tool, details=kwargs, reason=reason, start=datetime.now()
