@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import collections
 from collections.abc import Callable, Iterator, Sequence
+import contextlib
 import dataclasses
 import logging
 from pathlib import Path, PurePosixPath
@@ -204,21 +205,29 @@ class RepoToolbox(Toolbox):
     def for_working_dir(cls, repo: Repo) -> tuple[Self, bool]:
         index_tree_sha = repo.git("write-tree").stdout
         toolbox = cls(repo, index_tree_sha)
-
-        # Apply any changes from the working directory.
-        deleted = set[SHA]()
-        for path in null_delimited(repo.git("ls-files", "-dz").stdout):
-            deleted.add(path)
-            toolbox._delete(PurePosixPath(path))
-        for path in null_delimited(
-            repo.git("ls-files", "-moz", "--exclude-standard").stdout
-        ):
-            if path in deleted:
-                continue  # Deleted files also show up as modified
-            toolbox._write_from_disk(PurePosixPath(path), path)
-
+        toolbox._sync_updates()  # Apply any changes from the working directory
         head_tree_sha = repo.git("rev-parse", "HEAD^{tree}").stdout
         return toolbox, toolbox.tree_sha() != head_tree_sha
+
+    def _sync_updates(self, *, worktree_path: Path | None = None) -> None:
+        repo = self._repo
+        if worktree_path:
+            repo = Repo(worktree_path)
+
+        def ls_files(*args: str) -> Iterator[str]:
+            return null_delimited(repo.git("ls-files", *args).stdout)
+
+        deleted = set[str]()
+        for path_str in ls_files("-dz"):
+            deleted.add(path_str)
+            self._delete(PurePosixPath(path_str))
+        for path_str in ls_files("-moz", "--exclude-standard"):
+            if path_str in deleted:
+                continue  # Deleted files also show up as modified
+            self._write_from_disk(
+                PurePosixPath(path_str),
+                worktree_path / path_str if worktree_path else Path(path_str),
+            )
 
     def with_visitors(self, visitors: Sequence[ToolVisitor]) -> Self:
         return self.__class__(self._repo, self.tree_sha(), visitors)
@@ -251,17 +260,33 @@ class RepoToolbox(Toolbox):
         with tempfile.NamedTemporaryFile(delete_on_close=False) as temp:
             temp.write(contents.encode("utf8"))
             temp.close()
-            self._write_from_disk(path, temp.name)
+            self._write_from_disk(path, Path(temp.name))
+
+    @override
+    @contextlib.contextmanager
+    def _expose(self) -> Iterator[Path]:
+        tree_sha = self.tree_sha()
+        commit_sha = self._repo.git(
+            "commit-tree", "-m", "draft! worktree", tree_sha
+        ).stdout
+        with tempfile.TemporaryDirectory() as name:
+            try:
+                self._repo.git("worktree", "add", "--detach", name, commit_sha)
+                path = Path(name)
+                yield path
+                self._sync_updates(worktree_path=path)
+            finally:
+                self._repo.git("worktree", "remove", "-f", name)
 
     def _write_from_disk(
-        self, path: PurePosixPath, contents_path: str
+        self, path: PurePosixPath, contents_path: Path
     ) -> None:
         blob_sha = self._repo.git(
             "hash-object",
             "-w",
             "--path",
             str(path),
-            contents_path,
+            str(contents_path),
         ).stdout
         self._tree_updates.append(_WriteBlob(path, blob_sha))
 

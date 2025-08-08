@@ -79,17 +79,16 @@ class _ConfigKey(enum.StrEnum):
 class Repo:
     """Git repository"""
 
-    def __init__(self, working_dir: Path, uuid: uuid.UUID) -> None:
+    def __init__(self, working_dir: Path) -> None:
         self.working_dir = working_dir
-        self.uuid = uuid
 
     @classmethod
     def enclosing(cls, path: Path) -> Self:
         """Returns the repo enclosing the given path"""
         call = GitCall.sync("rev-parse", "--show-toplevel", working_dir=path)
         working_dir = Path(call.stdout)
-        uuid = _ensure_repo_uuid(working_dir)
-        return cls(working_dir, uuid)
+        _ensure_repo_uuid(working_dir)
+        return cls(working_dir)
 
     def git(
         self,
@@ -106,6 +105,12 @@ class Repo:
             expect_codes=expect_codes,
             working_dir=self.working_dir,
         )
+
+    @property
+    def uuid(self) -> uuid.UUID:
+        value = _get_config_value(_ConfigKey.REPO_UUID, self.working_dir)
+        assert value
+        return uuid.UUID(value)
 
     def active_branch(self) -> str | None:
         return self.git("branch", "--show-current").stdout or None
@@ -125,10 +130,10 @@ def _get_config_value(key: _ConfigKey, working_dir: Path) -> str | None:
     return None if call.code else call.stdout
 
 
-def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
+def _ensure_repo_uuid(working_dir: Path) -> None:
     value = _get_config_value(_ConfigKey.REPO_UUID, working_dir)
     if value:
-        return uuid.UUID(value)
+        return
     repo_uuid = uuid.uuid4()
     GitCall.sync(
         "config",
@@ -138,7 +143,6 @@ def _ensure_repo_uuid(working_dir: Path) -> uuid.UUID:
         working_dir=working_dir,
     )
     _logger.debug("Set repo UUID. [uuid=%s]", repo_uuid)
-    return repo_uuid
 
 
 def null_delimited(arg: str) -> Iterator[str]:

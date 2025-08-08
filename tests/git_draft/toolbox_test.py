@@ -67,3 +67,28 @@ class TestRepoToolbox:
         assert toolbox.read_file(PPP("f1")) == "aa"
         assert toolbox.read_file(PPP("f2")) is None
         assert toolbox.read_file(PPP("f3")) == "c"
+
+    def test_expose_files(self) -> None:
+        self._fs.write("f1", "a")
+        self._fs.write("f2", "b")
+        self._fs.flush()
+        toolbox = sut.RepoToolbox(self._repo, "HEAD")
+        toolbox.delete_file(PPP("f1"))
+        toolbox.write_file(PPP("f3"), "c")
+
+        with toolbox.expose_files() as path:
+            assert {".git", "f2", "f3"} == set(c.name for c in path.iterdir())
+            with open(path / "f2", "w") as w:
+                w.write("bb")
+            with open(path / "f4", "w") as w:
+                w.write("d")
+            (path / "f3").unlink()
+
+            # Before sync, toolbox does not have changes.
+            assert toolbox.read_file(PPP("f2")) == "b"
+            assert toolbox.read_file(PPP("f3")) == "c"
+
+        # After sync, toolbox has changes propagated.
+        assert toolbox.read_file(PPP("f2")) == "bb"
+        assert toolbox.read_file(PPP("f3")) is None
+        assert toolbox.read_file(PPP("f4")) == "d"
