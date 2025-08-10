@@ -14,8 +14,9 @@ from typing import Self, TypedDict, cast
 import docopt
 import jinja2
 
+from .bots import Worktree
 from .common import Config, Table, package_root
-from .toolbox import NoopToolbox, Toolbox
+from .worktrees import EmptyWorktree
 
 
 _extension = "jinja"
@@ -36,8 +37,8 @@ class TemplatedPrompt:
         _check_public_template_name(name)
         return cls(name, tuple(args))
 
-    def render(self, toolbox: Toolbox) -> str:
-        prompt = _load_prompt(_jinja_environment(), self.name, toolbox)
+    def render(self, worktree: Worktree) -> str:
+        prompt = _load_prompt(_jinja_environment(), self.name, worktree)
         return prompt.render(self.args)
 
 
@@ -85,7 +86,7 @@ def _load_layouts() -> Mapping[str, str]:
 class _Context(TypedDict):
     prompt: Mapping[str, str]
     program: PromptName
-    toolbox: Toolbox
+    worktree: Worktree
 
 
 @dataclasses.dataclass(frozen=True)
@@ -181,13 +182,13 @@ def _template_path(template: jinja2.Template) -> Path:
 
 
 def _load_prompt(
-    env: jinja2.Environment, name: PromptName, toolbox: Toolbox
+    env: jinja2.Environment, name: PromptName, worktree: Worktree
 ) -> _Prompt:
     rel_path = Path(f"{name}.{_extension}")
     assert env.loader, "No loader in environment"
     template = env.loader.load(env, str(rel_path))
     context: _Context = dict(
-        program=name, prompt=_load_layouts(), toolbox=toolbox
+        program=name, prompt=_load_layouts(), worktree=worktree
     )
     try:
         module = template.make_module(vars=cast(dict, context))
@@ -203,7 +204,7 @@ def _load_prompt(
 
 def find_prompt_metadata(name: PromptName) -> PromptMetadata | None:
     try:
-        prompt = _load_prompt(_jinja_environment(), name, NoopToolbox())
+        prompt = _load_prompt(_jinja_environment(), name, EmptyWorktree())
     except jinja2.TemplateNotFound:
         return None
     return prompt.metadata
@@ -211,14 +212,14 @@ def find_prompt_metadata(name: PromptName) -> PromptMetadata | None:
 
 def templates_table(*, include_local: bool = True) -> Table:
     env = _jinja_environment(include_local=include_local)
-    toolbox = NoopToolbox()
+    worktree = EmptyWorktree()
     table = Table.empty()
     table.data.field_names = ["name", "local", "description"]
     for rel_path in env.list_templates(extensions=[_extension]):
         if any(p.startswith(".") for p in rel_path.split(os.sep)):
             continue
         name, _ext = os.path.splitext(rel_path)
-        prompt = _load_prompt(env, name, toolbox)
+        prompt = _load_prompt(env, name, worktree)
         metadata = prompt.metadata
         local = "y" if metadata.is_local() else "n"
         table.data.add_row([name, local, metadata.description or ""])

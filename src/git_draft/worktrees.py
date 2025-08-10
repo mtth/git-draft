@@ -1,4 +1,4 @@
-"""Functionality available to bots"""
+"""Worktree implementations"""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from pathlib import Path, PurePosixPath
 import tempfile
 from typing import Protocol, Self, override
 
+from .bots import Worktree
 from .common import UnreachableError
 from .git import SHA, GitError, Repo, null_delimited
 
@@ -18,11 +19,47 @@ from .git import SHA, GitError, Repo, null_delimited
 _logger = logging.getLogger(__name__)
 
 
-class Toolbox:
-    """File-system intermediary
+class EmptyWorktree(Worktree):
+    """No-op read-only work tree
 
-    Note that toolbox implementations may not be thread-safe. Concurrent
-    operations should be serialized by the caller.
+    This tree is used when gathering template metadata.
+    """
+
+    @override
+    def list_files(self) -> Sequence[PurePosixPath]:
+        return []
+
+    @override
+    def read_file(self, path: PurePosixPath) -> str | None:
+        raise RuntimeError()
+
+    @override
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
+        raise RuntimeError()
+
+    @override
+    def delete_file(self, path: PurePosixPath) -> None:
+        raise RuntimeError()
+
+    @override
+    def rename_file(
+        self, src_path: PurePosixPath, dst_path: PurePosixPath
+    ) -> None:
+        raise RuntimeError()
+
+    @override
+    def edit_files(self) -> contextlib.AbstractContextManager[Path]:
+        raise RuntimeError()
+
+
+class GitWorktree(Worktree):
+    """Git-backed worktree implementation
+
+    All files are directly read from and written to a standalone tree. This
+    allows concurrent editing without interference with the working directory
+    or index.
+
+    This implementation is not thread-safe.
     """
 
     # TODO: Something similar to https://aider.chat/docs/repomap.html,
@@ -32,168 +69,25 @@ class Toolbox:
     # TODO: Support a diff-based edit method.
     # https://gist.github.com/noporpoise/16e731849eb1231e86d78f9dfeca3abc
 
-    # TODO: Add user feedback tool here. This will make it possible to request
-    # feedback more than once during a bot action, which leads to a better
-    # experience when used interactively.
-
-    def __init__(self, visitors: Sequence[ToolVisitor] | None = None) -> None:
-        self._visitors = visitors or []
-
-    def _dispatch(self, effect: Callable[[ToolVisitor], None]) -> None:
-        for visitor in self._visitors:
-            effect(visitor)
-
-    def list_files(self) -> Sequence[PurePosixPath]:
-        paths = self._list()
-        self._dispatch(lambda v: v.on_list_files(paths))
-        return paths
-
-    def read_file(self, path: PurePosixPath) -> str | None:
-        try:
-            contents = self._read(path)
-        except FileNotFoundError:
-            contents = None
-        self._dispatch(lambda v: v.on_read_file(path, contents))
-        return contents
-
-    def write_file(self, path: PurePosixPath, contents: str) -> None:
-        self._dispatch(lambda v: v.on_write_file(path, contents))
-        return self._write(path, contents)
-
-    def delete_file(self, path: PurePosixPath) -> None:
-        self._dispatch(lambda v: v.on_delete_file(path))
-        self._delete(path)
-
-    def rename_file(
-        self,
-        src_path: PurePosixPath,
-        dst_path: PurePosixPath,
-    ) -> None:
-        """Rename a single file"""
-        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path))
-        self._rename(src_path, dst_path)
-
-    def expose_files(
-        self,
-    ) -> contextlib.AbstractContextManager[Path]:  # pragma: no cover
-        """Creates a temporary folder with editable copies of all files
-
-        All updates are synced back afterwards. Other operations should not be
-        performed concurrently as they may be stale or lost.
-        """
-        self._dispatch(lambda v: v.on_expose_files())
-        # TODO: Expose updated files to hook?
-        return self._expose()
-
-    def _list(self) -> Sequence[PurePosixPath]:  # pragma: no cover
-        raise NotImplementedError()
-
-    def _read(self, path: PurePosixPath) -> str:  # pragma: no cover
-        raise NotImplementedError()
-
-    def _write(
-        self, path: PurePosixPath, contents: str
-    ) -> None:  # pragma: no cover
-        raise NotImplementedError()
-
-    def _delete(self, path: PurePosixPath) -> None:  # pragma: no cover
-        raise NotImplementedError()
-
-    def _rename(
-        self, src_path: PurePosixPath, dst_path: PurePosixPath
-    ) -> None:
-        # We can provide a default implementation here.
-        contents = self._read(src_path)
-        self._write(dst_path, contents)
-        self._delete(src_path)
-
-    def _expose(
-        self,
-    ) -> contextlib.AbstractContextManager[Path]:  # pragma: no cover
-        raise NotImplementedError()
-
-
-class ToolVisitor(Protocol):
-    """Tool usage hook"""
-
-    def on_list_files(
-        self, paths: Sequence[PurePosixPath]
-    ) -> None: ...  # pragma: no cover
-
-    def on_read_file(
-        self, path: PurePosixPath, contents: str | None
-    ) -> None: ...  # pragma: no cover
-
-    def on_write_file(
-        self, path: PurePosixPath, contents: str
-    ) -> None: ...  # pragma: no cover
-
-    def on_delete_file(
-        self, path: PurePosixPath
-    ) -> None: ...  # pragma: no cover
-
-    def on_rename_file(
-        self,
-        src_path: PurePosixPath,
-        dst_path: PurePosixPath,
-    ) -> None: ...  # pragma: no cover
-
-    def on_expose_files(self) -> None: ...  # pragma: no cover
-
-
-class NoopToolbox(Toolbox):
-    """No-op read-only toolbox"""
-
-    @override
-    def _list(self) -> Sequence[PurePosixPath]:
-        return []
-
-    @override
-    def _read(self, _path: PurePosixPath) -> str:
-        raise RuntimeError()
-
-    @override
-    def _write(self, _path: PurePosixPath, _contents: str) -> None:
-        raise RuntimeError()
-
-    @override
-    def _delete(self, _path: PurePosixPath) -> None:
-        raise RuntimeError()
-
-    @override
-    def _expose(self) -> contextlib.AbstractContextManager[Path]:
-        raise RuntimeError()
-
-
-class RepoToolbox(Toolbox):
-    """Git-repo backed toolbox implementation
-
-    All files are directly read from and written to an standalone tree. This
-    allows concurrent editing without interference with the working directory
-    or index.
-
-    This toolbox is not thread-safe.
-    """
-
     def __init__(
         self,
         repo: Repo,
         start_rev: SHA,
-        visitors: Sequence[ToolVisitor] | None = None,
+        hooks: WorktreeHooks | None = None,
     ) -> None:
-        super().__init__(visitors)
         call = repo.git("rev-parse", "--verify", f"{start_rev}^{{tree}}")
-        self._tree_sha = call.stdout
-        self._tree_updates = list[_TreeUpdate]()
+        self._sha = call.stdout
+        self._updates = list[_TreeUpdate]()
         self._repo = repo
+        self._hooks = hooks or None
 
     @classmethod
     def for_working_dir(cls, repo: Repo) -> tuple[Self, bool]:
         index_tree_sha = repo.git("write-tree").stdout
-        toolbox = cls(repo, index_tree_sha)
-        toolbox._sync_updates()  # Apply any changes from the working directory
+        tree = cls(repo, index_tree_sha)
+        tree._sync_updates()  # Apply any changes from the working directory
         head_tree_sha = repo.git("rev-parse", "HEAD^{tree}").stdout
-        return toolbox, toolbox.tree_sha() != head_tree_sha
+        return tree, tree.sha() != head_tree_sha
 
     def _sync_updates(self, *, worktree_path: Path | None = None) -> None:
         repo = self._repo
@@ -215,31 +109,82 @@ class RepoToolbox(Toolbox):
                 worktree_path / path_str if worktree_path else Path(path_str),
             )
 
-    def with_visitors(self, visitors: Sequence[ToolVisitor]) -> Self:
-        return self.__class__(self._repo, self.tree_sha(), visitors)
+    def with_hooks(self, hooks: WorktreeHooks) -> Self:
+        return self.__class__(self._repo, self.sha(), hooks)
 
-    def tree_sha(self) -> SHA:
-        if updates := self._tree_updates:
-            self._tree_sha = _update_tree(self._tree_sha, updates, self._repo)
+    def sha(self) -> SHA:
+        if updates := self._updates:
+            self._sha = _update_tree(self._sha, updates, self._repo)
             updates.clear()
-        return self._tree_sha
+        return self._sha
+
+    def _dispatch(self, effect: Callable[[WorktreeHooks], None]) -> None:
+        if hook := self._hooks:
+            effect(hook)
 
     @override
+    def list_files(self) -> Sequence[PurePosixPath]:
+        paths = self._list()
+        self._dispatch(lambda v: v.on_list_files(paths))
+        return paths
+
+    @override
+    def read_file(self, path: PurePosixPath) -> str | None:
+        try:
+            contents = self._read(path)
+        except FileNotFoundError:
+            contents = None
+        self._dispatch(lambda v: v.on_read_file(path, contents))
+        return contents
+
+    @override
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
+        self._dispatch(lambda v: v.on_write_file(path, contents))
+        return self._write(path, contents)
+
+    @override
+    def delete_file(self, path: PurePosixPath) -> None:
+        self._dispatch(lambda v: v.on_delete_file(path))
+        self._delete(path)
+
+    @override
+    def rename_file(
+        self,
+        src_path: PurePosixPath,
+        dst_path: PurePosixPath,
+    ) -> None:
+        """Rename a single file"""
+        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path))
+        contents = self._read(src_path)
+        self._write(dst_path, contents)
+        self._delete(src_path)
+
+    @override
+    def edit_files(
+        self,
+    ) -> contextlib.AbstractContextManager[Path]:
+        """Creates a temporary folder with editable copies of all files
+
+        All updates are synced back afterwards. Other operations should not be
+        performed concurrently as they may be stale or lost.
+        """
+        self._dispatch(lambda v: v.on_edit_files())
+        # TODO: Expose updated files to hook?
+        return self._edit()
+
     def _list(self) -> Sequence[PurePosixPath]:
-        call = self._repo.git("ls-tree", "-rz", "--name-only", self.tree_sha())
+        call = self._repo.git("ls-tree", "-rz", "--name-only", self.sha())
         return [PurePosixPath(p) for p in null_delimited(call.stdout)]
 
-    @override
     def _read(self, path: PurePosixPath) -> str:
         try:
-            return self._repo.git("show", f"{self.tree_sha()}:{path}").stdout
+            return self._repo.git("show", f"{self.sha()}:{path}").stdout
         except GitError as exc:
             msg = str(exc)
             if "does not exist in" in msg or "exists on disk, but not" in msg:
                 raise FileNotFoundError(f"{path} does not exist")
             raise
 
-    @override
     def _write(self, path: PurePosixPath, contents: str) -> None:
         # Update the index without touching the worktree.
         # https://stackoverflow.com/a/25352119
@@ -258,17 +203,15 @@ class RepoToolbox(Toolbox):
             str(path),
             str(contents_path),
         ).stdout
-        self._tree_updates.append(_WriteBlob(path, blob_sha))
+        self._updates.append(_WriteBlob(path, blob_sha))
 
-    @override
     def _delete(self, path: PurePosixPath) -> None:
-        self._tree_updates.append(_DeleteBlob(path))
+        self._updates.append(_DeleteBlob(path))
 
-    @override
     @contextlib.contextmanager
-    def _expose(self) -> Iterator[Path]:
+    def _edit(self) -> Iterator[Path]:
         commit_sha = self._repo.git(
-            "commit-tree", "-m", "draft! worktree", self.tree_sha()
+            "commit-tree", "-m", "draft! worktree", self.sha()
         ).stdout
         with tempfile.TemporaryDirectory() as path_str:
             try:
@@ -280,6 +223,32 @@ class RepoToolbox(Toolbox):
                 self._sync_updates(worktree_path=path)
             finally:
                 self._repo.git("worktree", "remove", "-f", path_str)
+
+
+class WorktreeHooks(Protocol):
+    """Tool usage hook"""
+
+    def on_list_files(
+        self, paths: Sequence[PurePosixPath]
+    ) -> None: ...  # pragma: no cover
+
+    def on_read_file(
+        self, path: PurePosixPath, contents: str | None
+    ) -> None: ...  # pragma: no cover
+
+    def on_write_file(
+        self, path: PurePosixPath, contents: str
+    ) -> None: ...  # pragma: no cover
+
+    def on_delete_file(
+        self, path: PurePosixPath
+    ) -> None: ...  # pragma: no cover
+
+    def on_rename_file(
+        self, src_path: PurePosixPath, dst_path: PurePosixPath
+    ) -> None: ...  # pragma: no cover
+
+    def on_edit_files(self) -> None: ...  # pragma: no cover
 
 
 class _TreeUpdate:

@@ -140,8 +140,12 @@ class Table:
 
 
 def _tagged(text: str, /, **kwargs) -> str:
-    tags = [f"{key}={val}" for key, val in kwargs.items() if val is not None]
-    return f"{text} [{', '.join(tags)}]" if tags else text
+    if kwargs:
+        tags = [
+            f"{key}={val}" for key, val in kwargs.items() if val is not None
+        ]
+        text = f"{text} [{', '.join(tags)}]" if tags else text
+    return reindent(text)
 
 
 class Progress:

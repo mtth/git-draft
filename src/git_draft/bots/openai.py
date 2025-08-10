@@ -21,7 +21,7 @@ from typing import Any, Self, TypedDict, override
 import openai
 
 from ..common import JSONObject, UnreachableError, config_string, reindent
-from .common import Action, Bot, Goal, Toolbox
+from .common import Action, Bot, Goal, UserFeedback, Worktree
 
 
 _logger = logging.getLogger(__name__)
@@ -173,11 +173,11 @@ _INSTRUCTIONS = """
 
 
 class _ToolHandler[V]:
-    def __init__(self, toolbox: Toolbox) -> None:
-        self._toolbox = toolbox
-        self.question: str | None = None
+    def __init__(self, tree: Worktree, feedback: UserFeedback) -> None:
+        self._tree = tree
+        self._feedback = feedback
 
-    def _on_ask_user(self) -> V:
+    def _on_ask_user(self, response: str) -> V:
         raise NotImplementedError()
 
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> V:
@@ -202,28 +202,28 @@ class _ToolHandler[V]:
         _logger.info("Requested function: %s", function)
         match function.name:
             case "ask_user":
-                assert not self.question
-                self.question = inputs["question"]
-                return self._on_ask_user()
+                question = inputs["question"]
+                response = self._feedback.ask(question)
+                return self._on_ask_user(response)
             case "read_file":
                 path = PurePosixPath(inputs["path"])
-                return self._on_read_file(path, self._toolbox.read_file(path))
+                return self._on_read_file(path, self._tree.read_file(path))
             case "write_file":
                 path = PurePosixPath(inputs["path"])
                 contents = inputs["contents"]
-                self._toolbox.write_file(path, contents)
+                self._tree.write_file(path, contents)
                 return self._on_write_file(path)
             case "delete_file":
                 path = PurePosixPath(inputs["path"])
-                self._toolbox.delete_file(path)
+                self._tree.delete_file(path)
                 return self._on_delete_file(path)
             case "rename_file":
                 src_path = PurePosixPath(inputs["src_path"])
                 dst_path = PurePosixPath(inputs["dst_path"])
-                self._toolbox.rename_file(src_path, dst_path)
+                self._tree.rename_file(src_path, dst_path)
                 return self._on_rename_file(src_path, dst_path)
             case "list_files":
-                paths = self._toolbox.list_files()
+                paths = self._tree.list_files()
                 return self._on_list_files(paths)
             case _ as name:
                 raise UnreachableError(f"Unexpected function: {name}")
@@ -234,9 +234,11 @@ class _CompletionsBot(Bot):
         self._client = client
         self._model = model
 
-    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(
+        self, goal: Goal, tree: Worktree, feedback: UserFeedback
+    ) -> Action:
         tools = _ToolsFactory(strict=False).params()
-        tool_handler = _CompletionsToolHandler(toolbox)
+        tool_handler = _CompletionsToolHandler(tree, feedback)
 
         messages: list[openai.types.chat.ChatCompletionMessageParam] = [
             {"role": "system", "content": reindent(_INSTRUCTIONS)},
@@ -264,15 +266,12 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return Action(
-            request_count=request_count,
-            question=tool_handler.question,
-        )
+        return Action(request_count=request_count)
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
-    def _on_ask_user(self) -> None:
-        return None
+    def _on_ask_user(self, response: str) -> str:
+        return response
 
     def _on_read_file(self, path: PurePosixPath, contents: str | None) -> str:
         if contents is None:
@@ -318,7 +317,9 @@ class _ThreadsBot(Bot):
                 f.write(assistant_id)
         return assistant_id
 
-    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(
+        self, goal: Goal, tree: Worktree, feedback: UserFeedback
+    ) -> Action:
         assistant_id = self._load_assistant_id()
 
         thread = self._client.beta.threads.create()
@@ -334,7 +335,7 @@ class _ThreadsBot(Bot):
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
             assistant_id=assistant_id,
-            event_handler=_EventHandler(self._client, toolbox, action),
+            event_handler=_EventHandler(self._client, tree, feedback, action),
         ) as stream:
             stream.until_done()
         return action
@@ -342,16 +343,21 @@ class _ThreadsBot(Bot):
 
 class _EventHandler(openai.AssistantEventHandler):
     def __init__(
-        self, client: openai.Client, toolbox: Toolbox, action: Action
+        self, client: openai.Client, tree: Worktree,
+        feedback: UserFeedback,
+        action: Action,
     ) -> None:
         super().__init__()
         self._client = client
-        self._toolbox = toolbox
+        self._tree = tree
+        self._feedback = feedback
         self._action = action
         self._action.increment_request_count()
 
     def _clone(self) -> Self:
-        return self.__class__(self._client, self._toolbox, self._action)
+        return self.__class__(
+            self._client, self._tree, self._feedback, self._action
+        )
 
     @override
     def on_event(self, event: openai.types.beta.AssistantStreamEvent) -> None:
@@ -377,11 +383,8 @@ class _EventHandler(openai.AssistantEventHandler):
     def _handle_action(self, _run_id: str, data: Any) -> None:
         tool_outputs = list[Any]()
         for tool in data.required_action.submit_tool_outputs.tool_calls:
-            handler = _ThreadToolHandler(self._toolbox, tool.id)
+            handler = _ThreadToolHandler(self._tree, self._feedback, tool.id)
             tool_outputs.append(handler.handle_function(tool.function))
-            if handler.question:
-                assert not self._action.question
-                self._action.question = handler.question
 
         run = self.current_run
         assert run, "No ongoing run"
@@ -400,15 +403,17 @@ class _ToolOutput(TypedDict):
 
 
 class _ThreadToolHandler(_ToolHandler[_ToolOutput]):
-    def __init__(self, toolbox: Toolbox, call_id: str) -> None:
-        super().__init__(toolbox)
+    def __init__(
+        self, tree: Worktree, feedback: UserFeedback, call_id: str
+    ) -> None:
+        super().__init__(tree, feedback)
         self._call_id = call_id
 
     def _wrap(self, output: str) -> _ToolOutput:
         return _ToolOutput(tool_call_id=self._call_id, output=output)
 
-    def _on_ask_user(self) -> _ToolOutput:
-        return self._wrap("OK")
+    def _on_ask_user(self, response: str) -> _ToolOutput:
+        return self._wrap(response)
 
     def _on_read_file(
         self, _path: PurePosixPath, contents: str | None

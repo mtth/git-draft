@@ -1,7 +1,7 @@
 import pytest
 
 import git_draft.prompt as sut
-from git_draft.toolbox import RepoToolbox
+from git_draft.worktrees import GitWorktree
 
 
 class TestCheckPublicTemplateName:
@@ -18,17 +18,17 @@ class TestCheckPublicTemplateName:
 class TestTemplatedPrompt:
     @pytest.fixture(autouse=True)
     def setup(self, repo) -> None:
-        self._toolbox = RepoToolbox(repo, "HEAD")
+        self._tree = GitWorktree(repo, "HEAD")
 
     def test_ok(self) -> None:
         prompt = sut.TemplatedPrompt("add-test", ("--symbol=foo",))
-        rendered = prompt.render(self._toolbox)
+        rendered = prompt.render(self._tree)
         assert "foo" in rendered
 
     def test_missing_variable(self) -> None:
         prompt = sut.TemplatedPrompt("add-test")
         with pytest.raises(ValueError):
-            prompt.render(self._toolbox)
+            prompt.render(self._tree)
 
 
 class TestFindPromptMetadata:

@@ -28,6 +28,7 @@ from .prompt import (
     templates_table,
 )
 from .store import Store
+from .user_feedbacks import InteractiveUserFeedback
 
 
 _logger = logging.getLogger(__name__)
@@ -167,7 +168,13 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    progress = Progress.dynamic() if sys.stdin.isatty() else Progress.static()
+    if sys.stdin.isatty():
+        progress = Progress.dynamic()
+        feedback = InteractiveUserFeedback()
+    else:
+        progress = Progress.static()
+        feedback = None
+
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent(), progress)
     match getattr(opts, "command", "new"):
@@ -200,10 +207,11 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
 
             accept = Accept(opts.accept or 0)
             await drafter.generate_draft(
-                prompt,
-                bot,
-                prompt_transform=open_editor if editable else None,
+                prompt=prompt,
+                bot=bot,
                 merge_strategy=accept.merge_strategy(),
+                feedback=feedback,
+                prompt_transform=open_editor if editable else None,
             )
             if accept == Accept.MERGE_THEN_QUIT:
                 # TODO: Refuse to quit on pending question?

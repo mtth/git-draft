@@ -2,11 +2,13 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+import contextlib
 import dataclasses
-from pathlib import Path
+from pathlib import Path, PurePosixPath
+from typing import Protocol
 
 from ..common import ensure_state_home, qualified_class_name
-from ..toolbox import Toolbox
 
 
 @dataclasses.dataclass(frozen=True)
@@ -15,6 +17,49 @@ class Goal:
 
     prompt: str
     # TODO: Add timeout.
+
+
+class Worktree(Protocol):
+    """File operations
+
+    Implementations may not be thread-safe. Concurrent operations should be
+    serialized by the caller.
+    """
+
+    def list_files(self) -> Sequence[PurePosixPath]:
+        """List all files"""
+
+    def read_file(self, path: PurePosixPath) -> str | None:
+        """Get a file's contents"""
+
+    def write_file(self, path: PurePosixPath, contents: str) -> None:
+        """Update a file's contents"""
+
+    def delete_file(self, path: PurePosixPath) -> None:
+        """Remove a file"""
+
+    def rename_file(
+        self, src_path: PurePosixPath, dst_path: PurePosixPath
+    ) -> None:
+        """Move a file"""
+
+    def edit_files(self) -> contextlib.AbstractContextManager[Path]:
+        """Return path to a temporary folder with editable copies of all files
+
+        Any updates are synced back to the work tree when the context exits.
+        Other operations should not be performed concurrently as they may be
+        stale or lost.
+        """
+
+
+class UserFeedback(Protocol):
+    """User interactions"""
+
+    def notify(self, update: str) -> None:
+        """Report progress to the user"""
+
+    def ask(self, question: str) -> str:
+        """Request additional information from the user"""
 
 
 @dataclasses.dataclass
@@ -28,7 +73,6 @@ class Action:
     title: str | None = None
     request_count: int | None = None
     token_count: int | None = None
-    question: str | None = None
 
     def increment_request_count(self, n: int = 1, init: bool = False) -> None:
         self._increment("request_count", n, init)
@@ -66,6 +110,8 @@ class Bot:
             path.mkdir(parents=True, exist_ok=True)
         return path
 
-    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
-        """Runs the bot, striving to achieve the goal with the given toolbox"""
+    async def act(
+        self, goal: Goal, tree: Worktree, feedback: UserFeedback
+    ) -> Action:
+        """Runs the bot, striving to achieve the goal"""
         raise NotImplementedError()

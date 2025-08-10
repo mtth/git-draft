@@ -1,4 +1,4 @@
-select p.contents, a.question
+select p.contents, a.pending_question
   from prompts as p
   join folios as f on p.folio_id = f.id
   left join actions as a on p.id = a.prompt_id

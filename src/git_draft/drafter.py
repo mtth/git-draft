@@ -13,12 +13,13 @@ import textwrap
 import time
 from typing import Literal
 
-from .bots import Action, Bot, Goal
+from .bots import Action, Bot, Goal, UserFeedback
 from .common import JSONObject, Progress, qualified_class_name, reindent
 from .git import SHA, Repo
 from .prompt import TemplatedPrompt
 from .store import Store, sql
-from .toolbox import RepoToolbox, ToolVisitor
+from .user_feedbacks import BatchUserFeedback
+from .worktrees import GitWorktree, WorktreeHooks
 
 
 _logger = logging.getLogger(__name__)
@@ -31,7 +32,7 @@ class Draft:
     folio: Folio
     seqno: int
     is_noop: bool
-    has_question: bool
+    has_pending_question: bool
     walltime: timedelta
     token_count: int | None
 
@@ -105,17 +106,21 @@ class Drafter:
         prompt: str | TemplatedPrompt,
         bot: Bot,
         merge_strategy: DraftMergeStrategy | None = None,
+        feedback: UserFeedback | None = None,
         prompt_transform: Callable[[str], str] | None = None,
     ) -> Draft:
+        if not feedback:
+            feedback = BatchUserFeedback()
+
         with self._progress.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
-            toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
+            tree, dirty = GitWorktree.for_working_dir(self._repo)
             with spinner.hidden():
                 prompt_contents = self._prepare_prompt(
                     prompt,
                     prompt_transform,
-                    toolbox,
+                    tree,
                 )
             template_name = (
                 prompt.name if isinstance(prompt, TemplatedPrompt) else None
@@ -146,12 +151,9 @@ class Drafter:
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
-                toolbox.with_visitors(
-                    [operation_recorder],
-                ),
+                tree.with_hooks(operation_recorder),
+                feedback,
             )
-            if change.action.question:
-                self._progress.report("Requested progress.")
             spinner.update(
                 "Completed bot run.",
                 runtime=round(change.walltime.total_seconds(), 1),
@@ -163,14 +165,14 @@ class Drafter:
             folio=folio,
             seqno=seqno,
             is_noop=change.is_noop,
-            has_question=change.action.question is not None,
+            has_pending_question=change.action.question is not None,
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
         with self._progress.spinner("Creating draft commit...") as spinner:
             if dirty:
                 parent_commit_rev = self._commit_tree(
-                    toolbox.tree_sha(), "HEAD", "sync(prompt)"
+                    tree.sha(), "HEAD", "sync(prompt)"
                 )
                 _logger.info(
                     "Created sync commit. [sha=%s]", parent_commit_rev
@@ -193,7 +195,7 @@ class Drafter:
                         "walltime_seconds": change.walltime.total_seconds(),
                         "request_count": change.action.request_count,
                         "token_count": change.action.token_count,
-                        "question": change.action.question,
+                        "pending_question": change.action.question,
                     },
                 )
                 cursor.executemany(
@@ -329,10 +331,10 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         prompt_transform: Callable[[str], str] | None,
-        toolbox: RepoToolbox,
+        tree: GitWorktree,
     ) -> str:
         if isinstance(prompt, TemplatedPrompt):
-            contents = prompt.render(toolbox)
+            contents = prompt.render(tree)
         else:
             contents = prompt
         if prompt_transform:
@@ -345,19 +347,20 @@ class Drafter:
         self,
         bot: Bot,
         goal: Goal,
-        toolbox: RepoToolbox,
+        tree: GitWorktree,
+        feedback: UserFeedback,
     ) -> _Change:
-        old_tree_sha = toolbox.tree_sha()
+        old_tree_sha = tree.sha()
 
         start_time = time.perf_counter()
         _logger.debug("Running bot... [bot=%s]", bot)
-        action = await bot.act(goal, toolbox)
+        action = await bot.act(goal, tree, feedback)
         _logger.info("Completed bot action. [action=%s]", action)
         end_time = time.perf_counter()
 
         walltime = end_time - start_time
         title = action.title or _default_title(goal.prompt)
-        new_tree_sha = toolbox.tree_sha()
+        new_tree_sha = tree.sha()
         return _Change(
             walltime=timedelta(seconds=walltime),
             action=action,
@@ -428,7 +431,7 @@ class _Change:
     is_noop: bool
 
 
-class _OperationRecorder(ToolVisitor):
+class _OperationRecorder(WorktreeHooks):
     """Visitor which keeps track of which operations have been performed
 
     This is useful to store a summary of each change in our database for later
@@ -470,9 +473,9 @@ class _OperationRecorder(ToolVisitor):
             dst_path=str(dst_path),
         )
 
-    def on_expose_files(self) -> None:
-        self._progress.report("Exposed files.")
-        self._record("expose_files")
+    def on_edit_files(self) -> None:
+        self._progress.report("Editing files...")
+        self._record("edit_files")
 
     def _record(self, tool: str, **kwargs) -> None:
         op = _Operation(tool=tool, details=kwargs, start=datetime.now())

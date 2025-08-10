@@ -26,9 +26,20 @@ create table if not exists actions (
   walltime_seconds real not null,
   request_count int,
   token_count int,
-  question text,
+  pending_question text,
   foreign key (prompt_id) references prompts (id) on delete cascade
 ) without rowid;
+
+create table if not exists notifications (
+  id integer primary key,
+  prompt_id integer not null,
+  created_at timestamp default current_timestamp,
+  status text,
+  question text,
+  answer text,
+  foreign key (prompt_id) references actions (prompt_id) on delete cascade,
+  check ((status is null != question is null) and (answer is null or question is not null))
+);
 
 create table if not exists operations (
   id integer primary key,
