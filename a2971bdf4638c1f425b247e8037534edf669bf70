@@ -1,0 +1,9 @@
+Interactive feedback resources
+
+* interactivity
+** https://github.com/Textualize/rich
+* SDKs
+** https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview
+** https://docs.anthropic.com/en/docs/claude-code/sdk
+** https://github.com/anthropics/claude-code-sdk-python/blob/main/src/claude_code_sdk/types.py
+** https://github.com/openai/codex
