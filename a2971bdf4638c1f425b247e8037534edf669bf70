@@ -9,7 +9,7 @@ Interactive user feedback resources
 Probably best to start with the simplest way of gathering user feedback.
 
 > <some question>
-> [i: answer inline, e: answer in editor, q: quit]
+[ i: answer inline, e: answer in editor, q: quit ]
 
 > <some question>
 > [c-d to submit answer]
