@@ -1,9 +1,20 @@
-Interactive feedback resources
+Interactive user feedback resources
 
-* interactivity
-** https://github.com/Textualize/rich
 * SDKs
 ** https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview
 ** https://docs.anthropic.com/en/docs/claude-code/sdk
 ** https://github.com/anthropics/claude-code-sdk-python/blob/main/src/claude_code_sdk/types.py
 ** https://github.com/openai/codex
+
+Probably best to start with the simplest way of gathering user feedback.
+
+> <some question>
+> [i: answer inline, e: answer in editor, q: quit]
+
+> <some question>
+> [c-d to submit answer]
+<some response>
+
+Later on, we can use interactivity toolkits, such as:
+
+* https://github.com/Textualize/rich
