@@ -15,6 +15,13 @@ Probably best to start with the simplest way of gathering user feedback.
 > [c-d to submit answer]
 <some response>
 
+Editing files...
+
+> <some question>
+
+Provide feedback now? [Yne] y
+<some response>
+
 Later on, we can use interactivity toolkits, such as:
 
 * https://github.com/Textualize/rich
