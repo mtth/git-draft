@@ -1,18 +1,23 @@
-= Interactive user feedback resources
+# Interactive user feedback resources
 
 UX
 
 Probably best to start with the simplest way of gathering user feedback:
 simple input in the terminal, with option to open an editor.
 
+```
 > Editing files...
 > <some question>
 [ i: answer inline, e: answer in editor, q: quit ]
+```
 
+```
 > <some question?> <i: answer inline, e: answer in editor, q: quit> i
 
 <some response>
+```
 
+```
 > Editing files...
 > Performing some update...
 ? Asking some question?
@@ -21,9 +26,8 @@ simple input in the terminal, with option to open an editor.
 
 Provide feedback now? [Yne] y
 <some response>
+```
 
 Later on, we can use interactivity toolkits, such as:
 
 * https://github.com/Textualize/rich
-
-Wher
