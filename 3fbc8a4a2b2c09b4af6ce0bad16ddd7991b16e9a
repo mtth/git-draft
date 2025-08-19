@@ -1,3 +1,7 @@
+# Ideas
+
+## Command interruption
+
 How should it be done by the user? How do we make sure we handle it
 correctly? Useful since some may run for a long time and we may want the
 user to keep partial progress.
@@ -6,6 +10,8 @@ Claude code allows just hitting escape to interrupt the ongoing
 operation. This may not make as much sense for us since changes can't be
 visualized live (they are in a separate worktree). Perhaps it's fine if
 it emits enough progress notifications?
+
+## Output rendering
 
 Types:
 
