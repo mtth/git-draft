@@ -18,3 +18,7 @@ Types:
 * Tool (operation)
 * Status update
 * Question (also need to figure out rendering of prompt and answer)
+
+## Specifying a branch to draft from
+
+Useful when creating multiple drafts in parallel perhaps.
