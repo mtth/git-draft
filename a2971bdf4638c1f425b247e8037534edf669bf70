@@ -1,27 +1,36 @@
-Interactive user feedback resources
+# Interactive user feedback resources
 
-* SDKs
-** https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/overview
-** https://docs.anthropic.com/en/docs/claude-code/sdk
-** https://github.com/anthropics/claude-code-sdk-python/blob/main/src/claude_code_sdk/types.py
-** https://github.com/openai/codex
+UX
 
-Probably best to start with the simplest way of gathering user feedback.
+Probably best to start with the simplest way of gathering user feedback:
+simple input in the terminal, with option to open an editor.
 
+```
+> Editing files...
 > <some question>
 [ i: answer inline, e: answer in editor, q: quit ]
+```
 
-> <some question>
-> [c-d to submit answer]
+```
+> <some question?> <i: answer inline, e: answer in editor, q: quit> i
+
 <some response>
+```
 
-Editing files...
+```
+> Editing files...
+> Performing some update...
+? Asking some question?
 
 > <some question>
 
 Provide feedback now? [Yne] y
 <some response>
+```
 
 Later on, we can use interactivity toolkits, such as:
 
 * https://github.com/Textualize/rich
+
+What to do with pending questions? The current flow is probably OK:
+surfacing it to the user when they re-run `git-draft -N`.
