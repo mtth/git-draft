@@ -31,3 +31,6 @@ Provide feedback now? [Yne] y
 Later on, we can use interactivity toolkits, such as:
 
 * https://github.com/Textualize/rich
+
+What to do with pending questions? The current flow is probably OK:
+surfacing it to the user when they re-run `git-draft -N`.
