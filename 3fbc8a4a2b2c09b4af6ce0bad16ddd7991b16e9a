@@ -22,3 +22,13 @@ Types:
 ## Specifying a branch to draft from
 
 Useful when creating multiple drafts in parallel perhaps.
+
+## Workspace persistence
+
+Instead of being deleted after each bot run, we should persist it to
+reduce overhead if the bot ends up running lengthy steps (dependency
+installation, ...).
+
+The folder can be folio-specific:
+`$XDG_STATE_HOME/git-draft/worktrees/$folio_id/`. Each time `--new` is
+run, we do a fresh checkout of the main worktree's state.
