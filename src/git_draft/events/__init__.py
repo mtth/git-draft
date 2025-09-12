@@ -48,6 +48,13 @@ def _enc_hook(obj: Any) -> Any:
 
 
 def event_decoder() -> msgspec.json.Decoder:
+    """Returns a decoder for event instances
+
+    It should be used as follows to get typed values:
+
+        decoder.decode(data, type=events[class_name])
+
+    """
     return msgspec.json.Decoder(dec_hook=_dec_hook)
 
 
