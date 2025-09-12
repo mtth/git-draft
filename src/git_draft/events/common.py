@@ -5,7 +5,7 @@ import datetime
 import msgspec
 
 
-class Event(msgspec.Struct, frozen=True):
+class EventStruct(msgspec.Struct, frozen=True):
     """TODO"""
 
     at: datetime.datetime

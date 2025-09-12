@@ -1,21 +1,21 @@
 """TODO"""
 
-from .common import Event
+from .common import EventStruct
 
 
-class NotifyUser(Event, frozen=True):
+class NotifyUser(EventStruct, frozen=True):
     """TODO"""
 
     contents: str
 
 
-class RequestUserGuidance(Event, frozen=True):
+class RequestUserGuidance(EventStruct, frozen=True):
     """TODO"""
 
     question: str
 
 
-class ReceiveUserGuidance(Event, frozen=True):
+class ReceiveUserGuidance(EventStruct, frozen=True):
     """TODO"""
 
     answer: str

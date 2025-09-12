@@ -1,6 +1,6 @@
 """TODO"""
 
-import itertools
+from collections.abc import Iterator
 from pathlib import PurePosixPath
 import types
 from typing import Any, Protocol
@@ -8,13 +8,7 @@ from typing import Any, Protocol
 import msgspec
 
 from . import feedback_events, worktree_events
-
-
-events = types.SimpleNamespace(
-    itertools.chain(
-        vars(feedback_events).items(), vars(worktree_events).items()
-    )
-)
+from .common import EventStruct
 
 
 type Event = (
@@ -29,6 +23,19 @@ type Event = (
     | feedback_events.RequestUserGuidance
     | feedback_events.ReceiveUserGuidance
 )
+
+
+def _classes(*modules: types.ModuleType) -> Iterator[tuple[str, type]]:
+    for mod in modules:
+        for key, val in vars(mod).items():
+            try:
+                if issubclass(val, EventStruct) and val is not EventStruct:
+                    yield key, val
+            except TypeError:
+                pass
+
+
+events = types.SimpleNamespace(_classes(feedback_events, worktree_events))
 
 
 class EventConsumer(Protocol):
