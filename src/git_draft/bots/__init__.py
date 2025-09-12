@@ -5,11 +5,11 @@ import os
 import sys
 
 from ..common import BotConfig, reindent
-from .common import Action, Bot, Goal, UserFeedback, Worktree
+from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
 __all__ = [
-    "Action",
+    "ActionSummary",
     "Bot",
     "Goal",
     "UserFeedback",

@@ -1,4 +1,4 @@
-insert into actions (
+insert into action_summaries (
     prompt_id,
     bot_class,
     walltime_seconds,

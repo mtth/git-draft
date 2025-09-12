@@ -12,7 +12,14 @@ _offline_answer = reindent("""
 """)
 
 
-class InteractiveUserFeedback(UserFeedback):
+class Feedback(UserFeedback):
+    """TODO"""
+
+    def __init__(self) -> None:
+        self.pending_question: str | None = None
+
+
+class InteractiveFeedback(Feedback):
     """User feedback interface"""
 
     @override
@@ -24,11 +31,8 @@ class InteractiveUserFeedback(UserFeedback):
         raise NotImplementedError()  # TODO: Implement
 
 
-class BatchUserFeedback(UserFeedback):
+class BatchFeedback(Feedback):
     """TODO"""
-
-    def __init__(self) -> None:
-        self.pending_questions = list[str]()
 
     @override
     def notify(self, update: str) -> None:
@@ -36,5 +40,6 @@ class BatchUserFeedback(UserFeedback):
 
     @override
     def ask(self, question: str) -> str:
-        self.pending_questions.append(question)
+        assert not self.pending_question
+        self.pending_question = question
         return _offline_answer

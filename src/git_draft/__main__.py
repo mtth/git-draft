@@ -20,6 +20,7 @@ from .common import (
 )
 from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
+from .feedback import InteractiveFeedback
 from .git import Repo
 from .prompt import (
     PromptMetadata,
@@ -28,7 +29,6 @@ from .prompt import (
     templates_table,
 )
 from .store import Store
-from .user_feedbacks import InteractiveUserFeedback
 
 
 _logger = logging.getLogger(__name__)
@@ -170,7 +170,7 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
 
     if sys.stdin.isatty():
         progress = Progress.dynamic()
-        feedback = InteractiveUserFeedback()
+        feedback = InteractiveFeedback()
     else:
         progress = Progress.static()
         feedback = None

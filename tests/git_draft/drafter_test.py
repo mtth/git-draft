@@ -4,7 +4,7 @@ from typing import Self
 
 import pytest
 
-from git_draft.bots import Action, Bot, Goal, UserFeedback, Worktree
+from git_draft.bots import ActionSummary, Bot, Goal, UserFeedback, Worktree
 from git_draft.common import Progress
 import git_draft.drafter as sut
 from git_draft.git import SHA, GitError, Repo
@@ -31,7 +31,7 @@ class _SimpleBot(Bot):
 
     async def act(
         self, goal: Goal, tree: Worktree, _feedback: UserFeedback
-    ) -> Action:
+    ) -> ActionSummary:
         for key, value in self._contents.items():
             path = PurePosixPath(key)
             if value is None:
@@ -39,7 +39,7 @@ class _SimpleBot(Bot):
             else:
                 contents = value if isinstance(value, str) else value(goal)
                 tree.write_file(path, contents)
-        return Action()
+        return ActionSummary()
 
 
 class TestDrafter:

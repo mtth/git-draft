@@ -2,24 +2,29 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 import dataclasses
-from datetime import datetime, timedelta
-import json
+from datetime import timedelta
 import logging
-from pathlib import PurePosixPath
 import re
 import textwrap
 import time
 from typing import Literal
 
-from .bots import Action, Bot, Goal, UserFeedback
-from .common import JSONObject, Progress, qualified_class_name, reindent
+from .bots import ActionSummary, Bot, Goal
+from .common import Progress, qualified_class_name, reindent
+from .events import (
+    Event,
+    EventConsumer,
+    event_encoder,
+    feedback_events,
+    worktree_events,
+)
+from .feedback import BatchFeedback, Feedback
 from .git import SHA, Repo
 from .prompt import TemplatedPrompt
 from .store import Store, sql
-from .user_feedbacks import BatchUserFeedback
-from .worktrees import GitWorktree, WorktreeHooks
+from .worktrees import GitWorktree
 
 
 _logger = logging.getLogger(__name__)
@@ -106,11 +111,11 @@ class Drafter:
         prompt: str | TemplatedPrompt,
         bot: Bot,
         merge_strategy: DraftMergeStrategy | None = None,
-        feedback: UserFeedback | None = None,
+        feedback: Feedback | None = None,
         prompt_transform: Callable[[str], str] | None = None,
     ) -> Draft:
         if not feedback:
-            feedback = BatchUserFeedback()
+            feedback = BatchFeedback()
 
         with self._progress.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
@@ -146,12 +151,12 @@ class Drafter:
             )
 
         # Run the bot to generate the change.
-        operation_recorder = _OperationRecorder(self._progress)
+        event_recorder = _EventRecorder(self._progress)
         with self._progress.spinner("Running bot...") as spinner:
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
-                tree.with_hooks(operation_recorder),
+                tree.with_event_consumer(event_recorder),
                 feedback,
             )
             spinner.update(
@@ -165,7 +170,7 @@ class Drafter:
             folio=folio,
             seqno=seqno,
             is_noop=change.is_noop,
-            has_pending_question=change.action.question is not None,
+            has_pending_question=feedback.pending_question is not None,
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
@@ -188,26 +193,27 @@ class Drafter:
             # when other files are edited.
             with self._store.cursor() as cursor:
                 cursor.execute(
-                    sql("add-action"),
+                    sql("add-action-summary"),
                     {
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
                         "request_count": change.action.request_count,
                         "token_count": change.action.token_count,
-                        "pending_question": change.action.question,
+                        "pending_question": feedback.pending_question,
                     },
                 )
+                encoder = event_encoder()
                 cursor.executemany(
-                    sql("add-operation"),
+                    sql("add-action-event"),
                     [
                         {
                             "prompt_id": prompt_id,
-                            "tool": o.tool,
-                            "details": json.dumps(o.details),
-                            "started_at": o.start,
+                            "occurred_at": e.at,
+                            "class": e.__class__.__name__,
+                            "data": encoder.encode(e),
                         }
-                        for o in operation_recorder.operations
+                        for e in event_recorder.events
                     ],
                 )
                 spinner.update("Created draft commit.", ref=draft.ref)
@@ -348,7 +354,7 @@ class Drafter:
         bot: Bot,
         goal: Goal,
         tree: GitWorktree,
-        feedback: UserFeedback,
+        feedback: Feedback,
     ) -> _Change:
         old_tree_sha = tree.sha()
 
@@ -424,14 +430,14 @@ class Drafter:
 class _Change:
     """A bot-generated draft, may be a no-op"""
 
-    action: Action
+    action: ActionSummary
     walltime: timedelta
     commit_message: str
     tree_sha: SHA
     is_noop: bool
 
 
-class _OperationRecorder(WorktreeHooks):
+class _EventRecorder(EventConsumer):
     """Visitor which keeps track of which operations have been performed
 
     This is useful to store a summary of each change in our database for later
@@ -439,57 +445,31 @@ class _OperationRecorder(WorktreeHooks):
     """
 
     def __init__(self, progress: Progress) -> None:
-        self.operations = list[_Operation]()
+        self.events = list[Event]()
         self._progress = progress
 
-    def on_list_files(self, paths: Sequence[PurePosixPath]) -> None:
-        count = len(paths)
-        self._progress.report("Listed available files.", count=count)
-        self._record("list_files", count=count)
-
-    def on_read_file(self, path: PurePosixPath, contents: str | None) -> None:
-        size = -1 if contents is None else len(contents)
-        self._progress.report(f"Read {path}.", length=size)
-        self._record("read_file", path=str(path), size=size)
-
-    def on_write_file(self, path: PurePosixPath, contents: str) -> None:
-        size = len(contents)
-        self._progress.report(f"Wrote {path}.", length=size)
-        self._record("write_file", path=str(path), size=size)
-
-    def on_delete_file(self, path: PurePosixPath) -> None:
-        self._progress.report(f"Deleted {path}.")
-        self._record("delete_file", path=str(path))
-
-    def on_rename_file(
-        self,
-        src_path: PurePosixPath,
-        dst_path: PurePosixPath,
-    ) -> None:
-        self._progress.report(f"Renamed {src_path} to {dst_path}.")
-        self._record(
-            "rename_file",
-            src_path=str(src_path),
-            dst_path=str(dst_path),
-        )
-
-    def on_edit_files(self) -> None:
-        self._progress.report("Editing files...")
-        self._record("edit_files")
-
-    def _record(self, tool: str, **kwargs) -> None:
-        op = _Operation(tool=tool, details=kwargs, start=datetime.now())
-        _logger.debug("Recorded operation. [op=%s]", op)
-        self.operations.append(op)
-
-
-@dataclasses.dataclass(frozen=True)
-class _Operation:
-    """Tool usage record"""
-
-    tool: str
-    details: JSONObject
-    start: datetime
+    def on_event(self, event: Event) -> None:
+        self.events.append(event)
+        match event:
+            case worktree_events.ListFiles(_, paths):
+                self._progress.report("Listed files.", count=len(paths))
+            case worktree_events.ReadFile(_, path, contents):
+                size = -1 if contents is None else len(contents)
+                self._progress.report(f"Read {path}.", length=size)
+            case worktree_events.WriteFile(_, path, contents):
+                size = len(contents)
+                self._progress.report(f"Wrote {path}.", length=size)
+            case worktree_events.DeleteFile(_, path):
+                self._progress.report(f"Deleted {path}.")
+            case worktree_events.RenameFile(_, src_path, dst_path):
+                self._progress.report(f"Renamed {src_path} to {dst_path}.")
+            case worktree_events.StartEditingFiles(_):
+                self._progress.report("Started editing files...")
+            case worktree_events.StopEditingFiles(_):
+                self._progress.report("Stopped editing files.")
+            case feedback_events.NotifyUser(_, update):
+                self._progress.report(update)
+            # TODO: Guidance events...
 
 
 def _default_title(prompt: str) -> str:

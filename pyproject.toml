@@ -12,6 +12,7 @@ dependencies = [
   "prettytable (>=3.15.1,<4)",
   "xdg-base-dirs (>=6.0.2,<7)",
   "yaspin (>=3.1.0,<4)",
+  "msgspec (>=0.19.0,<0.20.0)",
 ]
 
 [project.optional-dependencies]

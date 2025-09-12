@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterator, Mapping, Sequence
 import contextlib
 import dataclasses
+import datetime
 import itertools
 import logging
 import os
@@ -108,6 +109,10 @@ def reindent(s: str, prefix: str = "", width: int = 0) -> str:
 def qualified_class_name(cls: type) -> str:
     name = cls.__qualname__
     return f"{cls.__module__}.{name}" if cls.__module__ else name
+
+
+def now() -> datetime.datetime:
+    return datetime.datetime.now().astimezone()
 
 
 class Table:

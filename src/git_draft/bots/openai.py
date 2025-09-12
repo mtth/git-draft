@@ -21,7 +21,7 @@ from typing import Any, Self, TypedDict, override
 import openai
 
 from ..common import JSONObject, UnreachableError, config_string, reindent
-from .common import Action, Bot, Goal, UserFeedback, Worktree
+from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
 _logger = logging.getLogger(__name__)
@@ -236,7 +236,7 @@ class _CompletionsBot(Bot):
 
     async def act(
         self, goal: Goal, tree: Worktree, feedback: UserFeedback
-    ) -> Action:
+    ) -> ActionSummary:
         tools = _ToolsFactory(strict=False).params()
         tool_handler = _CompletionsToolHandler(tree, feedback)
 
@@ -266,7 +266,7 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return Action(request_count=request_count)
+        return ActionSummary(request_count=request_count)
 
 
 class _CompletionsToolHandler(_ToolHandler[str | None]):
@@ -319,7 +319,7 @@ class _ThreadsBot(Bot):
 
     async def act(
         self, goal: Goal, tree: Worktree, feedback: UserFeedback
-    ) -> Action:
+    ) -> ActionSummary:
         assistant_id = self._load_assistant_id()
 
         thread = self._client.beta.threads.create()
@@ -331,7 +331,7 @@ class _ThreadsBot(Bot):
 
         # We intentionally do not count the two requests above, to focus on
         # "data requests" only.
-        action = Action(request_count=0, token_count=0)
+        action = ActionSummary(request_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
             assistant_id=assistant_id,
@@ -343,9 +343,11 @@ class _ThreadsBot(Bot):
 
 class _EventHandler(openai.AssistantEventHandler):
     def __init__(
-        self, client: openai.Client, tree: Worktree,
+        self,
+        client: openai.Client,
+        tree: Worktree,
         feedback: UserFeedback,
-        action: Action,
+        action: ActionSummary,
     ) -> None:
         super().__init__()
         self._client = client

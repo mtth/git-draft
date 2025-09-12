@@ -63,7 +63,7 @@ class UserFeedback(Protocol):
 
 
 @dataclasses.dataclass
-class Action:
+class ActionSummary:
     """End-of-action statistics
 
     This dataclass is not frozen to allow bot implementors to populate its
@@ -112,6 +112,6 @@ class Bot:
 
     async def act(
         self, goal: Goal, tree: Worktree, feedback: UserFeedback
-    ) -> Action:
+    ) -> ActionSummary:
         """Runs the bot, striving to achieve the goal"""
         raise NotImplementedError()

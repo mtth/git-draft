@@ -1,18 +1,17 @@
 """Worktree implementations"""
 
-from __future__ import annotations
-
 import collections
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 import contextlib
 import dataclasses
 import logging
 from pathlib import Path, PurePosixPath
 import tempfile
-from typing import Protocol, Self, override
+from typing import Self, override
 
 from .bots import Worktree
-from .common import UnreachableError
+from .common import UnreachableError, now
+from .events import Event, EventConsumer, worktree_events
 from .git import SHA, GitError, Repo, null_delimited
 
 
@@ -73,13 +72,13 @@ class GitWorktree(Worktree):
         self,
         repo: Repo,
         start_rev: SHA,
-        hooks: WorktreeHooks | None = None,
+        event_consumer: EventConsumer | None = None,
     ) -> None:
         call = repo.git("rev-parse", "--verify", f"{start_rev}^{{tree}}")
         self._sha = call.stdout
-        self._updates = list[_TreeUpdate]()
+        self._updates = list[_Update]()
         self._repo = repo
-        self._hooks = hooks or None
+        self._event_consumer = event_consumer
 
     @classmethod
     def for_working_dir(cls, repo: Repo) -> tuple[Self, bool]:
@@ -109,8 +108,8 @@ class GitWorktree(Worktree):
                 worktree_path / path_str if worktree_path else Path(path_str),
             )
 
-    def with_hooks(self, hooks: WorktreeHooks) -> Self:
-        return self.__class__(self._repo, self.sha(), hooks)
+    def with_event_consumer(self, event_consumer: EventConsumer) -> Self:
+        return self.__class__(self._repo, self.sha(), event_consumer)
 
     def sha(self) -> SHA:
         if updates := self._updates:
@@ -118,14 +117,14 @@ class GitWorktree(Worktree):
             updates.clear()
         return self._sha
 
-    def _dispatch(self, effect: Callable[[WorktreeHooks], None]) -> None:
-        if hook := self._hooks:
-            effect(hook)
+    def _dispatch(self, event: Event) -> None:
+        if consumer := self._event_consumer:
+            consumer.on_event(event)
 
     @override
     def list_files(self) -> Sequence[PurePosixPath]:
         paths = self._list()
-        self._dispatch(lambda v: v.on_list_files(paths))
+        self._dispatch(worktree_events.ListFiles(now(), paths))
         return paths
 
     @override
@@ -134,17 +133,17 @@ class GitWorktree(Worktree):
             contents = self._read(path)
         except FileNotFoundError:
             contents = None
-        self._dispatch(lambda v: v.on_read_file(path, contents))
+        self._dispatch(worktree_events.ReadFile(now(), path, contents))
         return contents
 
     @override
     def write_file(self, path: PurePosixPath, contents: str) -> None:
-        self._dispatch(lambda v: v.on_write_file(path, contents))
+        self._dispatch(worktree_events.WriteFile(now(), path, contents))
         return self._write(path, contents)
 
     @override
     def delete_file(self, path: PurePosixPath) -> None:
-        self._dispatch(lambda v: v.on_delete_file(path))
+        self._dispatch(worktree_events.DeleteFile(now(), path))
         self._delete(path)
 
     @override
@@ -154,23 +153,24 @@ class GitWorktree(Worktree):
         dst_path: PurePosixPath,
     ) -> None:
         """Rename a single file"""
-        self._dispatch(lambda v: v.on_rename_file(src_path, dst_path))
+        self._dispatch(worktree_events.RenameFile(now(), src_path, dst_path))
         contents = self._read(src_path)
         self._write(dst_path, contents)
         self._delete(src_path)
 
     @override
-    def edit_files(
-        self,
-    ) -> contextlib.AbstractContextManager[Path]:
+    @contextlib.contextmanager
+    def edit_files(self) -> Iterator[Path]:
         """Creates a temporary folder with editable copies of all files
 
         All updates are synced back afterwards. Other operations should not be
         performed concurrently as they may be stale or lost.
         """
-        self._dispatch(lambda v: v.on_edit_files())
+        self._dispatch(worktree_events.StartEditingFiles(now()))
+        with self._edit() as path:
+            yield path
         # TODO: Expose updated files to hook?
-        return self._edit()
+        self._dispatch(worktree_events.StopEditingFiles(now()))
 
     def _list(self) -> Sequence[PurePosixPath]:
         call = self._repo.git("ls-tree", "-rz", "--name-only", self.sha())
@@ -225,48 +225,22 @@ class GitWorktree(Worktree):
                 self._repo.git("worktree", "remove", "-f", path_str)
 
 
-class WorktreeHooks(Protocol):
-    """Tool usage hook"""
-
-    def on_list_files(
-        self, paths: Sequence[PurePosixPath]
-    ) -> None: ...  # pragma: no cover
-
-    def on_read_file(
-        self, path: PurePosixPath, contents: str | None
-    ) -> None: ...  # pragma: no cover
-
-    def on_write_file(
-        self, path: PurePosixPath, contents: str
-    ) -> None: ...  # pragma: no cover
-
-    def on_delete_file(
-        self, path: PurePosixPath
-    ) -> None: ...  # pragma: no cover
-
-    def on_rename_file(
-        self, src_path: PurePosixPath, dst_path: PurePosixPath
-    ) -> None: ...  # pragma: no cover
-
-    def on_edit_files(self) -> None: ...  # pragma: no cover
-
-
-class _TreeUpdate:
+class _Update:
     """Generic tree update"""
 
 
 @dataclasses.dataclass(frozen=True)
-class _WriteBlob(_TreeUpdate):
+class _WriteBlob(_Update):
     path: PurePosixPath
     blob_sha: SHA
 
 
 @dataclasses.dataclass(frozen=True)
-class _DeleteBlob(_TreeUpdate):
+class _DeleteBlob(_Update):
     path: PurePosixPath
 
 
-def _update_tree(sha: SHA, updates: Sequence[_TreeUpdate], repo: Repo) -> SHA:
+def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
     if not updates:
         return sha
 

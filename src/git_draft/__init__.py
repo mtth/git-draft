@@ -2,11 +2,11 @@
 
 import logging
 
-from .bots import Action, Bot, Goal, UserFeedback, Worktree
+from .bots import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
 __all__ = [
-    "Action",
+    "ActionSummary",
     "Bot",
     "Goal",
     "UserFeedback",
