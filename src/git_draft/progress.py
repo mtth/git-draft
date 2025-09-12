@@ -159,6 +159,7 @@ class _StaticProgressFeedback(ProgressFeedback):
     @override
     def ask(self, question: str) -> str:
         assert not self.pending_question
+        self._progress.report(f"Feedback requested: {question}")
         self.pending_question = question
         return _offline_answer
 
