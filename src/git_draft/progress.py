@@ -1,4 +1,4 @@
-"""TODO"""
+"""End user progress reporting"""
 
 from __future__ import annotations
 
@@ -47,11 +47,11 @@ class ProgressSpinner:
         raise NotImplementedError()
 
     def feedback(self) -> ProgressFeedback:
-        raise NotImplementedError()  # TODO: Implement
+        raise NotImplementedError()
 
 
 class ProgressFeedback(UserFeedback):
-    """TODO"""
+    """User feedback interface"""
 
     def __init__(self) -> None:
         self.pending_question: str | None = None
