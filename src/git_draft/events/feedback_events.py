@@ -1,21 +1,21 @@
-"""TODO"""
+"""Event types related to user feedback interactions"""
 
 from .common import EventStruct
 
 
 class NotifyUser(EventStruct, frozen=True):
-    """TODO"""
+    """Generic user notification"""
 
     contents: str
 
 
 class RequestUserGuidance(EventStruct, frozen=True):
-    """TODO"""
+    """Additional information is requested from the user"""
 
     question: str
 
 
 class ReceiveUserGuidance(EventStruct, frozen=True):
-    """TODO"""
+    """Response provided by the user"""
 
     answer: str

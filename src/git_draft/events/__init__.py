@@ -1,4 +1,4 @@
-"""TODO"""
+"""Event package"""
 
 from pathlib import PurePosixPath
 from typing import Any, Protocol
@@ -35,7 +35,7 @@ type Event = (
 
 
 class EventConsumer(Protocol):
-    """TODO"""
+    """Interface for consuming events"""
 
     def on_event(self, event: Event) -> None:
         pass
@@ -56,7 +56,6 @@ def event_decoder() -> msgspec.json.Decoder:
     It should be used as follows to get typed values:
 
         decoder.decode(data, type=events[class_name])
-
     """
     return msgspec.json.Decoder(dec_hook=_dec_hook)
 

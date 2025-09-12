@@ -1,4 +1,4 @@
-"""TODO"""
+"""Common event utilities"""
 
 import datetime
 import types
@@ -11,7 +11,7 @@ events = types.SimpleNamespace()
 
 
 class EventStruct(msgspec.Struct, frozen=True):
-    """TODO"""
+    """Base immutable structure for all event types"""
 
     at: datetime.datetime
 
