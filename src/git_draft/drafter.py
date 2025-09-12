@@ -12,7 +12,7 @@ import time
 from typing import Literal
 
 from .bots import ActionSummary, Bot, Goal
-from .common import Progress, qualified_class_name, reindent
+from .common import qualified_class_name, reindent
 from .events import (
     Event,
     EventConsumer,
@@ -20,8 +20,8 @@ from .events import (
     feedback_events,
     worktree_events,
 )
-from .feedback import BatchFeedback, Feedback
 from .git import SHA, Repo
+from .progress import Progress, ProgressFeedback
 from .prompt import TemplatedPrompt
 from .store import Store, sql
 from .worktrees import GitWorktree
@@ -111,12 +111,8 @@ class Drafter:
         prompt: str | TemplatedPrompt,
         bot: Bot,
         merge_strategy: DraftMergeStrategy | None = None,
-        feedback: Feedback | None = None,
         prompt_transform: Callable[[str], str] | None = None,
     ) -> Draft:
-        if not feedback:
-            feedback = BatchFeedback()
-
         with self._progress.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
@@ -153,6 +149,7 @@ class Drafter:
         # Run the bot to generate the change.
         event_recorder = _EventRecorder(self._progress)
         with self._progress.spinner("Running bot...") as spinner:
+            feedback = spinner.feedback()
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
@@ -354,7 +351,7 @@ class Drafter:
         bot: Bot,
         goal: Goal,
         tree: GitWorktree,
-        feedback: Feedback,
+        feedback: ProgressFeedback,
     ) -> _Change:
         old_tree_sha = tree.sha()
 
@@ -467,9 +464,12 @@ class _EventRecorder(EventConsumer):
                 self._progress.report("Started editing files...")
             case worktree_events.StopEditingFiles(_):
                 self._progress.report("Stopped editing files.")
-            case feedback_events.NotifyUser(_, update):
-                self._progress.report(update)
-            # TODO: Guidance events...
+            case (
+                feedback_events.NotifyUser(_, _)
+                | feedback_events.RequestUserGuidance(_, _)
+                | feedback_events.ReceiveUserGuidance(_, _)
+            ):
+                pass
 
 
 def _default_title(prompt: str) -> str:

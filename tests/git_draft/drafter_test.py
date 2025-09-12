@@ -5,9 +5,9 @@ from typing import Self
 import pytest
 
 from git_draft.bots import ActionSummary, Bot, Goal, UserFeedback, Worktree
-from git_draft.common import Progress
 import git_draft.drafter as sut
 from git_draft.git import SHA, GitError, Repo
+from git_draft.progress import Progress
 from git_draft.store import Store
 
 from .conftest import RepoFS

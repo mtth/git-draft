@@ -11,17 +11,11 @@ from pathlib import Path
 import sys
 
 from .bots import load_bot
-from .common import (
-    PROGRAM,
-    Config,
-    Progress,
-    UnreachableError,
-    ensure_state_home,
-)
+from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
-from .feedback import InteractiveFeedback
 from .git import Repo
+from .progress import Progress
 from .prompt import (
     PromptMetadata,
     TemplatedPrompt,
@@ -168,13 +162,7 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    if sys.stdin.isatty():
-        progress = Progress.dynamic()
-        feedback = InteractiveFeedback()
-    else:
-        progress = Progress.static()
-        feedback = None
-
+    progress = Progress.dynamic() if sys.stdin.isatty() else Progress.static()
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent(), progress)
     match getattr(opts, "command", "new"):
@@ -210,7 +198,6 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                 prompt=prompt,
                 bot=bot,
                 merge_strategy=accept.merge_strategy(),
-                feedback=feedback,
                 prompt_transform=open_editor if editable else None,
             )
             if accept == Accept.MERGE_THEN_QUIT:
