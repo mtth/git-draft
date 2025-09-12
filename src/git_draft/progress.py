@@ -144,7 +144,7 @@ class _StaticProgressSpinner(ProgressSpinner):
         self._progress.report(text, **tags)
 
     def feedback(self) -> ProgressFeedback:
-        return _StaticProgressFeedback(self)
+        return _StaticProgressFeedback(self._progress)
 
 
 class _StaticProgressFeedback(ProgressFeedback):
