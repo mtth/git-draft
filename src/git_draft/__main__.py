@@ -37,6 +37,11 @@ def new_parser() -> optparse.OptionParser:
     parser.disable_interspersed_args()
 
     parser.add_option(
+        "--batch",
+        help="disable interactive feedback",
+        action="store_true",
+    )
+    parser.add_option(
         "--log-path",
         help="show log path and exit",
         action="store_true",
@@ -162,7 +167,11 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    progress = Progress.dynamic() if sys.stdin.isatty() else Progress.static()
+    progress = (
+        Progress.dynamic()
+        if sys.stdin.isatty() and not opts.batch
+        else Progress.static()
+    )
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent(), progress)
     match getattr(opts, "command", "new"):
@@ -230,7 +239,8 @@ def main() -> None:
         asyncio.run(run())
     except Exception as err:
         _logger.exception("Program failed.")
-        print(f"Error: {err}", file=sys.stderr)
+        message = str(err) or "See logs for more information"
+        print(f"Error: {message}", file=sys.stderr)
         sys.exit(1)
 
 

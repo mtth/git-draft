@@ -138,15 +138,18 @@ class _StaticProgress(Progress):
 
 class _StaticProgressSpinner(ProgressSpinner):
     def __init__(self, progress: _StaticProgress) -> None:
-        super().__init__()
         self._progress = progress
 
     def update(self, text: str, **tags) -> None:
         self._progress.report(text, **tags)
 
+    def feedback(self) -> ProgressFeedback:
+        return _StaticProgressFeedback(self)
+
 
 class _StaticProgressFeedback(ProgressFeedback):
     def __init__(self, progress: _StaticProgress) -> None:
+        super().__init__()
         self._progress = progress
 
     @override
