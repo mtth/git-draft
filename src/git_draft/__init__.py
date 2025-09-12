@@ -2,15 +2,15 @@
 
 import logging
 
-from .bots import Action, Bot, Goal
-from .toolbox import Toolbox
+from .bots import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
 __all__ = [
-    "Action",
+    "ActionSummary",
     "Bot",
     "Goal",
-    "Toolbox",
+    "UserFeedback",
+    "Worktree",
 ]
 
 logging.getLogger(__name__).addHandler(logging.NullHandler())

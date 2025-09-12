@@ -1,22 +1,19 @@
-"""Bot interfaces and built-in implementations
-
-* https://aider.chat/docs/leaderboards/
-"""
+"""Bot interfaces and built-in implementations"""
 
 import importlib
 import os
 import sys
 
 from ..common import BotConfig, reindent
-from ..toolbox import Toolbox
-from .common import Action, Bot, Goal
+from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
 __all__ = [
-    "Action",
+    "ActionSummary",
     "Bot",
     "Goal",
-    "Toolbox",
+    "UserFeedback",
+    "Worktree",
 ]
 
 

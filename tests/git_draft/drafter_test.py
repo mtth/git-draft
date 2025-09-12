@@ -4,10 +4,10 @@ from typing import Self
 
 import pytest
 
-from git_draft.bots import Action, Bot, Goal, Toolbox
-from git_draft.common import Progress
+from git_draft.bots import ActionSummary, Bot, Goal, UserFeedback, Worktree
 import git_draft.drafter as sut
 from git_draft.git import SHA, GitError, Repo
+from git_draft.progress import Progress
 from git_draft.store import Store
 
 from .conftest import RepoFS
@@ -29,15 +29,17 @@ class _SimpleBot(Bot):
     def prompt(cls) -> Self:
         return cls({"PROMPT": lambda goal: goal.prompt})
 
-    async def act(self, goal: Goal, toolbox: Toolbox) -> Action:
+    async def act(
+        self, goal: Goal, tree: Worktree, _feedback: UserFeedback
+    ) -> ActionSummary:
         for key, value in self._contents.items():
             path = PurePosixPath(key)
             if value is None:
-                toolbox.delete_file(path)
+                tree.delete_file(path)
             else:
                 contents = value if isinstance(value, str) else value(goal)
-                toolbox.write_file(path, contents)
-        return Action()
+                tree.write_file(path, contents)
+        return ActionSummary()
 
 
 class TestDrafter:

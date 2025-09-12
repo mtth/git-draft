@@ -1,5 +1,5 @@
 {% macro file_list() %}
-{% set paths = toolbox.list_files() %}
+{% set paths = worktree.list_files() %}
 {% if paths %}
 For reference, here is the list of all currently available files in the
 repository:

@@ -2,23 +2,29 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable
 import dataclasses
-from datetime import datetime, timedelta
-import json
+from datetime import timedelta
 import logging
-from pathlib import PurePosixPath
 import re
 import textwrap
 import time
 from typing import Literal
 
-from .bots import Action, Bot, Goal
-from .common import JSONObject, Progress, qualified_class_name, reindent
+from .bots import ActionSummary, Bot, Goal
+from .common import qualified_class_name, reindent
+from .events import (
+    Event,
+    EventConsumer,
+    event_encoder,
+    feedback_events,
+    worktree_events,
+)
 from .git import SHA, Repo
+from .progress import Progress, ProgressFeedback
 from .prompt import TemplatedPrompt
 from .store import Store, sql
-from .toolbox import RepoToolbox, ToolVisitor
+from .worktrees import GitWorktree
 
 
 _logger = logging.getLogger(__name__)
@@ -31,7 +37,7 @@ class Draft:
     folio: Folio
     seqno: int
     is_noop: bool
-    has_question: bool
+    has_pending_question: bool
     walltime: timedelta
     token_count: int | None
 
@@ -110,12 +116,12 @@ class Drafter:
         with self._progress.spinner("Preparing prompt...") as spinner:
             # Handle prompt templating and editing. We do this first in case
             # this fails, to avoid creating unnecessary branches.
-            toolbox, dirty = RepoToolbox.for_working_dir(self._repo)
+            tree, dirty = GitWorktree.for_working_dir(self._repo)
             with spinner.hidden():
                 prompt_contents = self._prepare_prompt(
                     prompt,
                     prompt_transform,
-                    toolbox,
+                    tree,
                 )
             template_name = (
                 prompt.name if isinstance(prompt, TemplatedPrompt) else None
@@ -141,17 +147,15 @@ class Drafter:
             )
 
         # Run the bot to generate the change.
-        operation_recorder = _OperationRecorder(self._progress)
+        event_recorder = _EventRecorder(self._progress)
         with self._progress.spinner("Running bot...") as spinner:
+            feedback = spinner.feedback()
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
-                toolbox.with_visitors(
-                    [operation_recorder],
-                ),
+                tree.with_event_consumer(event_recorder),
+                feedback,
             )
-            if change.action.question:
-                self._progress.report("Requested progress.")
             spinner.update(
                 "Completed bot run.",
                 runtime=round(change.walltime.total_seconds(), 1),
@@ -163,14 +167,14 @@ class Drafter:
             folio=folio,
             seqno=seqno,
             is_noop=change.is_noop,
-            has_question=change.action.question is not None,
+            has_pending_question=feedback.pending_question is not None,
             walltime=change.walltime,
             token_count=change.action.token_count,
         )
         with self._progress.spinner("Creating draft commit...") as spinner:
             if dirty:
                 parent_commit_rev = self._commit_tree(
-                    toolbox.tree_sha(), "HEAD", "sync(prompt)"
+                    tree.sha(), "HEAD", "sync(prompt)"
                 )
                 _logger.info(
                     "Created sync commit. [sha=%s]", parent_commit_rev
@@ -186,26 +190,27 @@ class Drafter:
             # when other files are edited.
             with self._store.cursor() as cursor:
                 cursor.execute(
-                    sql("add-action"),
+                    sql("add-action-summary"),
                     {
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
                         "request_count": change.action.request_count,
                         "token_count": change.action.token_count,
-                        "question": change.action.question,
+                        "pending_question": feedback.pending_question,
                     },
                 )
+                encoder = event_encoder()
                 cursor.executemany(
-                    sql("add-operation"),
+                    sql("add-action-event"),
                     [
                         {
                             "prompt_id": prompt_id,
-                            "tool": o.tool,
-                            "details": json.dumps(o.details),
-                            "started_at": o.start,
+                            "occurred_at": e.at,
+                            "class": e.__class__.__name__,
+                            "data": encoder.encode(e),
                         }
-                        for o in operation_recorder.operations
+                        for e in event_recorder.events
                     ],
                 )
                 spinner.update("Created draft commit.", ref=draft.ref)
@@ -329,10 +334,10 @@ class Drafter:
         self,
         prompt: str | TemplatedPrompt,
         prompt_transform: Callable[[str], str] | None,
-        toolbox: RepoToolbox,
+        tree: GitWorktree,
     ) -> str:
         if isinstance(prompt, TemplatedPrompt):
-            contents = prompt.render(toolbox)
+            contents = prompt.render(tree)
         else:
             contents = prompt
         if prompt_transform:
@@ -345,19 +350,20 @@ class Drafter:
         self,
         bot: Bot,
         goal: Goal,
-        toolbox: RepoToolbox,
+        tree: GitWorktree,
+        feedback: ProgressFeedback,
     ) -> _Change:
-        old_tree_sha = toolbox.tree_sha()
+        old_tree_sha = tree.sha()
 
         start_time = time.perf_counter()
         _logger.debug("Running bot... [bot=%s]", bot)
-        action = await bot.act(goal, toolbox)
+        action = await bot.act(goal, tree, feedback)
         _logger.info("Completed bot action. [action=%s]", action)
         end_time = time.perf_counter()
 
         walltime = end_time - start_time
         title = action.title or _default_title(goal.prompt)
-        new_tree_sha = toolbox.tree_sha()
+        new_tree_sha = tree.sha()
         return _Change(
             walltime=timedelta(seconds=walltime),
             action=action,
@@ -421,14 +427,14 @@ class Drafter:
 class _Change:
     """A bot-generated draft, may be a no-op"""
 
-    action: Action
+    action: ActionSummary
     walltime: timedelta
     commit_message: str
     tree_sha: SHA
     is_noop: bool
 
 
-class _OperationRecorder(ToolVisitor):
+class _EventRecorder(EventConsumer):
     """Visitor which keeps track of which operations have been performed
 
     This is useful to store a summary of each change in our database for later
@@ -436,57 +442,34 @@ class _OperationRecorder(ToolVisitor):
     """
 
     def __init__(self, progress: Progress) -> None:
-        self.operations = list[_Operation]()
+        self.events = list[Event]()
         self._progress = progress
 
-    def on_list_files(self, paths: Sequence[PurePosixPath]) -> None:
-        count = len(paths)
-        self._progress.report("Listed available files.", count=count)
-        self._record("list_files", count=count)
-
-    def on_read_file(self, path: PurePosixPath, contents: str | None) -> None:
-        size = -1 if contents is None else len(contents)
-        self._progress.report(f"Read {path}.", length=size)
-        self._record("read_file", path=str(path), size=size)
-
-    def on_write_file(self, path: PurePosixPath, contents: str) -> None:
-        size = len(contents)
-        self._progress.report(f"Wrote {path}.", length=size)
-        self._record("write_file", path=str(path), size=size)
-
-    def on_delete_file(self, path: PurePosixPath) -> None:
-        self._progress.report(f"Deleted {path}.")
-        self._record("delete_file", path=str(path))
-
-    def on_rename_file(
-        self,
-        src_path: PurePosixPath,
-        dst_path: PurePosixPath,
-    ) -> None:
-        self._progress.report(f"Renamed {src_path} to {dst_path}.")
-        self._record(
-            "rename_file",
-            src_path=str(src_path),
-            dst_path=str(dst_path),
-        )
-
-    def on_expose_files(self) -> None:
-        self._progress.report("Exposed files.")
-        self._record("expose_files")
-
-    def _record(self, tool: str, **kwargs) -> None:
-        op = _Operation(tool=tool, details=kwargs, start=datetime.now())
-        _logger.debug("Recorded operation. [op=%s]", op)
-        self.operations.append(op)
-
-
-@dataclasses.dataclass(frozen=True)
-class _Operation:
-    """Tool usage record"""
-
-    tool: str
-    details: JSONObject
-    start: datetime
+    def on_event(self, event: Event) -> None:
+        self.events.append(event)
+        match event:
+            case worktree_events.ListFiles(_, paths):
+                self._progress.report("Listed files.", count=len(paths))
+            case worktree_events.ReadFile(_, path, contents):
+                size = -1 if contents is None else len(contents)
+                self._progress.report(f"Read {path}.", length=size)
+            case worktree_events.WriteFile(_, path, contents):
+                size = len(contents)
+                self._progress.report(f"Wrote {path}.", length=size)
+            case worktree_events.DeleteFile(_, path):
+                self._progress.report(f"Deleted {path}.")
+            case worktree_events.RenameFile(_, src_path, dst_path):
+                self._progress.report(f"Renamed {src_path} to {dst_path}.")
+            case worktree_events.StartEditingFiles(_):
+                self._progress.report("Started editing files...")
+            case worktree_events.StopEditingFiles(_):
+                self._progress.report("Stopped editing files.")
+            case (
+                feedback_events.NotifyUser(_, _)
+                | feedback_events.RequestUserGuidance(_, _)
+                | feedback_events.ReceiveUserGuidance(_, _)
+            ):
+                pass
 
 
 def _default_title(prompt: str) -> str:

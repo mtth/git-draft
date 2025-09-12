@@ -11,16 +11,11 @@ from pathlib import Path
 import sys
 
 from .bots import load_bot
-from .common import (
-    PROGRAM,
-    Config,
-    Progress,
-    UnreachableError,
-    ensure_state_home,
-)
+from .common import PROGRAM, Config, UnreachableError, ensure_state_home
 from .drafter import Drafter, DraftMergeStrategy
 from .editor import open_editor
 from .git import Repo
+from .progress import Progress
 from .prompt import (
     PromptMetadata,
     TemplatedPrompt,
@@ -41,6 +36,11 @@ def new_parser() -> optparse.OptionParser:
 
     parser.disable_interspersed_args()
 
+    parser.add_option(
+        "--batch",
+        help="disable interactive feedback",
+        action="store_true",
+    )
     parser.add_option(
         "--log-path",
         help="show log path and exit",
@@ -167,7 +167,11 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         datefmt="%m-%d %H:%M",
     )
 
-    progress = Progress.dynamic() if sys.stdin.isatty() else Progress.static()
+    progress = (
+        Progress.dynamic()
+        if sys.stdin.isatty() and not opts.batch
+        else Progress.static()
+    )
     repo = Repo.enclosing(Path(opts.root) if opts.root else Path.cwd())
     drafter = Drafter.create(repo, Store.persistent(), progress)
     match getattr(opts, "command", "new"):
@@ -200,10 +204,10 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
 
             accept = Accept(opts.accept or 0)
             await drafter.generate_draft(
-                prompt,
-                bot,
-                prompt_transform=open_editor if editable else None,
+                prompt=prompt,
+                bot=bot,
                 merge_strategy=accept.merge_strategy(),
+                prompt_transform=open_editor if editable else None,
             )
             if accept == Accept.MERGE_THEN_QUIT:
                 # TODO: Refuse to quit on pending question?
@@ -235,7 +239,8 @@ def main() -> None:
         asyncio.run(run())
     except Exception as err:
         _logger.exception("Program failed.")
-        print(f"Error: {err}", file=sys.stderr)
+        message = str(err) or "See logs for more information"
+        print(f"Error: {message}", file=sys.stderr)
         sys.exit(1)
 
 

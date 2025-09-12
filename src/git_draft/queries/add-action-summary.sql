@@ -1,14 +1,14 @@
-insert into actions (
+insert into action_summaries (
     prompt_id,
     bot_class,
     walltime_seconds,
     request_count,
     token_count,
-    question)
+    pending_question)
   values (
     :prompt_id,
     :bot_class,
     :walltime_seconds,
     :request_count,
     :token_count,
-    :question);
+    :pending_question);

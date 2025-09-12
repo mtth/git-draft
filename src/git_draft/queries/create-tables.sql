@@ -19,22 +19,22 @@ create table if not exists prompts (
 
 create unique index if not exists prompts_by_folio_seqno on prompts (folio_id, seqno);
 
-create table if not exists actions (
+create table if not exists action_summaries (
   prompt_id integer primary key,
   created_at timestamp default current_timestamp,
   bot_class text not null,
   walltime_seconds real not null,
   request_count int,
   token_count int,
-  question text,
+  pending_question text,
   foreign key (prompt_id) references prompts (id) on delete cascade
 ) without rowid;
 
-create table if not exists operations (
+create table if not exists action_events (
   id integer primary key,
   prompt_id integer not null,
-  tool text not null,
-  details text not null,
-  started_at timestamp not null,
-  foreign key (prompt_id) references actions (prompt_id) on delete cascade
+  occurred_at timestamp default current_timestamp,
+  class text not null,
+  data text not null,
+  foreign key (prompt_id) references action_summaries (prompt_id) on delete cascade
 );

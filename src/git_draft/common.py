@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Iterator, Mapping, Sequence
-import contextlib
+from collections.abc import Mapping, Sequence
 import dataclasses
+import datetime
 import itertools
 import logging
 import os
@@ -16,8 +16,6 @@ from typing import Any, ClassVar, Self
 
 import prettytable
 import xdg_base_dirs
-import yaspin
-import yaspin.core
 
 
 _logger = logging.getLogger(__name__)
@@ -110,6 +108,10 @@ def qualified_class_name(cls: type) -> str:
     return f"{cls.__module__}.{name}" if cls.__module__ else name
 
 
+def now() -> datetime.datetime:
+    return datetime.datetime.now().astimezone()
+
+
 class Table:
     """Pretty-printable table"""
 
@@ -137,101 +139,3 @@ class Table:
         table = prettytable.from_db_cursor(cursor, **cls._kwargs)
         assert table
         return cls(table)
-
-
-def _tagged(text: str, /, **kwargs) -> str:
-    tags = [f"{key}={val}" for key, val in kwargs.items() if val is not None]
-    return f"{text} [{', '.join(tags)}]" if tags else text
-
-
-class Progress:
-    """Progress feedback interface"""
-
-    def report(self, text: str, **tags) -> None:  # pragma: no cover
-        raise NotImplementedError()
-
-    def spinner(
-        self, text: str, **tags
-    ) -> contextlib.AbstractContextManager[
-        ProgressSpinner
-    ]:  # pragma: no cover
-        raise NotImplementedError()
-
-    @staticmethod
-    def dynamic() -> Progress:
-        """Progress suitable for interactive terminals"""
-        return _DynamicProgress()
-
-    @staticmethod
-    def static() -> Progress:
-        """Progress suitable for pipes, etc."""
-        return _StaticProgress()
-
-
-class ProgressSpinner:
-    """Operation progress tracker"""
-
-    @contextlib.contextmanager
-    def hidden(self) -> Iterator[None]:
-        yield None
-
-    def update(self, text: str, **tags) -> None:  # pragma: no cover
-        raise NotImplementedError()
-
-
-class _DynamicProgress(Progress):
-    def __init__(self) -> None:
-        self._spinner: _DynamicProgressSpinner | None = None
-
-    def report(self, text: str, **tags) -> None:
-        message = f"☞ {_tagged(text, **tags)}"
-        if self._spinner:
-            self._spinner.yaspin.write(message)
-        else:
-            print(message)  # noqa
-
-    @contextlib.contextmanager
-    def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
-        assert not self._spinner
-        with yaspin.yaspin(text=_tagged(text, **tags)) as spinner:
-            self._spinner = _DynamicProgressSpinner(spinner)
-            try:
-                yield self._spinner
-            except Exception:
-                self._spinner.yaspin.fail("✗")
-                raise
-            else:
-                self._spinner.yaspin.ok("✓")
-            finally:
-                self._spinner = None
-
-
-class _DynamicProgressSpinner(ProgressSpinner):
-    def __init__(self, yaspin: yaspin.core.Yaspin) -> None:
-        self.yaspin = yaspin
-
-    @contextlib.contextmanager
-    def hidden(self) -> Iterator[None]:
-        with self.yaspin.hidden():
-            yield
-
-    def update(self, text: str, **tags) -> None:
-        self.yaspin.text = _tagged(text, **tags)
-
-
-class _StaticProgress(Progress):
-    def report(self, text: str, **tags) -> None:
-        print(_tagged(text, **tags))  # noqa
-
-    @contextlib.contextmanager
-    def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
-        self.report(text, **tags)
-        yield _StaticProgressSpinner(self)
-
-
-class _StaticProgressSpinner(ProgressSpinner):
-    def __init__(self, progress: _StaticProgress) -> None:
-        self._progress = progress
-
-    def update(self, text: str, **tags) -> None:
-        self._progress.report(text, **tags)

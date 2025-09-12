@@ -89,7 +89,7 @@ Otherwise if no template is specified and stdin is a TTY, `$EDITOR` will be open
 --quit::
 Go back to the draft's origin branch, keeping the working directory's current state.
 This will delete the draft branch and its upstream.
-Generated commits and the draft branch's final state remain available via `ref/drafts`.
+Generated commits and the draft branch's final state remain available via `refs/drafts`.
 
 -T::
 --templates::
