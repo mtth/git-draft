@@ -69,7 +69,7 @@ jobs:
           curl https://mtth.github.io/d/asciidoctor.css \
             -o docs/asciidoctor.css
           mkdir dist
-          asciidoctor -b html docs/git-draft.adoc \
+          asciidoctor -b html docs/git-draft.1.adoc \
             -a stylesheet=asciidoctor.css \
             -a manversion=${{ needs.tag.outputs.new-version }} \
             -o dist/index.html
