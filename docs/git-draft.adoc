@@ -1,7 +1,7 @@
 ifndef::manversion[:manversion: 0.0.0]
 
 = git-draft(1)
-Matthieu Monsch
+Matthieu Monsch <mtth@apache.org>
 v{manversion}
 :doctype: manpage
 :manmanual: GIT-DRAFT
@@ -110,30 +110,30 @@ When the working directory is clean, a single commit is created and set as the d
 
 [source]
 ----
-o <some commit> (main, draft/123)
 o draft! prompt: <prompt> (draft/123+, refs/drafts/123/1)
+o <some commit> (main, draft/123)
 ----
 
 If the working directory is dirty, a sync commit is added to identify the LLM-generated changes.
 
 [source]
 ----
-o <some commit> (main, draft/123)
-o draft! sync(prompt)
 o draft! prompt: <prompt> (draft/123+, refs/drafts/123/1)
+o draft! sync(prompt)
+o <some commit> (main, draft/123)
 ----
 
 If merging is enabled, it have both the LLM-generated changes and manual edits as parents.
 
 [source]
 ----
-o <some commit> (main)
-|\
-| o draft! sync(prompt)
-o | draft! sync(merge)
-| o draft! prompt: <prompt> (refs/drafts/123/1)
-|/
 o Merge (draft/123, draft/123/+)
+|\
+| o draft! prompt: <prompt> (refs/drafts/123/1)
+o | draft! sync(merge)
+| o draft! sync(prompt)
+|/
+o <some commit> (main)
 ----
 
 Otherwise, the user is free to incorporate the changes as needed.
@@ -141,13 +141,13 @@ Note that the steps above can be repeated arbitrarily many times within a given 
 
 [source]
 ----
-o <some commit> (main)
-|\
-| o draft! prompt: <prompt1> (refs/drafts/123/1)
-o draft! sync(prompt)
-o draft! prompt: <prompt2> (refs/drafts/123/2)
-o <a manual commit> (draft/123)
 o draft! prompt: <prompt3> (draft/123+, refs/drafts/123/3)
+o <a manual commit> (draft/123)
+o draft! prompt: <prompt2> (refs/drafts/123/2)
+o draft! sync(prompt)
+| o draft! prompt: <prompt1> (refs/drafts/123/1)
+|/
+o <some commit> (main)
 ----
 
 Sync commits will be reused if no new changes were added.
@@ -155,13 +155,13 @@ This can be useful when iterating on a prompt, and discarding results from prior
 
 [source]
 ----
-o <some commit> (main)
-o draft! sync(prompt)
-|\
-| \
-|\ o draft! prompt: <prompt1> (refs/drafts/123/1)
-| o draft! prompt: <prompt2> (refs/drafts/123/2)
 o draft! prompt: <prompt3> (refs/drafts/123/3)
+| o draft! prompt: <prompt2> (refs/drafts/123/2)
+|/ o draft! prompt: <prompt1> (refs/drafts/123/1)
+| /
+|/
+o draft! sync(prompt)
+o <some commit> (main)
 ----
 
 
