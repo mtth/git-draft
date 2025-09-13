@@ -6,7 +6,7 @@ from .common import EventStruct
 class NotifyUser(EventStruct):
     """Generic user notification"""
 
-    contents: str
+    update: str
 
 
 class RequestUserGuidance(EventStruct):

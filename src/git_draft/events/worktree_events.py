@@ -1,6 +1,5 @@
 """Event types related to worktree file operations"""
 
-from collections.abc import Sequence
 from pathlib import PurePosixPath
 
 from .common import EventStruct
@@ -9,21 +8,21 @@ from .common import EventStruct
 class ListFiles(EventStruct):
     """All files were listed"""
 
-    paths: Sequence[PurePosixPath]
+    path_count: int
 
 
 class ReadFile(EventStruct):
     """A file was read"""
 
     path: PurePosixPath
-    contents: str | None
+    char_count: int | None
 
 
 class WriteFile(EventStruct):
     """A file was written"""
 
     path: PurePosixPath
-    contents: str
+    char_count: int
 
 
 class DeleteFile(EventStruct):

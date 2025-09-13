@@ -1,4 +1,4 @@
-"""Event package"""
+"""Event definitions and (de)serializers"""
 
 import collections
 from collections.abc import Mapping
@@ -8,13 +8,13 @@ from typing import Any, Protocol
 import msgspec
 
 from . import feedback_events, worktree_events
-from .common import events
+from .common import all_events
 
 
 __all__ = [
     "Event",
     "EventConsumer",
-    "event_decoder",
+    "event_decoders",
     "event_encoder",
     "feedback_events",
     "worktree_events",
@@ -43,6 +43,7 @@ class EventConsumer(Protocol):
 
 
 def event_encoder() -> msgspec.json.Encoder:
+    """Returns a JSON encoder for event instances"""
     return msgspec.json.Encoder(enc_hook=_enc_hook)
 
 
@@ -51,20 +52,15 @@ def _enc_hook(obj: Any) -> Any:
     return str(obj)
 
 
+def event_decoders() -> Mapping[str, msgspec.json.Decoder]:
+    """Returns JSON decoders for event instances, keyed by event class name"""
+    return _Decoders()
+
+
 class _Decoders(collections.defaultdict[str, msgspec.json.Decoder]):
     def __missing__(self, key: str) -> msgspec.json.Decoder:
-        event_class = getattr(events, key)
+        event_class = getattr(all_events, key)
         return msgspec.json.Decoder(dec_hook=_dec_hook, type=event_class)
-
-
-def event_decoders() -> Mapping[str, msgspec.json.Decoder]:
-    """Returns a decoder for event instances
-
-    It should be used as follows to get typed values:
-
-        decoder.decode(data, type=events[class_name])
-    """
-    return _Decoders()
 
 
 def _dec_hook(tp: type, obj: Any) -> Any:

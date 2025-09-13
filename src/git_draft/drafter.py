@@ -12,7 +12,14 @@ import time
 from typing import Literal
 
 from .bots import ActionSummary, Bot, Goal
-from .common import Table, now, qualified_class_name, reindent
+from .common import (
+    Table,
+    UnreachableError,
+    now,
+    qualified_class_name,
+    reindent,
+    tagged,
+)
 from .events import (
     Event,
     EventConsumer,
@@ -445,7 +452,9 @@ class Drafter:
             for row in rows:
                 occurred_at, class_name, data = row
                 event = decoders[class_name].decode(data)
-                table.data.add_row([occurred_at, class_name, repr(event)])
+                table.data.add_row(
+                    [occurred_at, class_name, _format_event(event)]
+                )
         return table
 
 
@@ -481,29 +490,42 @@ class _EventRecorder(EventConsumer):
 
     def on_event(self, event: Event) -> None:
         self._events.append((now(), event))
-        match event:
-            case worktree_events.ListFiles(paths):
-                self._progress.report("Listed files.", count=len(paths))
-            case worktree_events.ReadFile(path, contents):
-                size = -1 if contents is None else len(contents)
-                self._progress.report(f"Read {path}.", length=size)
-            case worktree_events.WriteFile(path, contents):
-                size = len(contents)
-                self._progress.report(f"Wrote {path}.", length=size)
-            case worktree_events.DeleteFile(path):
-                self._progress.report(f"Deleted {path}.")
-            case worktree_events.RenameFile(src_path, dst_path):
-                self._progress.report(f"Renamed {src_path} to {dst_path}.")
-            case worktree_events.StartEditingFiles():
-                self._progress.report("Started editing files...")
-            case worktree_events.StopEditingFiles():
-                self._progress.report("Stopped editing files.")
-            case (
-                feedback_events.NotifyUser(_)
-                | feedback_events.RequestUserGuidance(_)
-                | feedback_events.ReceiveUserGuidance(_)
-            ):
-                pass
+        if formatted := _format_internal_event(event):
+            self._progress.report(formatted)
+
+
+def _format_internal_event(event: Event) -> str:
+    match event:
+        case worktree_events.ListFiles(path_count):
+            return f"Listed {path_count} files."
+        case worktree_events.ReadFile(path, char_count):
+            return tagged(f"Read {path}.", length=char_count)
+        case worktree_events.WriteFile(path, char_count):
+            return tagged(f"Wrote {path}.", length=char_count)
+        case worktree_events.DeleteFile(path):
+            return f"Deleted {path}."
+        case worktree_events.RenameFile(src_path, dst_path):
+            return f"Renamed {src_path} to {dst_path}."
+        case worktree_events.StartEditingFiles():
+            return "Started editing files..."
+        case worktree_events.StopEditingFiles():
+            return "Stopped editing files."
+        case _:
+            return ""
+
+
+def _format_event(event: Event) -> str:
+    if formatted := _format_internal_event(event):
+        return formatted
+    match event:
+        case feedback_events.NotifyUser(update):
+            return update
+        case feedback_events.RequestUserGuidance(question):
+            return question
+        case feedback_events.ReceiveUserGuidance(answer):
+            return answer
+        case _:
+            raise UnreachableError()
 
 
 def _default_title(prompt: str) -> str:

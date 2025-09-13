@@ -9,7 +9,7 @@ from typing import override
 import yaspin.core
 
 from .bots import UserFeedback
-from .common import reindent
+from .common import reindent, tagged
 from .events import EventConsumer, feedback_events
 
 
@@ -96,7 +96,7 @@ class _DynamicProgress(Progress):
         self._spinner: _DynamicProgressSpinner | None = None
 
     def report(self, text: str, **tags) -> None:
-        message = f"☞ {_tagged(text, **tags)}"
+        message = f"☞ {tagged(text, **tags)}"
         if self._spinner:
             self._spinner.yaspin.write(message)
         else:
@@ -105,7 +105,7 @@ class _DynamicProgress(Progress):
     @contextlib.contextmanager
     def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
         assert not self._spinner
-        with yaspin.yaspin(text=_tagged(text, **tags)) as spinner:
+        with yaspin.yaspin(text=tagged(text, **tags)) as spinner:
             self._spinner = _DynamicProgressSpinner(spinner)
             try:
                 yield self._spinner
@@ -128,7 +128,7 @@ class _DynamicProgressSpinner(ProgressSpinner):
             yield
 
     def update(self, text: str, **tags) -> None:
-        self.yaspin.text = _tagged(text, **tags)
+        self.yaspin.text = tagged(text, **tags)
 
     def feedback(self, event_consumer: EventConsumer) -> ProgressFeedback:
         return _DynamicProgressFeedback(event_consumer, self)
@@ -156,7 +156,7 @@ class _DynamicProgressFeedback(ProgressFeedback):
 
 class _StaticProgress(Progress):
     def report(self, text: str, **tags) -> None:
-        print(_tagged(text, **tags))  # noqa
+        print(tagged(text, **tags))  # noqa
 
     @contextlib.contextmanager
     def spinner(self, text: str, **tags) -> Iterator[ProgressSpinner]:
@@ -192,12 +192,3 @@ class _StaticProgressFeedback(ProgressFeedback):
     def _ask(self, question: str) -> str | None:
         self._progress.report(f"Feedback requested: {question}")
         return _offline_answer
-
-
-def _tagged(text: str, /, **kwargs) -> str:
-    if kwargs:
-        tags = [
-            f"{key}={val}" for key, val in kwargs.items() if val is not None
-        ]
-        text = f"{text} [{', '.join(tags)}]" if tags else text
-    return reindent(text)

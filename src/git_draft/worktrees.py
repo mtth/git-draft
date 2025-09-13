@@ -124,7 +124,7 @@ class GitWorktree(Worktree):
     @override
     def list_files(self) -> Sequence[PurePosixPath]:
         paths = self._list()
-        self._dispatch(worktree_events.ListFiles(paths))
+        self._dispatch(worktree_events.ListFiles(len(paths)))
         return paths
 
     @override
@@ -133,12 +133,14 @@ class GitWorktree(Worktree):
             contents = self._read(path)
         except FileNotFoundError:
             contents = None
-        self._dispatch(worktree_events.ReadFile(path, contents))
+        self._dispatch(
+            worktree_events.ReadFile(path, len(contents) if contents else None)
+        )
         return contents
 
     @override
     def write_file(self, path: PurePosixPath, contents: str) -> None:
-        self._dispatch(worktree_events.WriteFile(path, contents))
+        self._dispatch(worktree_events.WriteFile(path, len(contents)))
         return self._write(path, contents)
 
     @override

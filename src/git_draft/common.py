@@ -103,6 +103,15 @@ def reindent(s: str, prefix: str = "", width: int = 0) -> str:
     )
 
 
+def tagged(text: str, /, **kwargs) -> str:
+    if kwargs:
+        tags = [
+            f"{key}={val}" for key, val in kwargs.items() if val is not None
+        ]
+        text = f"{text} [{', '.join(tags)}]" if tags else text
+    return reindent(text)
+
+
 def qualified_class_name(cls: type) -> str:
     name = cls.__qualname__
     return f"{cls.__module__}.{name}" if cls.__module__ else name
