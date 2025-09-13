@@ -61,8 +61,19 @@ class TestRepoWorktree:
         tree = sut.GitWorktree(self._repo, sha)
         tree.write_file(PPP("d1/f2"), "b")  # In existing directory
         tree.write_file(PPP("d1/d2/f3"), "c")  # In new directory
+        tree.write_file(PPP("d1/d2/d3/f4"), "d")  # In new directory
         assert tree.read_file(PPP("d1/f2")) == "b"
         assert tree.read_file(PPP("d1/d2/f3")) == "c"
+        assert tree.read_file(PPP("d1/d2/d3/f4")) == "d"
+
+    def test_write_folder_conflict(self) -> None:
+        self._fs.write("f1", "a")
+        sha = self._fs.flush()
+
+        tree = sut.GitWorktree(self._repo, sha)
+        tree.write_file(PPP("f1/f2"), "b")
+        with pytest.raises(RuntimeError):
+            _ = tree.sha()
 
     def test_for_working_dir_dirty(self) -> None:
         self._fs.write("f1", "a")

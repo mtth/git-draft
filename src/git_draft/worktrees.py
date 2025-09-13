@@ -271,7 +271,7 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
             match otype:
                 case "blob":
                     if name in new_trees:
-                        raise RuntimeError(f"not a folder: {path / name}")
+                        raise RuntimeError(f"Not a folder: {path / name}")
                     new_sha = new_blob_shas.pop(name, old_sha)
                     if new_sha:
                         new_lines.append(f"{mode} blob {new_sha}\t{name}")
@@ -287,7 +287,6 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
         for name in new_trees:
             sha = visit_new_tree(path / name)
             new_lines.append(f"040000 tree {sha}\t{name}")
-
         for name, blob_sha in new_blob_shas.items():
             if blob_sha:
                 new_lines.append(f"100644 blob {blob_sha}\t{name}")
@@ -301,11 +300,11 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
 
     def visit_new_tree(path: PurePosixPath) -> SHA:
         lines = list[str]()
-        for name, blob_sha in blob_shas.pop(path, dict()).items():
-            lines.append(f"100644 blob {blob_sha}\t{name}")
         for name in trees.pop(path, set()):
             tree_sha = visit_new_tree(path / name)
             lines.append(f"040000 tree {tree_sha}\t{name}")
+        for name, blob_sha in blob_shas.pop(path, dict()).items():
+            lines.append(f"100644 blob {blob_sha}\t{name}")
         return repo.git("mktree", "-z", stdin="\x00".join(lines)).stdout
 
     new_sha = visit_old_tree(sha, PurePosixPath("."))
