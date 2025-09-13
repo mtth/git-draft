@@ -217,8 +217,8 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
             drafter.quit_folio()
         case "events":
             draft_id = args[0] if args else None
-            table = drafter.draft_events_table(draft_id)
-            print(table.to_json() if opts.json else table)
+            for elem in drafter.list_draft_events(draft_id):
+                print(elem)
         case "templates":
             if args:
                 name = args[0]

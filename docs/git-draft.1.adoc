@@ -21,7 +21,7 @@ IMPORTANT: `git-draft` is WIP.
 git draft [options] [--new] [--accept... | --no-accept] [--bot BOT]
                     [--edit] [TEMPLATE [VARIABLE...] | -]
 git draft [options] --quit
-git draft [options] --events [ID]
+git draft [options] --events [REF]
 git draft [options] --templates [--json | [--edit] TEMPLATE]
 
 

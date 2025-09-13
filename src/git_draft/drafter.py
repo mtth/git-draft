@@ -13,7 +13,6 @@ from typing import Literal
 
 from .bots import ActionSummary, Bot, Goal
 from .common import (
-    Table,
     UnreachableError,
     now,
     qualified_class_name,
@@ -54,8 +53,17 @@ class Draft:
         return _draft_ref(self.folio.id, self.seqno)
 
 
+_DRAFT_REF_PREFIX = "refs/drafts/"
+
+
 def _draft_ref(folio_id: int, suffix: int | str) -> str:
-    return f"refs/drafts/{folio_id}/{suffix}"
+    return f"{_DRAFT_REF_PREFIX}{folio_id}/{suffix}"
+
+
+def _parse_draft_ref(ref: str) -> tuple[int, int | None]:
+    ref = ref.removeprefix(_DRAFT_REF_PREFIX)
+    parts = ref.split("/")
+    return int(parts[0]), int(parts[1]) if len(parts) > 1 else None
 
 
 _FOLIO_BRANCH_NAMESPACE = "draft"
@@ -434,15 +442,14 @@ class Drafter:
             prompt = "\n\n".join([prompt, reindent(question, prefix="> ")])
         return prompt
 
-    def draft_events_table(self, draft_id: str | None) -> Table:
-        if draft_id:
-            folio_id, seqno = _parse_draft_id(draft_id)
+    def list_draft_events(self, draft_ref: str | None = None) -> Sequence[str]:
+        if draft_ref:
+            folio_id, seqno = _parse_draft_ref(draft_ref)
         else:
             folio = _active_folio(self._repo)
             folio_id = folio.id
             seqno = None
-        table = Table.empty()
-        table.data.field_names = ["time", "type", "details"]
+        elems = []
         with self._store.cursor() as cursor:
             rows = cursor.execute(
                 sql("list-action-events"),
@@ -452,15 +459,9 @@ class Drafter:
             for row in rows:
                 occurred_at, class_name, data = row
                 event = decoders[class_name].decode(data)
-                table.data.add_row(
-                    [occurred_at, class_name, _format_event(event)]
-                )
-        return table
-
-
-def _parse_draft_id(did: str) -> tuple[int, int]:
-    parts = did.split("/")
-    return int(parts[0]), int(parts[1])
+                description = _format_event(event)
+                elems.append(f"{occurred_at}\t{class_name}\t{description}")
+        return elems
 
 
 @dataclasses.dataclass(frozen=True)

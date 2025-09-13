@@ -187,3 +187,10 @@ class TestDrafter:
     @pytest.mark.asyncio
     async def test_latest_draft_prompt_no_active_branch(self) -> None:
         assert self._drafter.latest_draft_prompt() is None
+
+    @pytest.mark.asyncio
+    async def test_list_draft_events(self) -> None:
+        bot = _SimpleBot({"prompt": lambda goal: goal.prompt})
+        await self._drafter.generate_draft("prompt1", bot, "theirs")
+        elems = self._drafter.list_draft_events()
+        assert len(elems) == 1
