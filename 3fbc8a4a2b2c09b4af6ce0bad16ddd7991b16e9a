@@ -4,6 +4,9 @@
 * [ ] Workspace persistence (see below)
 * [ ] Rename git-draft to git-agent and bot -> agent, folio -> draft,
   draft -> revision.
+* [ ] Rework CLI arguments: `-T` for `--show-template`, `-TT` for
+  `--list-templates`, etc. This may require a bit of work to support
+  repeated shorthands as discriminator.
 
 # Ideas
 
