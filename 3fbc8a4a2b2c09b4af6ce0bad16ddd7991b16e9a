@@ -7,6 +7,8 @@
 * [ ] Rework CLI arguments: `-T` for `--show-template`, `-TT` for
   `--list-templates`, etc. This may require a bit of work to support
   repeated shorthands as discriminator.
+* [ ] Add `--isolated` option to generate drafts without switching to
+  its branch.
 
 # Ideas
 
