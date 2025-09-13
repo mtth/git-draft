@@ -2,6 +2,8 @@
 
 * [x] Rename work tree to worktree
 * [ ] Workspace persistence (see below)
+* [ ] Rename git-draft to git-agent and bot -> agent, folio -> draft,
+  draft -> revision.
 
 # Ideas
 
