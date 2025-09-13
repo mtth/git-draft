@@ -21,6 +21,7 @@ IMPORTANT: `git-draft` is WIP.
 git draft [options] [--new] [--accept... | --no-accept] [--bot BOT]
                     [--edit] [TEMPLATE [VARIABLE...] | -]
 git draft [options] --quit
+git draft [options] --events [ID]
 git draft [options] --templates [--json | [--edit] TEMPLATE]
 
 
@@ -123,7 +124,7 @@ o draft! sync(prompt)
 o <some commit> (main, draft/123)
 ----
 
-If merging is enabled, it have both the LLM-generated changes and manual edits as parents.
+If merging is enabled, the merge commit will have both the LLM-generated changes and manual edits as parents.
 
 [source]
 ----

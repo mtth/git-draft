@@ -1,5 +1,7 @@
 """Event package"""
 
+import collections
+from collections.abc import Mapping
 from pathlib import PurePosixPath
 from typing import Any, Protocol
 
@@ -14,7 +16,6 @@ __all__ = [
     "EventConsumer",
     "event_decoder",
     "event_encoder",
-    "events",
     "feedback_events",
     "worktree_events",
 ]
@@ -50,14 +51,20 @@ def _enc_hook(obj: Any) -> Any:
     return str(obj)
 
 
-def event_decoder() -> msgspec.json.Decoder:
+class _Decoders(collections.defaultdict[str, msgspec.json.Decoder]):
+    def __missing__(self, key: str) -> msgspec.json.Decoder:
+        event_class = getattr(events, key)
+        return msgspec.json.Decoder(dec_hook=_dec_hook, type=event_class)
+
+
+def event_decoders() -> Mapping[str, msgspec.json.Decoder]:
     """Returns a decoder for event instances
 
     It should be used as follows to get typed values:
 
         decoder.decode(data, type=events[class_name])
     """
-    return msgspec.json.Decoder(dec_hook=_dec_hook)
+    return _Decoders()
 
 
 def _dec_hook(tp: type, obj: Any) -> Any:

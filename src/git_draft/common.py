@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 import dataclasses
-import datetime
+from datetime import datetime
 import itertools
 import logging
 import os
@@ -108,8 +108,8 @@ def qualified_class_name(cls: type) -> str:
     return f"{cls.__module__}.{name}" if cls.__module__ else name
 
 
-def now() -> datetime.datetime:
-    return datetime.datetime.now().astimezone()
+def now() -> datetime:
+    return datetime.now().astimezone()
 
 
 class Table:

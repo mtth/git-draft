@@ -10,6 +10,7 @@ import yaspin.core
 
 from .bots import UserFeedback
 from .common import reindent
+from .events import EventConsumer, feedback_events
 
 
 class Progress:
@@ -46,15 +47,42 @@ class ProgressSpinner:
     def update(self, text: str, **tags) -> None:  # pragma: no cover
         raise NotImplementedError()
 
-    def feedback(self) -> ProgressFeedback:
+    def feedback(self, event_consumer: EventConsumer) -> ProgressFeedback:
         raise NotImplementedError()
 
 
 class ProgressFeedback(UserFeedback):
     """User feedback interface"""
 
-    def __init__(self) -> None:
+    def __init__(self, event_consumer: EventConsumer) -> None:
+        self._event_consumer = event_consumer
         self.pending_question: str | None = None
+
+    @override
+    def notify(self, update: str) -> None:
+        self._event_consumer.on_event(feedback_events.NotifyUser(update))
+        self._notify(update)
+
+    def _notify(self, update: str) -> None:
+        raise NotImplementedError()
+
+    @override
+    def ask(self, question: str) -> str:
+        assert not self.pending_question
+        self._event_consumer.on_event(
+            feedback_events.RequestUserGuidance(question)
+        )
+        answer = self._ask(question)
+        if answer is None:
+            self.pending_question = question
+            answer = _offline_answer
+        self._event_consumer.on_event(
+            feedback_events.ReceiveUserGuidance(answer)
+        )
+        return _offline_answer
+
+    def _ask(self, question: str) -> str | None:
+        raise NotImplementedError()
 
 
 _offline_answer = reindent("""
@@ -102,28 +130,28 @@ class _DynamicProgressSpinner(ProgressSpinner):
     def update(self, text: str, **tags) -> None:
         self.yaspin.text = _tagged(text, **tags)
 
-    def feedback(self) -> ProgressFeedback:
-        return _DynamicProgressFeedback(self)
+    def feedback(self, event_consumer: EventConsumer) -> ProgressFeedback:
+        return _DynamicProgressFeedback(event_consumer, self)
 
 
 class _DynamicProgressFeedback(ProgressFeedback):
-    def __init__(self, spinner: _DynamicProgressSpinner) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        event_consumer: EventConsumer,
+        spinner: _DynamicProgressSpinner,
+    ) -> None:
+        super().__init__(event_consumer)
         self._spinner = spinner
 
     @override
-    def notify(self, update: str) -> None:
+    def _notify(self, update: str) -> None:
         self._spinner.update(update)
 
     @override
-    def ask(self, question: str) -> str:
-        assert not self.pending_question
+    def _ask(self, question: str) -> str | None:
         with self._spinner.hidden():
-            answer = input(question)
-        if answer:
-            return answer
-        self.pending_question = question
-        return _offline_answer
+            answer = input(question + " ")
+        return answer or None
 
 
 class _StaticProgress(Progress):
@@ -143,24 +171,26 @@ class _StaticProgressSpinner(ProgressSpinner):
     def update(self, text: str, **tags) -> None:
         self._progress.report(text, **tags)
 
-    def feedback(self) -> ProgressFeedback:
-        return _StaticProgressFeedback(self._progress)
+    def feedback(self, event_consumer: EventConsumer) -> ProgressFeedback:
+        return _StaticProgressFeedback(event_consumer, self._progress)
 
 
 class _StaticProgressFeedback(ProgressFeedback):
-    def __init__(self, progress: _StaticProgress) -> None:
-        super().__init__()
+    def __init__(
+        self,
+        event_consumer: EventConsumer,
+        progress: _StaticProgress,
+    ) -> None:
+        super().__init__(event_consumer)
         self._progress = progress
 
     @override
-    def notify(self, update: str) -> None:
+    def _notify(self, update: str) -> None:
         self._progress.report(update)
 
     @override
-    def ask(self, question: str) -> str:
-        assert not self.pending_question
+    def _ask(self, question: str) -> str | None:
         self._progress.report(f"Feedback requested: {question}")
-        self.pending_question = question
         return _offline_answer
 
 
