@@ -83,12 +83,14 @@ class TestDrafter:
         self._fs.write("p1", "a")
 
         await self._drafter.generate_draft(
-            "hello", _SimpleBot({"p2": "b"}), merge_strategy="ignore-all-space"
+            "hello",
+            _SimpleBot({"a/p2": "b"}),
+            merge_strategy="ignore-all-space",
         )
         # No sync(merge) commit since no changes happened between.
         assert len(self._commits()) == 4  # init, sync(prompt), prompt, merge
         assert self._fs.read("p1") == "a"
-        assert self._fs.read("p2") == "b"
+        assert self._fs.read("a/p2") == "b"
 
     @pytest.mark.asyncio
     async def test_generate_draft_merge_no_conflict(self) -> None:

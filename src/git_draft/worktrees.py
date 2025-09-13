@@ -247,18 +247,22 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
         return sha
 
     blob_shas = collections.defaultdict[PurePosixPath, dict[str, str]](dict)
+    trees = collections.defaultdict[PurePosixPath, set[str]](set)
     for update in updates:
         match update:
             case _WriteBlob(path, blob_sha):
                 blob_shas[path.parent][path.name] = blob_sha
+                for parent in path.parents[:-1]:
+                    trees[parent.parent].add(parent.name)
             case _DeleteBlob(path):
                 blob_shas[path.parent][path.name] = ""
             case _:
                 raise UnreachableError(f"Unexpected update: {update}")
 
-    def visit_tree(sha: SHA, path: PurePosixPath) -> SHA:
+    def visit_old_tree(sha: SHA, path: PurePosixPath) -> SHA:
         old_lines = null_delimited(repo.git("ls-tree", "-z", sha).stdout)
-        new_blob_shas = blob_shas[path]
+        new_blob_shas = blob_shas.pop(path, dict())
+        new_trees = trees.pop(path, set())
 
         new_lines = list[str]()
         for line in old_lines:
@@ -266,16 +270,23 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
             mode, otype, old_sha = old_prefix.split(" ")
             match otype:
                 case "blob":
+                    if name in new_trees:
+                        raise RuntimeError(f"not a folder: {path / name}")
                     new_sha = new_blob_shas.pop(name, old_sha)
                     if new_sha:
                         new_lines.append(f"{mode} blob {new_sha}\t{name}")
                 case "tree":
-                    new_sha = visit_tree(old_sha, path / name)
+                    new_trees.discard(name)
+                    new_sha = visit_old_tree(old_sha, path / name)
                     new_lines.append(f"040000 tree {new_sha}\t{name}")
                 case "commit":  # Submodule
                     new_lines.append(line)
                 case _:
                     raise UnreachableError(f"Unexpected line: {line}")
+
+        for name in new_trees:
+            sha = visit_new_tree(path / name)
+            new_lines.append(f"040000 tree {sha}\t{name}")
 
         for name, blob_sha in new_blob_shas.items():
             if blob_sha:
@@ -288,4 +299,16 @@ def _update_tree(sha: SHA, updates: Sequence[_Update], repo: Repo) -> SHA:
 
         return repo.git("mktree", "-z", stdin="\x00".join(new_lines)).stdout
 
-    return visit_tree(sha, PurePosixPath("."))
+    def visit_new_tree(path: PurePosixPath) -> SHA:
+        lines = list[str]()
+        for name, blob_sha in blob_shas.pop(path, dict()).items():
+            lines.append(f"100644 blob {blob_sha}\t{name}")
+        for name in trees.pop(path, set()):
+            tree_sha = visit_new_tree(path / name)
+            lines.append(f"040000 tree {tree_sha}\t{name}")
+        return repo.git("mktree", "-z", stdin="\x00".join(lines)).stdout
+
+    new_sha = visit_old_tree(sha, PurePosixPath("."))
+    assert not blob_shas, "unprocessed blobs"
+    assert not trees, "unprocessed trees"
+    return new_sha

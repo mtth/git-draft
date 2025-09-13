@@ -54,6 +54,16 @@ class TestRepoWorktree:
         assert self._fs.read("f1") == "aa"
         assert self._fs.read("f3") is None
 
+    def test_write_file_in_new_folder(self) -> None:
+        self._fs.write("d1/f1", "a")
+        sha = self._fs.flush()
+
+        tree = sut.GitWorktree(self._repo, sha)
+        tree.write_file(PPP("d1/f2"), "b")  # In existing directory
+        tree.write_file(PPP("d1/d2/f3"), "c")  # In new directory
+        assert tree.read_file(PPP("d1/f2")) == "b"
+        assert tree.read_file(PPP("d1/d2/f3")) == "c"
+
     def test_for_working_dir_dirty(self) -> None:
         self._fs.write("f1", "a")
         self._fs.write("f2", "b")
