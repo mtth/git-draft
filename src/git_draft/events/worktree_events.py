@@ -1,47 +1,46 @@
 """Event types related to worktree file operations"""
 
-from collections.abc import Sequence
 from pathlib import PurePosixPath
 
 from .common import EventStruct
 
 
-class ListFiles(EventStruct, frozen=True):
+class ListFiles(EventStruct):
     """All files were listed"""
 
-    paths: Sequence[PurePosixPath]
+    path_count: int
 
 
-class ReadFile(EventStruct, frozen=True):
+class ReadFile(EventStruct):
     """A file was read"""
 
     path: PurePosixPath
-    contents: str | None
+    char_count: int | None
 
 
-class WriteFile(EventStruct, frozen=True):
+class WriteFile(EventStruct):
     """A file was written"""
 
     path: PurePosixPath
-    contents: str
+    char_count: int
 
 
-class DeleteFile(EventStruct, frozen=True):
+class DeleteFile(EventStruct):
     """A file was deleted"""
 
     path: PurePosixPath
 
 
-class RenameFile(EventStruct, frozen=True):
+class RenameFile(EventStruct):
     """A file was renamed"""
 
     src_path: PurePosixPath
     dst_path: PurePosixPath
 
 
-class StartEditingFiles(EventStruct, frozen=True):
+class StartEditingFiles(EventStruct):
     """A temporary editable copy of all files was opened"""
 
 
-class StopEditingFiles(EventStruct, frozen=True):
+class StopEditingFiles(EventStruct):
     """The editable copy was closed"""

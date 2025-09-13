@@ -38,7 +38,9 @@ class RepoFS:
             return None
 
     def write(self, name: str, contents="") -> None:
-        with open(self.path(name), "w") as f:
+        path = self.path(name)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w") as f:
             f.write(contents)
 
     def delete(self, name: str) -> None:
@@ -46,7 +48,7 @@ class RepoFS:
 
     def flush(self, message: str = "flush") -> str:
         self._repo.git("add", "-A")
-        self._repo.git("commit", "-m", message)
+        self._repo.git("commit", "--allow-empty", "-m", message)
         return self._repo.git("rev-parse", "HEAD").stdout
 
 

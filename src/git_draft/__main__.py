@@ -72,6 +72,7 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("new", help="create a new draft from a prompt")
     add_command("quit", help="return to original branch")
+    add_command("events", help="list events")
     add_command("templates", short="T", help="show template information")
 
     parser.add_option(
@@ -214,6 +215,10 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                 drafter.quit_folio()
         case "quit":
             drafter.quit_folio()
+        case "events":
+            draft_id = args[0] if args else None
+            for elem in drafter.list_draft_events(draft_id):
+                print(elem)
         case "templates":
             if args:
                 name = args[0]

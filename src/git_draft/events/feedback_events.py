@@ -3,19 +3,19 @@
 from .common import EventStruct
 
 
-class NotifyUser(EventStruct, frozen=True):
+class NotifyUser(EventStruct):
     """Generic user notification"""
 
-    contents: str
+    update: str
 
 
-class RequestUserGuidance(EventStruct, frozen=True):
+class RequestUserGuidance(EventStruct):
     """Additional information is requested from the user"""
 
     question: str
 
 
-class ReceiveUserGuidance(EventStruct, frozen=True):
+class ReceiveUserGuidance(EventStruct):
     """Response provided by the user"""
 
     answer: str

@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 import dataclasses
-from datetime import timedelta
+from datetime import datetime, timedelta
 import logging
 import re
 import textwrap
@@ -12,10 +12,17 @@ import time
 from typing import Literal
 
 from .bots import ActionSummary, Bot, Goal
-from .common import qualified_class_name, reindent
+from .common import (
+    UnreachableError,
+    now,
+    qualified_class_name,
+    reindent,
+    tagged,
+)
 from .events import (
     Event,
     EventConsumer,
+    event_decoders,
     event_encoder,
     feedback_events,
     worktree_events,
@@ -46,8 +53,17 @@ class Draft:
         return _draft_ref(self.folio.id, self.seqno)
 
 
+_DRAFT_REF_PREFIX = "refs/drafts/"
+
+
 def _draft_ref(folio_id: int, suffix: int | str) -> str:
-    return f"refs/drafts/{folio_id}/{suffix}"
+    return f"{_DRAFT_REF_PREFIX}{folio_id}/{suffix}"
+
+
+def _parse_draft_ref(ref: str) -> tuple[int, int | None]:
+    ref = ref.removeprefix(_DRAFT_REF_PREFIX)
+    parts = ref.split("/")
+    return int(parts[0]), int(parts[1]) if len(parts) > 1 else None
 
 
 _FOLIO_BRANCH_NAMESPACE = "draft"
@@ -70,7 +86,7 @@ class Folio:
         return self.branch_name() + _FOLIO_UPSTREAM_BRANCH_SUFFIX
 
 
-def _active_folio(repo: Repo) -> Folio | None:
+def _maybe_active_folio(repo: Repo) -> Folio | None:
     active_branch = repo.active_branch()
     if not active_branch:
         return None
@@ -78,6 +94,13 @@ def _active_folio(repo: Repo) -> Folio | None:
     if not match:
         return None
     return Folio(int(match[1]))
+
+
+def _active_folio(repo: Repo) -> Folio:
+    folio = _maybe_active_folio(repo)
+    if not folio:
+        raise RuntimeError("Not currently on a draft branch")
+    return folio
 
 
 #: Select ort strategies.
@@ -133,7 +156,7 @@ class Drafter:
             )
 
         # Ensure that we are in a folio.
-        folio = _active_folio(self._repo)
+        folio = _maybe_active_folio(self._repo)
         if not folio:
             folio = self._create_folio()
         with self._store.cursor() as cursor:
@@ -149,7 +172,7 @@ class Drafter:
         # Run the bot to generate the change.
         event_recorder = _EventRecorder(self._progress)
         with self._progress.spinner("Running bot...") as spinner:
-            feedback = spinner.feedback()
+            feedback = spinner.feedback(event_recorder)
             change = await self._generate_change(
                 bot,
                 Goal(prompt_contents),
@@ -206,11 +229,11 @@ class Drafter:
                     [
                         {
                             "prompt_id": prompt_id,
-                            "occurred_at": e.at,
+                            "occurred_at": dt,
                             "class": e.__class__.__name__,
                             "data": encoder.encode(e),
                         }
-                        for e in event_recorder.events
+                        for (dt, e) in event_recorder.events()
                     ],
                 )
                 spinner.update("Created draft commit.", ref=draft.ref)
@@ -244,9 +267,6 @@ class Drafter:
 
     def quit_folio(self) -> None:
         folio = _active_folio(self._repo)
-        if not folio:
-            raise RuntimeError("Not currently on a draft branch")
-
         with self._store.cursor() as cursor:
             rows = cursor.execute(sql("get-folio-by-id"), {"id": folio.id})
             if not rows:
@@ -404,7 +424,7 @@ class Drafter:
 
     def latest_draft_prompt(self) -> str | None:
         """Returns the latest prompt for the current draft"""
-        folio = _active_folio(self._repo)
+        folio = _maybe_active_folio(self._repo)
         if not folio:
             return None
         with self._store.cursor() as cursor:
@@ -421,6 +441,27 @@ class Drafter:
         if question:
             prompt = "\n\n".join([prompt, reindent(question, prefix="> ")])
         return prompt
+
+    def list_draft_events(self, draft_ref: str | None = None) -> Sequence[str]:
+        if draft_ref:
+            folio_id, seqno = _parse_draft_ref(draft_ref)
+        else:
+            folio = _active_folio(self._repo)
+            folio_id = folio.id
+            seqno = None
+        elems = []
+        with self._store.cursor() as cursor:
+            rows = cursor.execute(
+                sql("list-action-events"),
+                {"folio_id": folio_id, "seqno": seqno},
+            )
+            decoders = event_decoders()
+            for row in rows:
+                occurred_at, class_name, data = row
+                event = decoders[class_name].decode(data)
+                description = _format_event(event)
+                elems.append(f"{occurred_at}\t{class_name}\t{description}")
+        return elems
 
 
 @dataclasses.dataclass(frozen=True)
@@ -442,34 +483,50 @@ class _EventRecorder(EventConsumer):
     """
 
     def __init__(self, progress: Progress) -> None:
-        self.events = list[Event]()
+        self._events = list[tuple[datetime, Event]]()
         self._progress = progress
 
+    def events(self) -> Sequence[tuple[datetime, Event]]:
+        return sorted(list(self._events))
+
     def on_event(self, event: Event) -> None:
-        self.events.append(event)
-        match event:
-            case worktree_events.ListFiles(_, paths):
-                self._progress.report("Listed files.", count=len(paths))
-            case worktree_events.ReadFile(_, path, contents):
-                size = -1 if contents is None else len(contents)
-                self._progress.report(f"Read {path}.", length=size)
-            case worktree_events.WriteFile(_, path, contents):
-                size = len(contents)
-                self._progress.report(f"Wrote {path}.", length=size)
-            case worktree_events.DeleteFile(_, path):
-                self._progress.report(f"Deleted {path}.")
-            case worktree_events.RenameFile(_, src_path, dst_path):
-                self._progress.report(f"Renamed {src_path} to {dst_path}.")
-            case worktree_events.StartEditingFiles(_):
-                self._progress.report("Started editing files...")
-            case worktree_events.StopEditingFiles(_):
-                self._progress.report("Stopped editing files.")
-            case (
-                feedback_events.NotifyUser(_, _)
-                | feedback_events.RequestUserGuidance(_, _)
-                | feedback_events.ReceiveUserGuidance(_, _)
-            ):
-                pass
+        self._events.append((now(), event))
+        if formatted := _format_internal_event(event):
+            self._progress.report(formatted)
+
+
+def _format_internal_event(event: Event) -> str:
+    match event:
+        case worktree_events.ListFiles(path_count):
+            return f"Listed {path_count} files."
+        case worktree_events.ReadFile(path, char_count):
+            return tagged(f"Read {path}.", length=char_count)
+        case worktree_events.WriteFile(path, char_count):
+            return tagged(f"Wrote {path}.", length=char_count)
+        case worktree_events.DeleteFile(path):
+            return f"Deleted {path}."
+        case worktree_events.RenameFile(src_path, dst_path):
+            return f"Renamed {src_path} to {dst_path}."
+        case worktree_events.StartEditingFiles():
+            return "Started editing files..."
+        case worktree_events.StopEditingFiles():
+            return "Stopped editing files."
+        case _:
+            return ""
+
+
+def _format_event(event: Event) -> str:
+    if formatted := _format_internal_event(event):
+        return formatted
+    match event:
+        case feedback_events.NotifyUser(update):
+            return update
+        case feedback_events.RequestUserGuidance(question):
+            return question
+        case feedback_events.ReceiveUserGuidance(answer):
+            return answer
+        case _:
+            raise UnreachableError()
 
 
 def _default_title(prompt: str) -> str:
