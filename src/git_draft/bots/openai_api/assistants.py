@@ -2,6 +2,11 @@
 
 Note that this API is (will soon?) be deprecated in favor of the responses API.
 It does not support the gpt-5 series of models.
+
+* https://platform.openai.com/docs/assistants/tools/function-calling
+* https://platform.openai.com/docs/assistants/deep-dive#runs-and-run-steps
+* https://platform.openai.com/docs/api-reference/assistants-streaming/events
+* https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
 """
 
 from collections.abc import Sequence
