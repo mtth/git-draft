@@ -12,11 +12,11 @@ See the following links for more resources:
 * https://github.com/openai/openai-python/blob/main/src/openai/resources/beta/threads/runs/runs.py
 """
 
-from .assistants import threads_bot
-from .completions import completions_bot
+from .assistants import new_threads_bot
+from .completions import new_completions_bot
 
 
 __all__ = [
-    "completions_bot",
-    "threads_bot",
+    "new_completions_bot",
+    "new_threads_bot",
 ]
