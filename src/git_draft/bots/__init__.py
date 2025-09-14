@@ -52,7 +52,7 @@ def _default_bot() -> Bot:
         )
 
     try:
-        from .openai_api import threads_bot
+        from .openai_api import new_threads_bot
 
     except ImportError:
         raise RuntimeError(
@@ -65,4 +65,4 @@ def _default_bot() -> Bot:
             )
         )
     else:
-        return threads_bot()
+        return new_threads_bot()
