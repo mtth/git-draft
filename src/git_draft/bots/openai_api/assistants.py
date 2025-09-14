@@ -20,7 +20,7 @@ from .common import ToolHandler, ToolsFactory, new_client
 _logger = logging.getLogger(__name__)
 
 
-def threads_bot(
+def new_threads_bot(
     api_key: str | None = None,
     base_url: str | None = None,
     model: str = "gpt-4o",

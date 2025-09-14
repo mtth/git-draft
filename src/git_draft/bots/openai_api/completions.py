@@ -11,7 +11,7 @@ from ..common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 from .common import ToolHandler, ToolsFactory, new_client
 
 
-def completions_bot(
+def new_completions_bot(
     api_key: str | None = None,
     base_url: str | None = None,
     model: str = "gpt-4o",
