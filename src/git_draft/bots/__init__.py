@@ -35,7 +35,7 @@ def load_bot(config: BotConfig | None) -> Bot:
     if not factory:
         raise NotImplementedError(f"Unknown bot factory: {config.factory}")
 
-    kwargs = config.config or {}
+    kwargs = config.kwargs or {}
     return factory(**kwargs)
 
 
@@ -52,7 +52,7 @@ def _default_bot() -> Bot:
         )
 
     try:
-        from .openai import threads_bot
+        from .openai_api import threads_bot
 
     except ImportError:
         raise RuntimeError(
