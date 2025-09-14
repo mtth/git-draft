@@ -16,7 +16,7 @@ from collections.abc import Mapping, Sequence
 import json
 import logging
 from pathlib import PurePosixPath
-from typing import Any, Self, TypedDict, override
+from typing import Any, Self, TypedDict, cast, override
 
 import openai
 
@@ -246,7 +246,7 @@ class _CompletionsBot(Bot):
             request_count += 1
 
             done = True
-            messages.append(choice.message)
+            messages.append(cast(Any, choice.message.to_dict(mode="json")))
             calls = choice.message.tool_calls
             for call in calls or []:
                 output = tool_handler.handle_function(call.function)

@@ -80,7 +80,7 @@ class ProgressFeedback(UserFeedback):
         self._event_consumer.on_event(
             feedback_events.ReceiveUserGuidance(answer)
         )
-        return OFFLINE_ANSWER
+        return answer
 
     def _ask(self, question: str) -> str | None:
         raise NotImplementedError()
