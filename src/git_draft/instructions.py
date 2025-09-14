@@ -19,5 +19,6 @@ SYSTEM_PROMPT = reindent("""
 OFFLINE_ANSWER = reindent("""
     I'm unable to provide feedback at this time. Perform any changes you can
     and await further instructions. Do not request ask me any more questions
-    until explicitly authorized to do so.
+    until explicitly authorized to do so. Instead, add TODO comments in the
+    code where relevant.
 """)
