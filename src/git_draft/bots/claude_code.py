@@ -1,4 +1,10 @@
-"""Claude code bot implementations"""
+"""Claude code bot implementations
+
+Useful links:
+
+* https://github.com/anthropics/claude-code
+* https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-python
+"""
 
 import dataclasses
 import logging
