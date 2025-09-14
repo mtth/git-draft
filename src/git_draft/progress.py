@@ -9,8 +9,9 @@ from typing import override
 import yaspin.core
 
 from .bots import UserFeedback
-from .common import reindent, tagged
+from .common import tagged
 from .events import EventConsumer, feedback_events
+from .instructions import OFFLINE_ANSWER
 
 
 class Progress:
@@ -75,20 +76,14 @@ class ProgressFeedback(UserFeedback):
         answer = self._ask(question)
         if answer is None:
             self.pending_question = question
-            answer = _offline_answer
+            answer = OFFLINE_ANSWER
         self._event_consumer.on_event(
             feedback_events.ReceiveUserGuidance(answer)
         )
-        return _offline_answer
+        return answer
 
     def _ask(self, question: str) -> str | None:
         raise NotImplementedError()
-
-
-_offline_answer = reindent("""
-    I'm unable to provide feedback at this time. Perform any final changes and
-    await further instructions.
-""")
 
 
 class _DynamicProgress(Progress):
@@ -191,4 +186,4 @@ class _StaticProgressFeedback(ProgressFeedback):
     @override
     def _ask(self, question: str) -> str | None:
         self._progress.report(f"Feedback requested: {question}")
-        return _offline_answer
+        return OFFLINE_ANSWER
