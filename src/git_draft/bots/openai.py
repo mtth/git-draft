@@ -21,6 +21,7 @@ from typing import Any, Self, TypedDict, override
 import openai
 
 from ..common import JSONObject, UnreachableError, config_string, reindent
+from ..instructions import SYSTEM_PROMPT
 from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
@@ -159,19 +160,6 @@ class _ToolsFactory:
         ]
 
 
-# https://aider.chat/docs/more-info.html
-# https://github.com/Aider-AI/aider/blob/main/aider/prompts.py
-_INSTRUCTIONS = """
-    You are an expert software engineer, who writes correct and concise code.
-    Use the provided functions to find the files you need to answer the query,
-    read the content of the relevant ones, and save the changes you suggest.
-
-    You should stop when and ONLY WHEN all the files you need to change have
-    been updated. If you do not have enough information to complete your task,
-    use the provided tool to request it from the user, then stop.
-"""
-
-
 class _ToolHandler[V]:
     def __init__(self, tree: Worktree, feedback: UserFeedback) -> None:
         self._tree = tree
@@ -241,7 +229,7 @@ class _CompletionsBot(Bot):
         tool_handler = _CompletionsToolHandler(tree, feedback)
 
         messages: list[openai.types.chat.ChatCompletionMessageParam] = [
-            {"role": "system", "content": reindent(_INSTRUCTIONS)},
+            {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": goal.prompt},
         ]
 
@@ -254,10 +242,12 @@ class _CompletionsBot(Bot):
                 tool_choice="required",
             )
             assert len(response.choices) == 1
+            choice = response.choices[0]
             request_count += 1
 
             done = True
-            calls = response.choices[0].message.tool_calls
+            messages.append(choice.message)
+            calls = choice.message.tool_calls
             for call in calls or []:
                 output = tool_handler.handle_function(call.function)
                 if output is not None:
@@ -302,7 +292,7 @@ class _ThreadsBot(Bot):
     def _load_assistant_id(self) -> str:
         kwargs: JSONObject = dict(
             model=self._model,
-            instructions=reindent(_INSTRUCTIONS),
+            instructions=SYSTEM_PROMPT,
             tools=_ToolsFactory(strict=True).params(),
         )
         path = self.state_folder_path(ensure_exists=True) / "ASSISTANT_ID"
