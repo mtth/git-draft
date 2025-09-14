@@ -55,11 +55,17 @@ class _Bot(Bot):
                         case sdk.ResultMessage() as message:
                             _logger.debug("Result message: %s", message)
                             if result := message.result:
-                                feedback.notify(result)
+                                _notify(feedback, result)
         return ActionSummary()
 
 
-def _notify(feedback: UserFeedback, content: list[sdk.ContentBlock]) -> None:
+def _notify(
+    feedback: UserFeedback, content: str | list[sdk.ContentBlock]
+) -> None:
+    if isinstance(content, str):
+        feedback.notify(content)
+        return
+
     for block in content:
         match block:
             case sdk.TextBlock(text):
