@@ -9,12 +9,10 @@ import itertools
 import logging
 import os
 from pathlib import Path
-import sqlite3
 import textwrap
 import tomllib
-from typing import Any, ClassVar, Self
+from typing import Any, Self
 
-import prettytable
 import xdg_base_dirs
 
 
@@ -119,32 +117,3 @@ def qualified_class_name(cls: type) -> str:
 
 def now() -> datetime:
     return datetime.now().astimezone()
-
-
-class Table:
-    """Pretty-printable table"""
-
-    _kwargs: ClassVar[Mapping[str, Any]] = dict(border=False)  # Shared options
-
-    def __init__(self, data: prettytable.PrettyTable) -> None:
-        self.data = data
-        self.data.align = "l"
-
-    def __bool__(self) -> bool:
-        return len(self.data.rows) > 0
-
-    def __str__(self) -> str:
-        return str(self.data) if self else ""
-
-    def to_json(self) -> str:
-        return self.data.get_json_string(header=False)
-
-    @classmethod
-    def empty(cls) -> Self:
-        return cls(prettytable.PrettyTable([], **cls._kwargs))
-
-    @classmethod
-    def from_cursor(cls, cursor: sqlite3.Cursor) -> Self:
-        table = prettytable.from_db_cursor(cursor, **cls._kwargs)
-        assert table
-        return cls(table)

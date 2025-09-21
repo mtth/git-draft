@@ -78,10 +78,6 @@ The template will be created automatically if it did not already exist.
 --help::
 Show help message and exit.
 
--j::
---json::
-Use JSON output.
-
 -E::
 --list-events::
 Display all events corresponding to a draft.

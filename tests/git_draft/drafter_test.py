@@ -192,5 +192,5 @@ class TestDrafter:
     async def test_list_draft_events(self) -> None:
         bot = _SimpleBot({"prompt": lambda goal: goal.prompt})
         await self._drafter.generate_draft("prompt1", bot, "theirs")
-        elems = self._drafter.list_draft_events()
-        assert len(elems) == 1
+        lines = list(self._drafter.list_draft_events())
+        assert len(lines) == 1

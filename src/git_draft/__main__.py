@@ -20,7 +20,7 @@ from .prompt import (
     PromptMetadata,
     TemplatedPrompt,
     find_prompt_metadata,
-    templates_table,
+    list_templates,
 )
 from .store import Store
 
@@ -92,12 +92,6 @@ def new_parser() -> optparse.OptionParser:
         "-e",
         "--edit",
         help="edit prompt or template",
-        action="store_true",
-    )
-    parser.add_option(
-        "-j",
-        "--json",
-        help="use JSON for table output",
         action="store_true",
     )
 
@@ -218,8 +212,8 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
             drafter.quit_folio()
         case "list-events":
             draft_id = args[0] if args else None
-            for elem in drafter.list_draft_events(draft_id):
-                print(elem)
+            for line in drafter.list_draft_events(draft_id):
+                print(line)
         case "show-template":
             if len(args) != 1:
                 raise ValueError("Expected exactly one argument")
@@ -235,8 +229,8 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                     raise ValueError(f"No template named {name!r}")
                 print(meta.source())
         case "list-templates":
-            table = templates_table()
-            print(table.to_json() if opts.json else table)
+            for line in list_templates():
+                print(line)
         case _:
             raise UnreachableError()
 

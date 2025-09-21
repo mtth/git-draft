@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterator, Mapping, Sequence
 import dataclasses
 import enum
 import functools
@@ -15,7 +15,7 @@ import docopt
 import jinja2
 
 from .bots import Worktree
-from .common import Config, Table, package_root
+from .common import Config, package_root
 from .worktrees import EmptyWorktree
 
 
@@ -210,11 +210,9 @@ def find_prompt_metadata(name: PromptName) -> PromptMetadata | None:
     return prompt.metadata
 
 
-def templates_table(*, include_local: bool = True) -> Table:
+def list_templates(*, include_local: bool = True) -> Iterator[str]:
     env = _jinja_environment(include_local=include_local)
     worktree = EmptyWorktree()
-    table = Table.empty()
-    table.data.field_names = ["name", "local", "description"]
     for rel_path in env.list_templates(extensions=[_extension]):
         if any(p.startswith(".") for p in rel_path.split(os.sep)):
             continue
@@ -222,5 +220,4 @@ def templates_table(*, include_local: bool = True) -> Table:
         prompt = _load_prompt(env, name, worktree)
         metadata = prompt.metadata
         local = "y" if metadata.is_local() else "n"
-        table.data.add_row([name, local, metadata.description or ""])
-    return table
+        yield "\t".join([name, local, metadata.description or ""])

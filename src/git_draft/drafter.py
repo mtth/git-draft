@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Iterator, Sequence
 import dataclasses
 from datetime import datetime, timedelta
 import logging
@@ -452,14 +452,13 @@ class Drafter:
             prompt = "\n\n".join([prompt, reindent(question, prefix="> ")])
         return prompt
 
-    def list_draft_events(self, draft_ref: str | None = None) -> Sequence[str]:
+    def list_draft_events(self, draft_ref: str | None = None) -> Iterator[str]:
         if draft_ref:
             folio_id, seqno = _parse_draft_ref(draft_ref)
         else:
             folio = _active_folio(self._repo)
             folio_id = folio.id
             seqno = None
-        elems = []
         with self._store.cursor() as cursor:
             rows = cursor.execute(
                 sql("list-action-events"),
@@ -470,8 +469,7 @@ class Drafter:
                 occurred_at, class_name, data = row
                 event = decoders[class_name].decode(data)
                 description = _format_event(event)
-                elems.append(f"{occurred_at}\t{class_name}\t{description}")
-        return elems
+                yield "\t".join([occurred_at, class_name, description])
 
 
 @dataclasses.dataclass(frozen=True)
