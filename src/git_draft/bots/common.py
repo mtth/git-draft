@@ -72,10 +72,9 @@ class ActionSummary:
 
     title: str | None = None
     turn_count: int | None = None
-    # TODO: Split into input and output token counts.
-    token_count: int | None = None
+    token_count: int | None = None  # TODO: Split into input and output.
     cost: float | None = None
-    usage_details: JSONObject | None = None
+    usage_details: JSONObject | None = None  # TODO: Use.
 
     def increment_turn_count(self, n: int = 1, init: bool = False) -> None:
         self._increment("turn_count", n, init)

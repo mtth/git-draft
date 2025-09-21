@@ -63,10 +63,10 @@ class _Bot(Bot):
                             # the last assistant message's content, so we do
                             # not need to show it.
                             summary.turn_count = message.num_turns
+                            summary.cost = message.total_cost_usd
                             if usage := message.usage:
                                 summary.token_count = _token_count(usage)
-                            summary.usage_details = message.usage
-                            summary.cost = message.total_cost_usd
+                                summary.usage_details = usage
                         case sdk.SystemMessage():
                             pass  # TODO: Notify on tool usage?
         return summary
