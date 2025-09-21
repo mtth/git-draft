@@ -452,7 +452,9 @@ class Drafter:
             prompt = "\n\n".join([prompt, reindent(question, prefix="> ")])
         return prompt
 
-    def list_draft_events(self, draft_ref: str | None = None) -> Iterator[str]:
+    def list_draft_events(
+        self, draft_ref: str | None = None
+    ) -> Iterator[DraftEventProperties]:
         if draft_ref:
             folio_id, seqno = _parse_draft_ref(draft_ref)
         else:
@@ -469,7 +471,18 @@ class Drafter:
                 occurred_at, class_name, data = row
                 event = decoders[class_name].decode(data)
                 description = _format_event(event)
-                yield "\t".join([occurred_at, class_name, description])
+                yield DraftEventProperties(
+                    occurred_at, class_name, description
+                )
+
+
+@dataclasses.dataclass(frozen=True)
+class DraftEventProperties:
+    """Formattable properties corresponding to a draft's event"""
+
+    occurred_at: str
+    class_name: str
+    description: str
 
 
 @dataclasses.dataclass(frozen=True)

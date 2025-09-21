@@ -3,12 +3,14 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import enum
 import importlib.metadata
 import logging
 import optparse
 from pathlib import Path
 import sys
+from typing import Any
 
 from .bots import load_bot
 from .common import PROGRAM, Config, UnreachableError, ensure_state_home
@@ -28,7 +30,27 @@ from .store import Store
 _logger = logging.getLogger(__name__)
 
 
-def new_parser() -> optparse.OptionParser:
+class Accept(enum.Enum):
+    """Valid change accept mode"""
+
+    MANUAL = 0
+    MERGE = enum.auto()
+    MERGE_THEIRS = enum.auto()
+    MERGE_THEN_QUIT = enum.auto()
+
+    def merge_strategy(self) -> DraftMergeStrategy | None:
+        match self:
+            case Accept.MANUAL:
+                return None
+            case Accept.MERGE:
+                return "ignore-all-space"
+            case Accept.MERGE_THEIRS | Accept.MERGE_THEN_QUIT:
+                return "theirs"
+            case _:
+                raise UnreachableError()
+
+
+def _new_parser() -> optparse.OptionParser:
     parser = optparse.OptionParser(
         prog=PROGRAM,
         version=importlib.metadata.version("git_draft"),
@@ -94,7 +116,6 @@ def new_parser() -> optparse.OptionParser:
         help="edit prompt or template",
         action="store_true",
     )
-
     parser.add_option(
         "--no-accept",
         help="do not merge draft",
@@ -102,31 +123,17 @@ def new_parser() -> optparse.OptionParser:
         action="store_const",
         const=0,
     )
+    parser.add_option(
+        "-f",
+        "--format",
+        dest="format",
+        help="formatting string",
+    )
 
     return parser
 
 
-class Accept(enum.Enum):
-    """Valid change accept mode"""
-
-    MANUAL = 0
-    MERGE = enum.auto()
-    MERGE_THEIRS = enum.auto()
-    MERGE_THEN_QUIT = enum.auto()
-
-    def merge_strategy(self) -> DraftMergeStrategy | None:
-        match self:
-            case Accept.MANUAL:
-                return None
-            case Accept.MERGE:
-                return "ignore-all-space"
-            case Accept.MERGE_THEIRS | Accept.MERGE_THEN_QUIT:
-                return "theirs"
-            case _:
-                raise UnreachableError()
-
-
-def edit(*, path: Path | None = None, text: str | None = None) -> str:
+def _edit(*, path: Path | None = None, text: str | None = None) -> str:
     if sys.stdin.isatty():
         return open_editor(text or "", path)
     # We exit with a custom code to allow the caller to act accordingly.
@@ -145,12 +152,17 @@ def edit(*, path: Path | None = None, text: str | None = None) -> str:
         sys.exit(199)
 
 
+def _format(props: Any, spec: str) -> str:
+    """Formats an instance of a dataclass using the provided pattern"""
+    return spec.format(**dataclasses.asdict(props))
+
+
 _PROMPT_PLACEHOLDER = "Enter your prompt here..."
 
 
 async def run() -> None:  # noqa: PLR0912 PLR0915
     config = Config.load()
-    (opts, args) = new_parser().parse_args()
+    (opts, args) = _new_parser().parse_args()
 
     log_path = ensure_state_home() / "log"
     if opts.log_path:
@@ -191,7 +203,7 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                     prompt = TemplatedPrompt.public(args[0], args[1:])
                 editable = opts.edit
             else:
-                prompt = edit(
+                prompt = _edit(
                     text=drafter.latest_draft_prompt() or _PROMPT_PLACEHOLDER
                 ).strip()
                 if prompt.strip() == _PROMPT_PLACEHOLDER:
@@ -212,8 +224,9 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
             drafter.quit_folio()
         case "list-events":
             draft_id = args[0] if args else None
-            for line in drafter.list_draft_events(draft_id):
-                print(line)
+            spec = opts.format or "{occurred_at}\t{description}"
+            for props in drafter.list_draft_events(draft_id):
+                print(_format(props, spec))
         case "show-template":
             if len(args) != 1:
                 raise ValueError("Expected exactly one argument")
@@ -221,16 +234,17 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
             meta = find_prompt_metadata(name)
             if opts.edit:
                 if meta:
-                    edit(path=meta.local_path(), text=meta.source())
+                    _edit(path=meta.local_path(), text=meta.source())
                 else:
-                    edit(path=PromptMetadata.local_path_for(name))
+                    _edit(path=PromptMetadata.local_path_for(name))
             else:
                 if not meta:
                     raise ValueError(f"No template named {name!r}")
                 print(meta.source())
         case "list-templates":
-            for line in list_templates():
-                print(line)
+            spec = opts.format or "{name}: {description}"
+            for props in list_templates():
+                print(_format(props, spec))
         case _:
             raise UnreachableError()
 
