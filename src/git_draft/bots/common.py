@@ -8,7 +8,7 @@ import dataclasses
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
-from ..common import ensure_state_home, qualified_class_name
+from ..common import JSONObject, ensure_state_home, qualified_class_name
 
 
 @dataclasses.dataclass(frozen=True)
@@ -71,11 +71,14 @@ class ActionSummary:
     """
 
     title: str | None = None
-    request_count: int | None = None
+    turn_count: int | None = None
+    # TODO: Split into input and output token counts.
     token_count: int | None = None
+    cost: float | None = None
+    usage_details: JSONObject | None = None
 
-    def increment_request_count(self, n: int = 1, init: bool = False) -> None:
-        self._increment("request_count", n, init)
+    def increment_turn_count(self, n: int = 1, init: bool = False) -> None:
+        self._increment("turn_count", n, init)
 
     def increment_token_count(self, n: int, init: bool = False) -> None:
         self._increment("token_count", n, init)

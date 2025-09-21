@@ -1,4 +1,4 @@
-"""Shared OpenAPI abstractions"""
+"""Shared OpenAI abstractions"""
 
 from collections.abc import Mapping, Sequence
 import json

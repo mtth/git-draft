@@ -6,6 +6,7 @@ Useful links:
 * https://docs.anthropic.com/en/docs/claude-code/sdk/sdk-python
 """
 
+from collections.abc import Mapping
 import dataclasses
 import logging
 from typing import Any
@@ -24,8 +25,9 @@ def new_bot() -> Bot:
 
 
 _PROMPT_SUFFIX = reindent("""
-    Make sure to use the feedback's MCP server ask_user tool if you need to
-    request any information from the user.
+    ALWAYS use the feedback's MCP server ask_user tool if you need to request
+    any information from the user. NEVER repeat yourself by also asking your
+    question to the user in other ways.
 """)
 
 
@@ -40,6 +42,7 @@ class _Bot(Bot):
     async def act(
         self, goal: Goal, tree: Worktree, feedback: UserFeedback
     ) -> ActionSummary:
+        summary = ActionSummary()
         with tree.edit_files() as tree_path:
             options = dataclasses.replace(
                 self._options,
@@ -49,20 +52,32 @@ class _Bot(Bot):
             async with sdk.ClaudeSDKClient(options) as client:
                 await client.query(goal.prompt)
                 async for msg in client.receive_response():
+                    _logger.debug("SDK message: %s", msg)
                     match msg:
                         case sdk.UserMessage(content):
                             _notify(feedback, content)
                         case sdk.AssistantMessage(content, _):
                             _notify(feedback, content)
-                        case sdk.SystemMessage(subtype, data):
-                            _logger.debug(
-                                "System message %s: %s", subtype, data
-                            )
+                        case sdk.SystemMessage:
+                            pass
                         case sdk.ResultMessage() as message:
-                            _logger.debug("Result message: %s", message)
-                            if result := message.result:
-                                _notify(feedback, result)
-        return ActionSummary()
+                            # This message's result appears to be identical to
+                            # the last assistant message's content, so we do
+                            # not need to show it.
+                            summary.turn_count = message.num_turns
+                            summary.token_count = _token_count(message.usage)
+                            summary.usage_details = message.usage
+                            summary.cost = message.total_cost_usd
+        return summary
+
+
+def _token_count(usage: Mapping[str, Any]) -> int:
+    return (
+        usage["input_tokens"]
+        + usage["cache_creation_input_tokens"]
+        + usage["cache_read_input_tokens"]
+        + usage["output_tokens"]
+    )
 
 
 def _notify(

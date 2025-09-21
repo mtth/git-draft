@@ -71,7 +71,7 @@ class _ThreadsBot(Bot):
 
         # We intentionally do not count the two requests above, to focus on
         # "data requests" only.
-        action = ActionSummary(request_count=0, token_count=0)
+        action = ActionSummary(turn_count=0, token_count=0)
         with self._client.beta.threads.runs.stream(
             thread_id=thread.id,
             assistant_id=assistant_id,
@@ -94,7 +94,7 @@ class _EventHandler(openai.AssistantEventHandler):
         self._tree = tree
         self._feedback = feedback
         self._action = action
-        self._action.increment_request_count()
+        self._action.increment_turn_count()
 
     def _clone(self) -> Self:
         return self.__class__(

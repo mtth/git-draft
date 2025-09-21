@@ -59,7 +59,7 @@ class _CompletionsBot(Bot):
             if done:
                 break
 
-        return ActionSummary(request_count=request_count)
+        return ActionSummary(turn_count=request_count)
 
 
 class _CompletionsToolHandler(ToolHandler[str | None]):
