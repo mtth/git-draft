@@ -41,5 +41,6 @@ class TestFindPromptMetadata:
         assert sut.find_prompt_metadata("foo") is None
 
 
-def test_templates_table() -> None:
-    assert sut.templates_table(include_local=False)
+def test_list_templates() -> None:
+    templates = list(sut.list_templates(include_local=False))
+    assert templates
