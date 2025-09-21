@@ -70,7 +70,7 @@ class ActionSummary:
     fields incrementally.
     """
 
-    title: str | None = None
+    message: str | None = None
     turn_count: int | None = None
     token_count: int | None = None  # TODO: Split into input and output.
     cost: float | None = None
