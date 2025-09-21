@@ -140,12 +140,12 @@ class _DynamicProgressFeedback(ProgressFeedback):
 
     @override
     def _notify(self, update: str) -> None:
-        self._spinner.update(update)
+        self._spinner.yaspin.write(f"○ {update}")
 
     @override
     def _ask(self, question: str) -> str | None:
         with self._spinner.hidden():
-            answer = input(question + " ")
+            answer = input(f"● {question} ")
         return answer or None
 
 

@@ -24,7 +24,7 @@ create table if not exists action_summaries (
   created_at timestamp default current_timestamp,
   bot_class text not null,
   walltime_seconds real not null,
-  request_count int,
+  turn_count int,
   token_count int,
   pending_question text,
   foreign key (prompt_id) references prompts (id) on delete cascade

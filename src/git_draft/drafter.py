@@ -157,7 +157,11 @@ class Drafter:
 
         # Ensure that we are in a folio.
         folio = _maybe_active_folio(self._repo)
-        if not folio:
+        if folio:
+            self._progress.report(
+                "Reusing active draft branch.", name=folio.branch_name()
+            )
+        else:
             folio = self._create_folio()
         with self._store.cursor() as cursor:
             [(prompt_id, seqno)] = cursor.execute(
@@ -183,6 +187,8 @@ class Drafter:
                 "Completed bot run.",
                 runtime=round(change.walltime.total_seconds(), 1),
                 tokens=change.action.token_count,
+                turns=change.action.turn_count,
+                cost=change.action.cost,
             )
 
         # Create git commits, references, and update branches.
@@ -218,7 +224,7 @@ class Drafter:
                         "prompt_id": prompt_id,
                         "bot_class": qualified_class_name(bot.__class__),
                         "walltime_seconds": change.walltime.total_seconds(),
-                        "request_count": change.action.request_count,
+                        "turn_count": change.action.turn_count,
                         "token_count": change.action.token_count,
                         "pending_question": feedback.pending_question,
                     },

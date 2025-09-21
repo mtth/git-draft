@@ -16,14 +16,14 @@ class TestActionSummary:
     def test_increment_noinit(self) -> None:
         action = sut.ActionSummary()
         with pytest.raises(ValueError):
-            action.increment_request_count()
+            action.increment_turn_count()
 
-    def test_increment_request_count(self) -> None:
+    def test_increment_turn_count(self) -> None:
         action = sut.ActionSummary()
-        action.increment_request_count(init=True)
-        assert action.request_count == 1
-        action.increment_request_count()
-        assert action.request_count == 2
+        action.increment_turn_count(init=True)
+        assert action.turn_count == 1
+        action.increment_turn_count()
+        assert action.turn_count == 2
 
     def test_increment_token_count(self) -> None:
         action = sut.ActionSummary()
