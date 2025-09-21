@@ -18,11 +18,12 @@ IMPORTANT: `git-draft` is WIP.
 == Synopsis
 
 [verse]
-git draft [options] [--new] [--accept... | --no-accept] [--bot BOT]
-                    [--edit] [TEMPLATE [VARIABLE...] | -]
+git draft [options] [--new] [--accept... | --no-accept] [--bot BOT] [--edit]
+                    [TEMPLATE [VARIABLE...] | -]
 git draft [options] --quit
-git draft [options] --events [REF]
-git draft [options] --templates [--json | [--edit] TEMPLATE]
+git draft [options] --list-events [DRAFT]
+git draft [options] --list-templates
+git draft [options] --show-template [--edit] TEMPLATE
 
 
 == Description
@@ -56,10 +57,14 @@ By default, changes are not merged - keeping the working directory untouched.
 A different default can be set in the configuration file.
 When doing so, the `--no-accept` flag can be used to disable merging at CLI invocation time.
 
+--batch::
+Disable interactive feedback.
+If a bot needs more information, its question will be persisted and displayed when creating the next draft.
+
 -b BOT::
 --bot=BOT::
-Bot name.
-Defaults to the first bot defined in the configuration.
+Set bot name.
+The default is to use the first bot defined in the configuration.
 
 -e::
 --edit::
@@ -77,6 +82,10 @@ Show help message and exit.
 --json::
 Use JSON output.
 
+-E::
+--list-events::
+Display all events corresponding to a draft.
+
 --log-path::
 Show log path and exit.
 
@@ -92,10 +101,13 @@ Go back to the draft's origin branch, keeping the working directory's current st
 This will delete the draft branch and its upstream.
 Generated commits and the draft branch's final state remain available via `refs/drafts`.
 
+-S::
+--show-template::
+Display the corresponding template's contents or, if the `--edit` option is set, open an interactive editor with its contents.
+
 -T::
---templates::
-With no argument, lists available templates.
-With an template name argument, displays the corresponding template's contents or, if the `--edit` option is set, opens an interactive editor with its contents.
+--list-templates::
+Lists available templates.
 
 --version::
 Show version and exit.
