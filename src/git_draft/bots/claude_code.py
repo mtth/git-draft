@@ -58,16 +58,17 @@ class _Bot(Bot):
                             _notify(feedback, content)
                         case sdk.AssistantMessage(content, _):
                             _notify(feedback, content)
-                        case sdk.SystemMessage:
-                            pass
                         case sdk.ResultMessage() as message:
                             # This message's result appears to be identical to
                             # the last assistant message's content, so we do
                             # not need to show it.
                             summary.turn_count = message.num_turns
-                            summary.token_count = _token_count(message.usage)
+                            if usage := message.usage:
+                                summary.token_count = _token_count(usage)
                             summary.usage_details = message.usage
                             summary.cost = message.total_cost_usd
+                        case sdk.SystemMessage():
+                            pass  # TODO: Notify on tool usage?
         return summary
 
 
