@@ -72,8 +72,9 @@ def new_parser() -> optparse.OptionParser:
 
     add_command("new", help="create a new draft from a prompt")
     add_command("quit", help="return to original branch")
-    add_command("events", help="list events")
-    add_command("templates", short="T", help="show template information")
+    add_command("list-events", short="E", help="list events")
+    add_command("show-template", short="S", help="show template information")
+    add_command("list-templates", short="T", help="list available templates")
 
     parser.add_option(
         "-a",
@@ -215,26 +216,27 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                 drafter.quit_folio()
         case "quit":
             drafter.quit_folio()
-        case "events":
+        case "list-events":
             draft_id = args[0] if args else None
             for elem in drafter.list_draft_events(draft_id):
                 print(elem)
-        case "templates":
-            if args:
-                name = args[0]
-                meta = find_prompt_metadata(name)
-                if opts.edit:
-                    if meta:
-                        edit(path=meta.local_path(), text=meta.source())
-                    else:
-                        edit(path=PromptMetadata.local_path_for(name))
+        case "show-template":
+            if len(args) != 1:
+                raise ValueError("Expected exactly one argument")
+            name = args[0]
+            meta = find_prompt_metadata(name)
+            if opts.edit:
+                if meta:
+                    edit(path=meta.local_path(), text=meta.source())
                 else:
-                    if not meta:
-                        raise ValueError(f"No template named {name!r}")
-                    print(meta.source())
+                    edit(path=PromptMetadata.local_path_for(name))
             else:
-                table = templates_table()
-                print(table.to_json() if opts.json else table)
+                if not meta:
+                    raise ValueError(f"No template named {name!r}")
+                print(meta.source())
+        case "list-templates":
+            table = templates_table()
+            print(table.to_json() if opts.json else table)
         case _:
             raise UnreachableError()
 
