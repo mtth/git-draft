@@ -16,7 +16,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-claude = ["claude-code-sdk (==0.0.22)"]
+claude-code = ["claude-code-sdk (==0.0.22)"]
 openai = ["openai (>=1.64.0,<2)"]
 
 [project.scripts]

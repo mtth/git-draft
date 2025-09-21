@@ -9,6 +9,7 @@ Useful links:
 from collections.abc import Mapping
 import dataclasses
 import logging
+import re
 from typing import Any
 
 import claude_code_sdk as sdk
@@ -25,9 +26,14 @@ def new_bot() -> Bot:
 
 
 _PROMPT_SUFFIX = reindent("""
-    ALWAYS use the feedback's MCP server ask_user tool if you need to request
-    any information from the user. NEVER repeat yourself by also asking your
-    question to the user in other ways.
+    ALWAYS use the `ask_user` tool if you need to request any information from
+    the user. NEVER repeat yourself by also asking your question to the user in
+    other ways.
+
+    When you are done performing all the changes the user asked for, ALWAYS use
+    the `summarize_change` tool to describe what you have done. This should be
+    the last action you perform. NEVER stop responding to the user without
+    calling this tool first.
 """)
 
 
@@ -47,7 +53,9 @@ class _Bot(Bot):
             options = dataclasses.replace(
                 self._options,
                 cwd=tree_path,
-                mcp_servers={"feedback": _feedback_mcp_server(feedback)},
+                mcp_servers={
+                    "feedback": _feedback_mcp_server(feedback, summary),
+                },
             )
             async with sdk.ClaudeSDKClient(options) as client:
                 await client.query(goal.prompt)
@@ -81,17 +89,21 @@ def _token_count(usage: Mapping[str, Any]) -> int:
     )
 
 
+_text_suffix = re.compile(":$")
+
+
 def _notify(
     feedback: UserFeedback, content: str | list[sdk.ContentBlock]
 ) -> None:
     if isinstance(content, str):
         feedback.notify(content)
         return
-
     for block in content:
         match block:
             case sdk.TextBlock(text):
-                feedback.notify(text)
+                # Text blocks end with a colon by default (likely to look
+                # better in the default CLI), which looks off here.
+                feedback.notify(_text_suffix.sub(".", text))
             case sdk.ThinkingBlock(thinking, signature):
                 feedback.notify(thinking)
                 feedback.notify(signature)
@@ -101,10 +113,32 @@ def _notify(
                 raise UnreachableError()
 
 
-def _feedback_mcp_server(feedback: UserFeedback) -> sdk.McpServerConfig:
+def _feedback_mcp_server(
+    feedback: UserFeedback,
+    summary: ActionSummary,
+) -> sdk.McpServerConfig:
     @sdk.tool("ask_user", "Request feedback from the user", {"question": str})
     async def ask_user(args: Any) -> Any:
         question = args["question"]
         return {"content": [{"type": "text", "text": feedback.ask(question)}]}
 
-    return sdk.create_sdk_mcp_server(name="feedback", tools=[ask_user])
+    @sdk.tool(
+        "summarize_change",
+        reindent("""
+            Describe work performed in a format suitable for a git commit
+
+            The message should include a short title that fits on a single line
+            of 55 characters. This title should be followed by one or more
+            paragraphs which describe the change done. Avoid repeating
+            implementation details here, focus instead on non-obvious choices
+            that were made.
+        """),
+        {"commit_message": str},
+    )
+    async def summarize_change(args: Any) -> Any:
+        summary.message = args["commit_message"]
+        return {"content": [{"type": "text", "text": "Great, thank you."}]}
+
+    return sdk.create_sdk_mcp_server(
+        name="feedback", tools=[ask_user, summarize_change]
+    )

@@ -203,7 +203,7 @@ class Drafter:
         with self._progress.spinner("Creating draft commit...") as spinner:
             if dirty:
                 parent_commit_rev = self._commit_tree(
-                    tree.sha(), "HEAD", "sync(prompt)"
+                    tree.sha(), "HEAD", "sync(act)"
                 )
                 _logger.info(
                     "Created sync commit. [sha=%s]", parent_commit_rev
@@ -388,12 +388,16 @@ class Drafter:
         end_time = time.perf_counter()
 
         walltime = end_time - start_time
-        title = action.title or _default_title(goal.prompt)
+        message = (
+            reindent(action.message, width=72)
+            if action.message
+            else _default_message(goal.prompt)
+        )
         new_tree_sha = tree.sha()
         return _Change(
             walltime=timedelta(seconds=walltime),
             action=action,
-            commit_message=f"prompt: {title}\n\n{goal.prompt}",
+            commit_message=f"act: {message}",
             tree_sha=new_tree_sha,
             is_noop=new_tree_sha == old_tree_sha,
         )
@@ -535,5 +539,5 @@ def _format_event(event: Event) -> str:
             raise UnreachableError()
 
 
-def _default_title(prompt: str) -> str:
+def _default_message(prompt: str) -> str:
     return textwrap.shorten(prompt, break_on_hyphens=False, width=55)
