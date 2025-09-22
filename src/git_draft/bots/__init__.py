@@ -2,7 +2,6 @@
 
 from collections.abc import Sequence
 import importlib
-import os
 import sys
 
 from ..common import (
@@ -64,29 +63,16 @@ def _parse_overrides(overrides: Sequence[str]) -> JSONObject:
 
 
 def _default_bot(options: JSONObject) -> Bot:
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError(
-            reindent(
-                """
-                    The default bot implementation requires an OpenAI API key.
-                    Please specify one via the `$OPENAI_API_KEY` environment
-                    variable or enable a different bot in your configuration.
-                """
-            )
-        )
-
     try:
         from .openai_api import new_completions_bot
 
     except ImportError:
         raise RuntimeError(
-            reindent(
-                """
-                    The default bot implementation requires the `openai` Python
-                    package. Please install it or specify a different bot in
-                    your configuration.
-                """
-            )
+            reindent("""
+                The default bot implementation requires the `openai` Python
+                package. Please install it or specify a different bot in
+                your configuration.
+            """)
         )
     else:
         return new_completions_bot(**options)
