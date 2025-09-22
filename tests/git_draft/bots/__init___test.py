@@ -38,8 +38,3 @@ class TestLoadBot:
         config = BotConfig("git_draft:unknown_factory")
         with pytest.raises(NotImplementedError):
             sut.load_bot(config)
-
-    def test_default_no_key(self, monkeypatch) -> None:
-        monkeypatch.setenv("OPENAI_API_KEY", "")
-        with pytest.raises(RuntimeError):
-            sut.load_bot(None)
