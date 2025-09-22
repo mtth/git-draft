@@ -210,7 +210,9 @@ def find_prompt_metadata(name: PromptName) -> PromptMetadata | None:
     return prompt.metadata
 
 
-def list_templates(*, include_local: bool = True) -> Iterator[str]:
+def list_templates(
+    *, include_local: bool = True
+) -> Iterator[TemplateProperties]:
     env = _jinja_environment(include_local=include_local)
     worktree = EmptyWorktree()
     for rel_path in env.list_templates(extensions=[_extension]):
@@ -219,5 +221,14 @@ def list_templates(*, include_local: bool = True) -> Iterator[str]:
         name, _ext = os.path.splitext(rel_path)
         prompt = _load_prompt(env, name, worktree)
         metadata = prompt.metadata
-        local = "y" if metadata.is_local() else "n"
-        yield "\t".join([name, local, metadata.description or ""])
+        scope = "local" if metadata.is_local() else "global"
+        yield TemplateProperties(name, scope, metadata.description or "")
+
+
+@dataclasses.dataclass(frozen=True)
+class TemplateProperties:
+    """Prompt template formattable properties"""
+
+    name: str
+    scope: str
+    description: str
