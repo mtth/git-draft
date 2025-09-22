@@ -5,7 +5,13 @@ import importlib
 import os
 import sys
 
-from ..common import BotConfig, JSONObject, UnreachableError, reindent
+from ..common import (
+    BotConfig,
+    JSONObject,
+    JSONValue,
+    UnreachableError,
+    reindent,
+)
 from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
@@ -18,7 +24,9 @@ __all__ = [
 ]
 
 
-def load_bot(config: BotConfig | None, *, overrides: Sequence[str]=()) -> Bot:
+def load_bot(
+    config: BotConfig | None, *, overrides: Sequence[str] = ()
+) -> Bot:
     """Load and return a Bot instance using the provided configuration"""
     options = {**config.options} if config and config.options else {}
     options.update(_parse_overrides(overrides))
@@ -42,8 +50,8 @@ def load_bot(config: BotConfig | None, *, overrides: Sequence[str]=()) -> Bot:
     return factory(**options)
 
 
-def _parse_overrides(overrides: str) -> JSONObject:
-    options = {}
+def _parse_overrides(overrides: Sequence[str]) -> JSONObject:
+    options = dict[str, JSONValue]()
     for override in overrides:
         match override.split("=", 1):
             case [switch]:
