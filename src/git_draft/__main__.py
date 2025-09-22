@@ -225,8 +225,8 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
         case "list-events":
             draft_id = args[0] if args else None
             spec = opts.format or "{occurred_at}\t{description}"
-            for props in drafter.list_draft_events(draft_id):
-                print(_format(props, spec))
+            for event_props in drafter.list_draft_events(draft_id):
+                print(_format(event_props, spec))
         case "show-template":
             if len(args) != 1:
                 raise ValueError("Expected exactly one argument")
@@ -243,8 +243,8 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                 print(meta.source())
         case "list-templates":
             spec = opts.format or "{name}: {description}"
-            for props in list_templates():
-                print(_format(props, spec))
+            for template_props in list_templates():
+                print(_format(template_props, spec))
         case _:
             raise UnreachableError()
 
