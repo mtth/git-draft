@@ -1,10 +1,16 @@
 """Bot interfaces and built-in implementations"""
 
+from collections.abc import Sequence
 import importlib
-import os
 import sys
 
-from ..common import BotConfig, reindent
+from ..common import (
+    BotConfig,
+    JSONObject,
+    JSONValue,
+    UnreachableError,
+    reindent,
+)
 from .common import ActionSummary, Bot, Goal, UserFeedback, Worktree
 
 
@@ -17,10 +23,15 @@ __all__ = [
 ]
 
 
-def load_bot(config: BotConfig | None) -> Bot:
+def load_bot(
+    config: BotConfig | None, *, overrides: Sequence[str] = ()
+) -> Bot:
     """Load and return a Bot instance using the provided configuration"""
+    options = {**config.options} if config and config.options else {}
+    options.update(_parse_overrides(overrides))
+
     if not config:
-        return _default_bot()
+        return _default_bot(options)
 
     if config.pythonpath and config.pythonpath not in sys.path:
         sys.path.insert(0, config.pythonpath)
@@ -35,34 +46,33 @@ def load_bot(config: BotConfig | None) -> Bot:
     if not factory:
         raise NotImplementedError(f"Unknown bot factory: {config.factory}")
 
-    kwargs = config.kwargs or {}
-    return factory(**kwargs)
+    return factory(**options)
 
 
-def _default_bot() -> Bot:
-    if not os.environ.get("OPENAI_API_KEY"):
-        raise RuntimeError(
-            reindent(
-                """
-                    The default bot implementation requires an OpenAI API key.
-                    Please specify one via the `$OPENAI_API_KEY` environment
-                    variable or enable a different bot in your configuration.
-                """
-            )
-        )
+def _parse_overrides(overrides: Sequence[str]) -> JSONObject:
+    options = dict[str, JSONValue]()
+    for override in overrides:
+        match override.split("=", 1):
+            case [switch]:
+                options[switch] = True
+            case [flag, value]:
+                options[flag] = value
+            case _:
+                raise UnreachableError()
+    return options
 
+
+def _default_bot(options: JSONObject) -> Bot:
     try:
-        from .openai_api import new_threads_bot
+        from .openai_api import new_completions_bot
 
     except ImportError:
         raise RuntimeError(
-            reindent(
-                """
-                    The default bot implementation requires the `openai` Python
-                    package. Please install it or specify a different bot in
-                    your configuration.
-                """
-            )
+            reindent("""
+                The default bot implementation requires the `openai` Python
+                package. Please install it or specify a different bot in
+                your configuration.
+            """)
         )
     else:
-        return new_threads_bot()
+        return new_completions_bot(**options)

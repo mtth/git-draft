@@ -68,7 +68,7 @@ class BotConfig:
 
     factory: str
     name: str | None = None
-    kwargs: JSONObject | None = None
+    options: JSONObject | None = None
     pythonpath: str | None = None
 
 
