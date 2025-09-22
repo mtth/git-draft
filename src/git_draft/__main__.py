@@ -111,6 +111,13 @@ def _new_parser() -> optparse.OptionParser:
         help="AI bot name",
     )
     parser.add_option(
+        "-o",
+        "--bot-option",
+        action="append",
+        dest="bot_options",
+        help="AI bot options",
+    )
+    parser.add_option(
         "-e",
         "--edit",
         help="edit prompt or template",
@@ -193,7 +200,7 @@ async def run() -> None:  # noqa: PLR0912 PLR0915
                 bot_config = bot_configs[0]
             elif config.bots:
                 bot_config = config.bots[0]
-            bot = load_bot(bot_config)
+            bot = load_bot(bot_config, overrides=opts.bot_options)
 
             prompt: str | TemplatedPrompt
             if args:

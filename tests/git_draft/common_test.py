@@ -30,7 +30,7 @@ class TestConfig:
             [[bots]]
             name = "bar"
             factory = "bar"
-            kwargs = {one=1}
+            options = {one=1}
         """
         path = sut.Config.folder_path()
         path.mkdir(parents=True, exist_ok=True)
@@ -42,7 +42,7 @@ class TestConfig:
             log_level=logging.DEBUG,
             bots=[
                 sut.BotConfig(factory="foo:load", pythonpath="./abc"),
-                sut.BotConfig(factory="bar", name="bar", kwargs={"one": 1}),
+                sut.BotConfig(factory="bar", name="bar", options={"one": 1}),
             ],
         )
 
