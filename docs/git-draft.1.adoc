@@ -66,6 +66,12 @@ If a bot needs more information, its question will be persisted and displayed wh
 Set bot name.
 The default is to use the first bot defined in the configuration.
 
+-o OPTION::
+--bot-option=OPTION::
+Set bot option.
+Each option has the format `<key>[=<value>]` (if the value is omitted, it will default to true).
+This will override any option set in configuration files.
+
 -e::
 --edit::
 Enable interactive editing of draft prompts and templates.
