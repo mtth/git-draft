@@ -18,7 +18,7 @@ jobs:
     permissions:
       contents: write
     outputs:
-      new-version: ${{ steps.bump-version.outputs.new_version }}
+      new-version: ${{ steps.bump-version.outputs.new-version }}
     steps:
       - name: Check out
         uses: actions/checkout@v4
